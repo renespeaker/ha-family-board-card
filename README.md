@@ -6,8 +6,11 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Wochenansicht** – Wochentage als Zeilen, Personen als Spalten, kompakte Termin-Chips.
 - **Theme-aware** – übernimmt Farben und Schrift des aktiven Dashboard-Themes (nutzt durchgehend HA-CSS-Variablen).
 - **Konfigurierbar** – Zeitraster 15/30/60 min, Tagesfenster, Wochenende ein/aus, Einfärben nach Person oder Ort.
+- **Termine verwalten** – anlegen/bearbeiten/löschen direkt in der Karte, **aber nur** bei Kalendern, die das unterstützen (Local Calendar, CalDAV …). Schreibgeschützte Kalender (z. B. ICS-Abos) werden automatisch erkannt und nur angezeigt.
+- **Robuste Termin-Logik** – Ganztags-Events (Ende exklusiv), über Mitternacht laufende und mehrtägige Termine werden korrekt auf die Tage aufgeteilt; Zeitzonen werden berücksichtigt.
+- **Visueller Editor** – Personen inkl. Entity-Auswahl (`person.*`/`calendar.*`) komplett ohne YAML pflegbar.
 
-> Status: **v0.1 – Anzeige (read-only).** Termine anlegen/bearbeiten direkt in der Karte ist als nächster Meilenstein geplant.
+> Status: **v0.2 – Anzeige + Schreibzugriff.**
 
 ## Installation (HACS, Custom Repository)
 
@@ -71,10 +74,14 @@ npm run watch      # Rebuild bei Änderungen
 
 Schneller Loop gegen die laufende HA-Instanz: `dist/ha-family-board-card.js` nach `config/www/` kopieren und die Seite hart neu laden.
 
+## Termine anlegen / bearbeiten / löschen
+
+In der Tagesansicht eine freie Stelle in der Personenspalte anklicken (oder das **＋** im Spaltenkopf) öffnet den Dialog zum Anlegen; ein Klick auf einen Termin öffnet ihn zum Bearbeiten/Löschen. Ob das möglich ist, hängt vom Kalender ab: Die Karte liest `supported_features` der jeweiligen `calendar.*`-Entität und blendet Schreibaktionen aus, wenn der Kalender sie nicht unterstützt. Intern werden die WebSocket-Kommandos `calendar/event/create|update|delete` genutzt (dieselben wie die native HA-Kalenderoberfläche).
+
 ## Roadmap
 
-- [ ] Termine anlegen/bearbeiten/löschen (über `calendar.create_event` etc.), nur bei schreibbaren Kalendern
-- [ ] Personen-Editor im visuellen Config-Editor
+- [x] Termine anlegen/bearbeiten/löschen, nur bei schreibbaren Kalendern
+- [x] Personen-Editor im visuellen Config-Editor
 - [ ] Orts-/Konflikterkennung (z. B. „niemand zuhause", Abhol-Lücken)
 - [ ] Kiosk-/Wandtablet-Modus
 - [ ] Mehrsprachigkeit (i18n)
