@@ -1,0 +1,6 @@
+{
+  "name": "Family Board Card",
+  "filename": "ha-family-board-card.js",
+  "render_readme": true,
+  "homeassistant": "2024.1.0"
+}
