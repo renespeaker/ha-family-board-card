@@ -16,6 +16,3 @@ jobs:
       - uses: hacs/action@main
         with:
           category: plugin
-          # topics & description are set in the GitHub repo settings, not in
-          # the repo tree; ignore them here so PR CI reflects code health.
-          ignore: topics description
