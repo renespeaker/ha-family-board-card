@@ -6,19 +6,30 @@ import type {
   LovelaceCardConfig,
   LovelaceCardEditor,
 } from "custom-card-helpers";
+import {
+  RawEvent,
+  BoardEvent,
+  LaidOutEvent,
+  DAY_MS,
+  parseRawEvent,
+  splitIntoSegments,
+  layoutDayColumns,
+} from "./events";
+import { localize, formatMinutes, weekdayNames, formatWeekRange } from "./localize";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 interface PersonConfig {
   name?: string;
-  person?: string;   // person.* entity -> avatar (entity_picture) + live status
+  person?: string; // person.* entity -> avatar (entity_picture) + live status
   calendar?: string; // calendar.* entity -> events
-  color?: string;    // optional override; default falls back to a palette
+  color?: string; // optional override; default falls back to a palette
 }
 
 export interface FamilyBoardConfig extends LovelaceCardConfig {
   persons: PersonConfig[];
+  title?: string;
   view?: "day" | "week";
   time_grid?: 15 | 30 | 60;
   start_hour?: number;
@@ -26,36 +37,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   show_weekends?: boolean;
   show_now_line?: boolean;
   color_by?: "person" | "location";
-}
-
-/** A raw event as returned by HA, kept so we can edit/delete it. */
-interface RawEvent {
-  personIdx: number;
-  calendar: string;
-  uid?: string;
-  recurrence_id?: string;
-  summary: string;
-  description?: string;
-  location?: string;
-  allDay: boolean;
-  start: Date;      // absolute start
-  end: Date;        // absolute end (exclusive)
-  color: string;
-}
-
-/** A per-day display segment derived from a RawEvent. */
-interface BoardEvent {
-  ref: RawEvent;
-  personIdx: number;
-  day: number;       // 0 = Monday, within the current week
-  startMin: number;  // minutes from midnight of `day`
-  endMin: number;    // minutes from midnight of `day` (1440 = end of day)
-  title: string;
-  location?: string;
-  allDay: boolean;
-  color: string;
-  continuesBefore: boolean;
-  continuesAfter: boolean;
+  refresh_interval?: number; // seconds; 0 disables. default 300
 }
 
 /** State of the create/edit dialog. */
@@ -81,11 +63,17 @@ interface DialogState {
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 const FALLBACK_COLORS = [
-  "#8B7CF6", "#34D399", "#FBBF24", "#FB7185", "#22D3EE",
-  "#C084FC", "#A3E635", "#FB923C", "#F472B6", "#60A5FA",
+  "#8B7CF6",
+  "#34D399",
+  "#FBBF24",
+  "#FB7185",
+  "#22D3EE",
+  "#C084FC",
+  "#A3E635",
+  "#FB923C",
+  "#F472B6",
+  "#60A5FA",
 ];
-const DAYS_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const DAYS_FULL = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 const GRID_PX_PER_MIN: Record<number, number> = { 60: 0.95, 30: 1.25, 15: 1.7 };
 
 // CalendarEntityFeature bitmask (home-assistant/core)
@@ -93,11 +81,7 @@ const FEAT_CREATE = 1;
 const FEAT_DELETE = 2;
 const FEAT_UPDATE = 4;
 
-const DAY_MS = 86400000;
 const pad = (n: number) => String(n).padStart(2, "0");
-const fmt = (min: number) => `${pad(Math.floor(min / 60) % 24)}:${pad(min % 60)}`;
-const personColor = (p: PersonConfig, idx: number) =>
-  p.color || FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
 
 /** local Date -> "YYYY-MM-DDTHH:mm" for <input type=datetime-local> */
 const toLocalInput = (d: Date) =>
@@ -112,6 +96,9 @@ const startOfDay = (d: Date) => {
   return x;
 };
 
+const personColor = (p: PersonConfig, idx: number) =>
+  p.color || FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+
 /* ------------------------------------------------------------------ */
 /*  Card                                                               */
 /* ------------------------------------------------------------------ */
@@ -121,9 +108,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   @state() private _events: BoardEvent[] = [];
   @state() private _view: "day" | "week" = "day";
   @state() private _day: number = (new Date().getDay() + 6) % 7;
+  @state() private _weekOffset = 0;
   @state() private _dialog?: DialogState;
+  @state() private _loadError = false;
 
   private _fetchedKey = "";
+  private _timer?: number;
 
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
     await import("./editor");
@@ -153,10 +143,42 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     this._config = config;
     this._view = config.view ?? "day";
+    if (this.isConnected) this._startTimer();
   }
 
   public getCardSize(): number {
     return 12;
+  }
+
+  public connectedCallback(): void {
+    super.connectedCallback();
+    document.addEventListener("keydown", this._onKeyDown);
+    this._startTimer();
+  }
+
+  public disconnectedCallback(): void {
+    super.disconnectedCallback();
+    document.removeEventListener("keydown", this._onKeyDown);
+    this._stopTimer();
+  }
+
+  private _onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === "Escape" && this._dialog) {
+      e.stopPropagation();
+      this._closeDialog();
+    }
+  };
+
+  private _startTimer(): void {
+    this._stopTimer();
+    const s = this._config?.refresh_interval ?? 300;
+    if (s > 0) this._timer = window.setInterval(() => this._refetch(), s * 1000);
+  }
+  private _stopTimer(): void {
+    if (this._timer) {
+      clearInterval(this._timer);
+      this._timer = undefined;
+    }
   }
 
   protected updated(changed: PropertyValues): void {
@@ -170,7 +192,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const now = new Date();
     const monday = new Date(now);
     monday.setHours(0, 0, 0, 0);
-    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7) + this._weekOffset * 7);
     const nextMonday = new Date(monday);
     nextMonday.setDate(monday.getDate() + 7);
     return { monday, nextMonday };
@@ -185,7 +207,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     await this._fetchEvents();
   }
 
-  /** Force a refresh on next update (e.g. after a mutation). */
+  /** Force a refresh on next update (e.g. after a mutation or timer). */
   private async _refetch(): Promise<void> {
     this._fetchedKey = "";
     await this._maybeFetch();
@@ -196,6 +218,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const start = monday.toISOString();
     const end = nextMonday.toISOString();
     const out: BoardEvent[] = [];
+    let anyError = false;
 
     await Promise.all(
       this._config.persons.map(async (p, idx) => {
@@ -207,75 +230,16 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             `calendars/${p.calendar}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
           );
           for (const ev of events) {
-            const raw = this._toRawEvent(ev, idx, p.calendar, color);
-            if (raw) out.push(...this._segments(raw, monday));
+            const raw = parseRawEvent(ev, idx, p.calendar!, color);
+            if (raw) out.push(...splitIntoSegments(raw, monday));
           }
         } catch (err) {
-          // calendar might be unavailable; skip quietly
+          anyError = true;
         }
       }),
     );
     this._events = out;
-  }
-
-  /** Normalize a HA calendar API item into an absolute-time RawEvent. */
-  private _toRawEvent(ev: any, idx: number, calendar: string, color: string): RawEvent | null {
-    const allDay = !ev.start?.dateTime;
-    let start: Date;
-    let end: Date;
-    if (allDay) {
-      // All-day: dates are timezone-naive; end is EXCLUSIVE.
-      if (!ev.start?.date) return null;
-      start = new Date(`${ev.start.date}T00:00:00`);
-      end = ev.end?.date ? new Date(`${ev.end.date}T00:00:00`) : new Date(start.getTime() + DAY_MS);
-    } else {
-      start = new Date(ev.start.dateTime);
-      end = new Date(ev.end?.dateTime ?? ev.start.dateTime);
-    }
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
-    if (end.getTime() <= start.getTime()) end = new Date(start.getTime() + (allDay ? DAY_MS : 0) + 1);
-    return {
-      personIdx: idx,
-      calendar,
-      uid: ev.uid,
-      recurrence_id: ev.recurrence_id,
-      summary: ev.summary || "Termin",
-      description: ev.description,
-      location: ev.location,
-      allDay,
-      start,
-      end,
-      color,
-    };
-  }
-
-  /** Split a RawEvent into per-day display segments within the visible week. */
-  private _segments(raw: RawEvent, monday: Date): BoardEvent[] {
-    const segs: BoardEvent[] = [];
-    for (let d = 0; d < 7; d++) {
-      const dayStart = new Date(monday.getTime() + d * DAY_MS);
-      const dayEnd = new Date(dayStart.getTime() + DAY_MS);
-      // overlap of [start,end) with [dayStart,dayEnd)
-      const segStartMs = Math.max(raw.start.getTime(), dayStart.getTime());
-      const segEndMs = Math.min(raw.end.getTime(), dayEnd.getTime());
-      if (segEndMs <= segStartMs) continue;
-      const startMin = raw.allDay ? 0 : Math.round((segStartMs - dayStart.getTime()) / 60000);
-      const endMin = raw.allDay ? 1440 : Math.round((segEndMs - dayStart.getTime()) / 60000);
-      segs.push({
-        ref: raw,
-        personIdx: raw.personIdx,
-        day: d,
-        startMin,
-        endMin: Math.min(endMin, 1440),
-        title: raw.summary,
-        location: raw.location,
-        allDay: raw.allDay,
-        color: raw.color,
-        continuesBefore: raw.start.getTime() < dayStart.getTime(),
-        continuesAfter: raw.end.getTime() > dayEnd.getTime(),
-      });
-    }
-    return segs;
+    this._loadError = anyError && out.length === 0;
   }
 
   /* ---- capabilities -------------------------------------------- */
@@ -310,10 +274,21 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private get _visibleDays(): number[] {
     return this._config.show_weekends === false ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6];
   }
-  private _timedFor(day: number, idx: number): BoardEvent[] {
-    return this._events
-      .filter((e) => e.day === day && e.personIdx === idx && !e.allDay)
-      .sort((a, b) => a.startMin - b.startMin);
+  private _t(key: string): string {
+    return localize(this.hass, key);
+  }
+  /** Color for an event respecting the color_by option. */
+  private _eventColor(e: BoardEvent): string {
+    if (this._config.color_by === "location" && e.location) {
+      let h = 0;
+      for (let i = 0; i < e.location.length; i++) h = (h * 31 + e.location.charCodeAt(i)) >>> 0;
+      return FALLBACK_COLORS[h % FALLBACK_COLORS.length];
+    }
+    return e.color;
+  }
+  private _timedFor(day: number, idx: number): LaidOutEvent[] {
+    const evs = this._events.filter((e) => e.day === day && e.personIdx === idx && !e.allDay);
+    return layoutDayColumns(evs);
   }
   private _allDayFor(day: number, idx: number): BoardEvent[] {
     return this._events.filter((e) => e.day === day && e.personIdx === idx && e.allDay);
@@ -323,32 +298,69 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       .filter((e) => e.day === day && e.personIdx === idx)
       .sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.startMin - b.startMin);
   }
-  /** Monday-based weekday index -> absolute Date in current week. */
+  /** Monday-based weekday index -> absolute Date in the shown week. */
   private _dateForDay(day: number): Date {
     const { monday } = this._weekBounds();
     return new Date(monday.getTime() + day * DAY_MS);
+  }
+  private _isRealToday(day: number): boolean {
+    return this._weekOffset === 0 && day === (new Date().getDay() + 6) % 7;
+  }
+  private _personName(p: PersonConfig, idx: number): string {
+    return (
+      p.name || this.hass.states[p.person ?? ""]?.attributes?.friendly_name || `Person ${idx + 1}`
+    );
   }
   private _avatar(p: PersonConfig, idx: number) {
     const color = personColor(p, idx);
     const st = p.person ? this.hass.states[p.person] : undefined;
     const pic = st?.attributes?.entity_picture as string | undefined;
-    const name = p.name || st?.attributes?.friendly_name || `Person ${idx + 1}`;
+    const name = this._personName(p, idx);
     const initials = name.slice(0, 2).toUpperCase();
     return pic
-      ? html`<div class="avatar" style="background-image:url('${pic}');box-shadow:0 0 0 2px ${color}55"></div>`
+      ? html`<div
+          class="avatar"
+          style="background-image:url('${pic}');box-shadow:0 0 0 2px ${color}55"
+        ></div>`
       : html`<div class="avatar initials" style="background:${color}">${initials}</div>`;
   }
+
+  private _prevWeek = () => {
+    this._weekOffset -= 1;
+  };
+  private _nextWeek = () => {
+    this._weekOffset += 1;
+  };
+  private _thisWeek = () => {
+    this._weekOffset = 0;
+    this._day = (new Date().getDay() + 6) % 7;
+  };
 
   /* ---- render -------------------------------------------------- */
   protected render() {
     if (!this._config || !this.hass) return nothing;
+    const title = this._config.title ?? this._t("board_title");
     return html`
       <ha-card>
         <div class="top">
-          <div class="title">Familienplan</div>
-          <div class="switch">
-            <button class=${this._view === "day" ? "on" : ""} @click=${() => (this._view = "day")}>Tag</button>
-            <button class=${this._view === "week" ? "on" : ""} @click=${() => (this._view = "week")}>Woche</button>
+          <div class="title">${title}</div>
+          <div class="switch" role="tablist">
+            <button
+              role="tab"
+              aria-selected=${this._view === "day"}
+              class=${this._view === "day" ? "on" : ""}
+              @click=${() => (this._view = "day")}
+            >
+              ${this._t("day")}
+            </button>
+            <button
+              role="tab"
+              aria-selected=${this._view === "week"}
+              class=${this._view === "week" ? "on" : ""}
+              @click=${() => (this._view = "week")}
+            >
+              ${this._t("week")}
+            </button>
           </div>
         </div>
         ${this._view === "day" ? this._renderDay() : this._renderWeek()}
@@ -357,16 +369,32 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     `;
   }
 
-  private _renderDayTabs() {
+  private _weekNav() {
+    const { monday } = this._weekBounds();
     return html`
-      <div class="tabs">
+      <div class="weeknav">
+        <button class="nav" aria-label=${this._t("prev_week")} @click=${this._prevWeek}>‹</button>
+        <button class="nav-now" @click=${this._thisWeek}>
+          ${formatWeekRange(this.hass, monday)}
+        </button>
+        <button class="nav" aria-label=${this._t("next_week")} @click=${this._nextWeek}>›</button>
+      </div>
+    `;
+  }
+
+  private _renderDayTabs() {
+    const short = weekdayNames(this.hass, "short");
+    return html`
+      <div class="tabs" role="tablist">
         ${this._visibleDays.map(
           (d) => html`
             <button
-              class=${d === this._day ? "on" : ""}
+              role="tab"
+              aria-selected=${d === this._day}
+              class="${d === this._day ? "on" : ""} ${this._isRealToday(d) ? "today" : ""}"
               @click=${() => (this._day = d)}
             >
-              ${DAYS_SHORT[d]}
+              ${short[d]}
             </button>
           `,
         )}
@@ -380,36 +408,42 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const startMin = this._startMin;
     const endMin = this._endMin;
     const height = (endMin - startMin) * px;
+    const full = weekdayNames(this.hass, "long");
 
     const hours: number[] = [];
     for (let h = startMin / 60; h <= endMin / 60; h++) hours.push(h);
 
-    const realToday = (new Date().getDay() + 6) % 7;
     const now = new Date();
     const nowMin = Math.max(startMin, Math.min(endMin, now.getHours() * 60 + now.getMinutes()));
-    const showNow = this._config.show_now_line !== false && day === realToday;
+    const showNow = this._config.show_now_line !== false && this._isRealToday(day);
     const hasAllDay = this._persons.some((_, i) => this._allDayFor(day, i).length > 0);
 
     return html`
       <div class="dayhead">
-        <span class="dayname">${DAYS_FULL[day]}</span>
-        ${this._renderDayTabs()}
+        <span class="dayname">${full[day]}</span>
+        ${this._weekNav()}
       </div>
+      ${this._renderDayTabs()}
+      ${this._loadError ? html`<div class="banner">${this._t("load_error")}</div>` : nothing}
       <div class="board">
         <div class="header-row">
           <div class="axis-spacer"></div>
           ${this._persons.map((p, i) => {
-            const name = p.name || this.hass.states[p.person ?? ""]?.attributes?.friendly_name || `Person ${i + 1}`;
             const stateObj = p.person ? this.hass.states[p.person] : undefined;
             const canCreate = this._canCreate(p.calendar);
             return html`
               <div class="phead">
                 ${this._avatar(p, i)}
-                <div class="pname">${name}</div>
+                <div class="pname">${this._personName(p, i)}</div>
                 <div class="pstatus">${stateObj ? this._statusLabel(stateObj.state) : ""}</div>
                 ${canCreate
-                  ? html`<button class="addbtn" title="Termin hinzufügen"
-                      @click=${() => this._openCreate(i, day)}>＋</button>`
+                  ? html`<button
+                      class="addbtn"
+                      aria-label=${this._t("add_event")}
+                      @click=${() => this._openCreate(i, day)}
+                    >
+                      ＋
+                    </button>`
                   : nothing}
               </div>
             `;
@@ -418,26 +452,39 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         ${hasAllDay
           ? html`
               <div class="allday-row">
-                <div class="axis-spacer allday-label">ganztägig</div>
-                ${this._persons.map((p, i) => html`
-                  <div class="allday-cell">
-                    ${this._allDayFor(day, i).map(
-                      (e) => html`
-                        <div class="adchip" style="border-left:3px solid ${e.color};background:${e.color}22"
-                          title="${e.title}" @click=${() => this._openEvent(e)}>
-                          ${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter ? " »" : ""}
-                        </div>
-                      `,
-                    )}
-                  </div>
-                `)}
+                <div class="axis-spacer allday-label">${this._t("all_day")}</div>
+                ${this._persons.map(
+                  (p, i) => html`
+                    <div class="allday-cell">
+                      ${this._allDayFor(day, i).map((e) => {
+                        const c = this._eventColor(e);
+                        return html`
+                          <div
+                            class="adchip"
+                            style="border-left:3px solid ${c};background:${c}22"
+                            title="${e.title}"
+                            tabindex="0"
+                            @click=${() => this._openEvent(e)}
+                          >
+                            ${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter
+                              ? " »"
+                              : ""}
+                          </div>
+                        `;
+                      })}
+                    </div>
+                  `,
+                )}
               </div>
             `
           : nothing}
         <div class="body" style="height:${height}px">
           <div class="axis">
             ${hours.map(
-              (h) => html`<div class="hour" style="top:${(h * 60 - startMin) * px}px">${pad(h)}:00</div>`,
+              (h) =>
+                html`<div class="hour" style="top:${(h * 60 - startMin) * px}px">
+                  ${pad(h)}:00
+                </div>`,
             )}
           </div>
           ${this._persons.map((p, i) => {
@@ -449,24 +496,43 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 @click=${(ev: MouseEvent) => this._onColClick(ev, i, day, px, startMin)}
                 style="background-image:
                   repeating-linear-gradient(var(--divider-color,#8884) 0 1px, transparent 1px ${gridPx}px),
-                  repeating-linear-gradient(var(--divider-color,#8888) 0 1px, transparent 1px ${60 * px}px)"
+                  repeating-linear-gradient(var(--divider-color,#8888) 0 1px, transparent 1px ${60 *
+                px}px)"
               >
                 ${this._timedFor(day, i)
                   .filter((e) => e.endMin > startMin && e.startMin < endMin)
                   .map((e) => {
                     const top = (e.startMin - startMin) * px;
                     const h = Math.max((e.endMin - e.startMin) * px - 3, 16);
-                    const c = e.color;
+                    const c = this._eventColor(e);
+                    const leftPct = (e.col / e.cols) * 100;
+                    const widthPct = 100 / e.cols;
                     return html`
                       <div
                         class="event"
-                        @click=${(ev: MouseEvent) => { ev.stopPropagation(); this._openEvent(e); }}
-                        style="top:${top + 1.5}px;height:${h}px;border-left:3px solid ${c};
+                        tabindex="0"
+                        @click=${(ev: MouseEvent) => {
+                          ev.stopPropagation();
+                          this._openEvent(e);
+                        }}
+                        style="top:${top + 1.5}px;height:${h}px;
+                               left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);
+                               border-left:3px solid ${c};
                                background:linear-gradient(135deg, ${c}30, ${c}1a)"
-                        title="${e.title} · ${fmt(e.startMin)}–${fmt(e.endMin)}"
+                        title="${e.title} · ${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
+                          this.hass,
+                          e.endMin,
+                        )}"
                       >
                         <span class="etitle">${e.continuesBefore ? "« " : ""}${e.title}</span>
-                        ${h > 32 ? html`<span class="etime">${fmt(e.startMin)}–${fmt(e.endMin)}</span>` : nothing}
+                        ${h > 32
+                          ? html`<span class="etime"
+                              >${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
+                                this.hass,
+                                e.endMin,
+                              )}</span
+                            >`
+                          : nothing}
                       </div>
                     `;
                   })}
@@ -474,7 +540,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             `;
           })}
           ${showNow
-            ? html`<div class="nowline" style="top:${(nowMin - startMin) * px}px"><span>${fmt(nowMin)}</span></div>`
+            ? html`<div class="nowline" style="top:${(nowMin - startMin) * px}px">
+                <span>${formatMinutes(this.hass, nowMin)}</span>
+              </div>`
             : nothing}
         </div>
       </div>
@@ -482,33 +550,50 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private _renderWeek() {
-    const realToday = (new Date().getDay() + 6) % 7;
+    const short = weekdayNames(this.hass, "short");
     const cols = `70px repeat(${this._persons.length}, minmax(110px, 1fr))`;
     return html`
-      <div class="weekhead"><span class="dayname">Diese Woche</span></div>
+      <div class="weekhead">${this._weekNav()}</div>
       <div class="weekwrap">
         <div class="weekgrid" style="grid-template-columns:${cols}">
           <div class="corner"></div>
           ${this._persons.map(
-            (p, i) => html`<div class="wphead">${this._avatar(p, i)}<span>${p.name || `Person ${i + 1}`}</span></div>`,
+            (p, i) =>
+              html`<div class="wphead">
+                ${this._avatar(p, i)}<span>${this._personName(p, i)}</span>
+              </div>`,
           )}
           ${this._visibleDays.map(
             (d) => html`
-              <div class="wday ${d === realToday ? "today" : ""}">
-                <b>${DAYS_SHORT[d]}</b>
+              <div class="wday ${this._isRealToday(d) ? "today" : ""}">
+                <b>${short[d]}</b>
               </div>
               ${this._persons.map((p, i) => {
                 const canCreate = this._canCreate(p.calendar);
                 return html`
-                  <div class="wcell ${d === realToday ? "today" : ""} ${canCreate ? "creatable" : ""}"
-                    @click=${() => canCreate && this._openCreate(i, d)}>
+                  <div
+                    class="wcell ${this._isRealToday(d) ? "today" : ""} ${canCreate
+                      ? "creatable"
+                      : ""}"
+                    @click=${() => canCreate && this._openCreate(i, d)}
+                  >
                     ${this._eventsFor(d, i).map((e) => {
-                      const c = e.color;
+                      const c = this._eventColor(e);
                       return html`
-                        <div class="wchip" style="border-left:2.5px solid ${c};background:${c}22" title="${e.title}"
-                          @click=${(ev: MouseEvent) => { ev.stopPropagation(); this._openEvent(e); }}>
+                        <div
+                          class="wchip"
+                          style="border-left:2.5px solid ${c};background:${c}22"
+                          title="${e.title}"
+                          tabindex="0"
+                          @click=${(ev: MouseEvent) => {
+                            ev.stopPropagation();
+                            this._openEvent(e);
+                          }}
+                        >
                           <span>${e.continuesBefore ? "« " : ""}${e.title}</span>
-                          ${!e.allDay ? html`<small>${fmt(e.startMin)}</small>` : nothing}
+                          ${!e.allDay
+                            ? html`<small>${formatMinutes(this.hass, e.startMin)}</small>`
+                            : nothing}
                         </div>
                       `;
                     })}
@@ -523,13 +608,20 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private _statusLabel(state: string): string {
-    if (state === "home") return "zuhause";
-    if (state === "not_home") return "unterwegs";
+    if (state === "home") return this._t("status_home");
+    if (state === "not_home") return this._t("status_away");
+    if (state === "unknown" || state === "unavailable") return "–";
     return state;
   }
 
   /* ---- create / edit / delete ---------------------------------- */
-  private _onColClick(ev: MouseEvent, idx: number, day: number, px: number, startMin: number): void {
+  private _onColClick(
+    ev: MouseEvent,
+    idx: number,
+    day: number,
+    px: number,
+    startMin: number,
+  ): void {
     const p = this._persons[idx];
     if (!this._canCreate(p.calendar)) return;
     const target = ev.currentTarget as HTMLElement;
@@ -565,7 +657,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private _openEvent(e: BoardEvent): void {
-    const raw = e.ref;
+    const raw: RawEvent = e.ref;
     const cal = raw.calendar;
     const canUpdate = this._canUpdate(cal) && !!raw.uid;
     const canDelete = this._canDelete(cal) && !!raw.uid;
@@ -583,9 +675,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       allDay: raw.allDay,
       start: raw.allDay ? toLocalDate(raw.start) : toLocalInput(raw.start),
       // all-day end is exclusive in HA; show the inclusive last day to the user
-      end: raw.allDay
-        ? toLocalDate(new Date(raw.end.getTime() - DAY_MS))
-        : toLocalInput(raw.end),
+      end: raw.allDay ? toLocalDate(new Date(raw.end.getTime() - DAY_MS)) : toLocalInput(raw.end),
     };
   }
 
@@ -598,21 +688,32 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (!this._dialog) return;
     const d = this._dialog;
     if (allDay && !d.allDay) {
-      this._dialog = { ...d, allDay, start: d.start.slice(0, 10), end: d.end.slice(0, 10), error: undefined };
+      this._dialog = {
+        ...d,
+        allDay,
+        start: d.start.slice(0, 10),
+        end: d.end.slice(0, 10),
+        error: undefined,
+      };
     } else if (!allDay && d.allDay) {
-      this._dialog = { ...d, allDay, start: `${d.start}T09:00`, end: `${d.end}T10:00`, error: undefined };
+      this._dialog = {
+        ...d,
+        allDay,
+        start: `${d.start}T09:00`,
+        end: `${d.end}T10:00`,
+        error: undefined,
+      };
     }
   }
 
   /** Build the event payload expected by calendar/event/* WS commands. */
   private _buildPayload(d: DialogState): Record<string, string> {
-    const ev: Record<string, string> = { summary: d.summary.trim() || "Termin" };
+    const ev: Record<string, string> = { summary: d.summary.trim() || this._t("default_title") };
     if (d.location.trim()) ev.location = d.location.trim();
     if (d.description.trim()) ev.description = d.description.trim();
     if (d.allDay) {
-      // end date is exclusive -> last selected day + 1
       const endExcl = new Date(`${d.end}T00:00:00`);
-      endExcl.setDate(endExcl.getDate() + 1);
+      endExcl.setDate(endExcl.getDate() + 1); // end date is exclusive
       ev.dtstart = d.start;
       ev.dtend = toLocalDate(endExcl);
     } else {
@@ -625,9 +726,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _validate(d: DialogState): string | null {
     const s = d.allDay ? new Date(`${d.start}T00:00:00`) : new Date(d.start);
     const e = d.allDay ? new Date(`${d.end}T00:00:00`) : new Date(d.end);
-    if (isNaN(s.getTime()) || isNaN(e.getTime())) return "Bitte gültige Zeiten angeben.";
-    if (e.getTime() < s.getTime()) return "Ende liegt vor dem Start.";
-    if (!d.allDay && e.getTime() === s.getTime()) return "Ende muss nach dem Start liegen.";
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return this._t("err_invalid");
+    if (e.getTime() < s.getTime()) return this._t("err_end_before");
+    if (!d.allDay && e.getTime() === s.getTime()) return this._t("err_end_equal");
     return null;
   }
 
@@ -657,7 +758,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._dialog = undefined;
       await this._refetch();
     } catch (e: any) {
-      this._dialog = { ...d, busy: false, error: e?.message || "Speichern fehlgeschlagen." };
+      this._dialog = { ...d, busy: false, error: e?.message || this._t("save_failed") };
     }
   }
 
@@ -676,7 +777,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._dialog = undefined;
       await this._refetch();
     } catch (e: any) {
-      this._dialog = { ...d, busy: false, error: e?.message || "Löschen fehlgeschlagen." };
+      this._dialog = { ...d, busy: false, error: e?.message || this._t("delete_failed") };
     }
   }
 
@@ -687,68 +788,111 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _renderDialog() {
     const d = this._dialog!;
     const readOnly = d.mode === "edit" && !d.canUpdate;
-    const calName =
-      this.hass.states[d.calendar]?.attributes?.friendly_name || d.calendar;
+    const calName = this.hass.states[d.calendar]?.attributes?.friendly_name || d.calendar;
+    const heading =
+      d.mode === "create"
+        ? this._t("new_event")
+        : readOnly
+          ? this._t("event")
+          : this._t("edit_event");
     return html`
-      <div class="overlay" @click=${(e: MouseEvent) => { if (e.target === e.currentTarget) this._closeDialog(); }}>
-        <div class="dialog" role="dialog" aria-modal="true">
+      <div
+        class="overlay"
+        @click=${(e: MouseEvent) => {
+          if (e.target === e.currentTarget) this._closeDialog();
+        }}
+      >
+        <div class="dialog" role="dialog" aria-modal="true" aria-label=${heading}>
           <div class="dlg-head">
-            <span>${d.mode === "create" ? "Neuer Termin" : readOnly ? "Termin" : "Termin bearbeiten"}</span>
-            <button class="icon" @click=${this._closeDialog} title="Schließen">✕</button>
+            <span>${heading}</span>
+            <button class="icon" aria-label=${this._t("close")} @click=${this._closeDialog}>
+              ✕
+            </button>
           </div>
           <div class="dlg-cal">${calName}</div>
 
           <label class="fld">
-            <span>Titel</span>
-            <input type="text" .value=${d.summary} ?disabled=${readOnly}
-              @input=${(e: Event) => this._dlgField("summary", (e.target as HTMLInputElement).value)} />
+            <span>${this._t("field_title")}</span>
+            <input
+              type="text"
+              .value=${d.summary}
+              ?disabled=${readOnly}
+              autofocus
+              @input=${(e: Event) =>
+                this._dlgField("summary", (e.target as HTMLInputElement).value)}
+            />
           </label>
 
           <label class="chk">
-            <input type="checkbox" .checked=${d.allDay} ?disabled=${readOnly}
-              @change=${(e: Event) => this._toggleAllDay((e.target as HTMLInputElement).checked)} />
-            <span>Ganztägig</span>
+            <input
+              type="checkbox"
+              .checked=${d.allDay}
+              ?disabled=${readOnly}
+              @change=${(e: Event) => this._toggleAllDay((e.target as HTMLInputElement).checked)}
+            />
+            <span>${this._t("field_all_day")}</span>
           </label>
 
           <div class="row">
             <label class="fld">
-              <span>Start</span>
-              <input type=${d.allDay ? "date" : "datetime-local"} .value=${d.start} ?disabled=${readOnly}
-                @input=${(e: Event) => this._dlgField("start", (e.target as HTMLInputElement).value)} />
+              <span>${this._t("field_start")}</span>
+              <input
+                type=${d.allDay ? "date" : "datetime-local"}
+                .value=${d.start}
+                ?disabled=${readOnly}
+                @input=${(e: Event) =>
+                  this._dlgField("start", (e.target as HTMLInputElement).value)}
+              />
             </label>
             <label class="fld">
-              <span>Ende</span>
-              <input type=${d.allDay ? "date" : "datetime-local"} .value=${d.end} ?disabled=${readOnly}
-                @input=${(e: Event) => this._dlgField("end", (e.target as HTMLInputElement).value)} />
+              <span>${this._t("field_end")}</span>
+              <input
+                type=${d.allDay ? "date" : "datetime-local"}
+                .value=${d.end}
+                ?disabled=${readOnly}
+                @input=${(e: Event) => this._dlgField("end", (e.target as HTMLInputElement).value)}
+              />
             </label>
           </div>
 
           <label class="fld">
-            <span>Ort</span>
-            <input type="text" .value=${d.location} ?disabled=${readOnly}
-              @input=${(e: Event) => this._dlgField("location", (e.target as HTMLInputElement).value)} />
+            <span>${this._t("field_location")}</span>
+            <input
+              type="text"
+              .value=${d.location}
+              ?disabled=${readOnly}
+              @input=${(e: Event) =>
+                this._dlgField("location", (e.target as HTMLInputElement).value)}
+            />
           </label>
 
           <label class="fld">
-            <span>Notiz</span>
-            <textarea rows="2" .value=${d.description} ?disabled=${readOnly}
-              @input=${(e: Event) => this._dlgField("description", (e.target as HTMLTextAreaElement).value)}></textarea>
+            <span>${this._t("field_note")}</span>
+            <textarea
+              rows="2"
+              .value=${d.description}
+              ?disabled=${readOnly}
+              @input=${(e: Event) =>
+                this._dlgField("description", (e.target as HTMLTextAreaElement).value)}
+            ></textarea>
           </label>
 
-          ${readOnly
-            ? html`<div class="ro-note">Dieser Kalender ist schreibgeschützt.</div>`
-            : nothing}
+          ${readOnly ? html`<div class="ro-note">${this._t("read_only")}</div>` : nothing}
           ${d.error ? html`<div class="dlg-error">${d.error}</div>` : nothing}
 
           <div class="dlg-actions">
             ${d.mode === "edit" && d.canDelete
-              ? html`<button class="danger" ?disabled=${d.busy} @click=${this._deleteDialog}>Löschen</button>`
+              ? html`<button class="danger" ?disabled=${d.busy} @click=${this._deleteDialog}>
+                  ${this._t("delete")}
+                </button>`
               : nothing}
             <span class="spacer"></span>
-            <button class="ghost" ?disabled=${d.busy} @click=${this._closeDialog}>Abbrechen</button>
+            <button class="ghost" ?disabled=${d.busy} @click=${this._closeDialog}>
+              ${this._t("cancel")}
+            </button>
             ${!readOnly
               ? html`<button class="primary" ?disabled=${d.busy} @click=${this._saveDialog}>
-                  ${d.busy ? "…" : "Speichern"}
+                  ${d.busy ? "…" : this._t("save")}
                 </button>`
               : nothing}
           </div>
@@ -760,7 +904,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   /* ---- styles (theme-aware) ------------------------------------ */
   static styles = css`
     :host {
-      /* inherit dashboard font; fall back to HA body font */
       font-family: var(--ha-font-family-body, var(--mdc-typography-font-family, inherit));
     }
     ha-card {
@@ -803,6 +946,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--text-primary-color, #fff);
       font-weight: 600;
     }
+    .tabs button.today:not(.on) {
+      box-shadow: inset 0 -2px 0 var(--primary-color);
+    }
+    .tabs {
+      margin: 8px 16px 0;
+      flex-wrap: wrap;
+    }
     .dayhead,
     .weekhead {
       display: flex;
@@ -817,9 +967,43 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       font-weight: 600;
       font-size: 15px;
     }
+    .weeknav {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .nav,
+    .nav-now {
+      border: none;
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      border-radius: 7px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 13px;
+      padding: 5px 10px;
+    }
+    .nav {
+      font-size: 16px;
+      line-height: 1;
+      padding: 4px 9px;
+    }
+    .nav-now {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .banner {
+      margin: 8px 16px 0;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      color: var(--text-primary-color, #fff);
+      background: var(--error-color, #ff5252);
+    }
     .board {
       max-height: 58vh;
       overflow: auto;
+      margin-top: 8px;
     }
     .header-row {
       display: flex;
@@ -953,8 +1137,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .event {
       position: absolute;
-      left: 4px;
-      right: 4px;
       border-radius: 7px;
       padding: 4px 7px;
       overflow: hidden;
@@ -1080,6 +1262,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       font-size: 8.5px;
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
+    }
+    /* focus visibility for a11y */
+    button:focus-visible,
+    .event:focus-visible,
+    .wchip:focus-visible,
+    .adchip:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 1px;
     }
     /* dialog */
     .overlay {
@@ -1216,7 +1406,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   `;
 }
 
-customElements.define("family-board-card", FamilyBoardCard);
+if (!customElements.get("family-board-card")) {
+  customElements.define("family-board-card", FamilyBoardCard);
+}
 
 // register in the card picker
 (window as any).customCards = (window as any).customCards || [];
@@ -1228,4 +1420,8 @@ customElements.define("family-board-card", FamilyBoardCard);
   documentationURL: "https://github.com/renespeaker/ha-family-board-card",
 });
 
-console.info("%c FAMILY-BOARD-CARD %c v0.2.0 ", "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px", "background:#222;color:#fff;border-radius:0 3px 3px 0");
+console.info(
+  "%c FAMILY-BOARD-CARD %c v0.3.0 ",
+  "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
+  "background:#222;color:#fff;border-radius:0 3px 3px 0",
+);
