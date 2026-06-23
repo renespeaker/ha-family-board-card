@@ -11,19 +11,57 @@ interface PersonConfig {
 }
 
 const SETTINGS_SCHEMA = [
-  { name: "view", selector: { select: { mode: "dropdown", options: [
-    { value: "day", label: "Tag" }, { value: "week", label: "Woche" }] } } },
-  { name: "time_grid", selector: { select: { mode: "dropdown", options: [
-    { value: "60", label: "60 min" }, { value: "30", label: "30 min" }, { value: "15", label: "15 min" }] } } },
+  { name: "title", selector: { text: {} } },
+  {
+    name: "view",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "day", label: "Tag" },
+          { value: "week", label: "Woche" },
+        ],
+      },
+    },
+  },
+  {
+    name: "time_grid",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "60", label: "60 min" },
+          { value: "30", label: "30 min" },
+          { value: "15", label: "15 min" },
+        ],
+      },
+    },
+  },
   { name: "start_hour", selector: { number: { min: 0, max: 23, mode: "box" } } },
   { name: "end_hour", selector: { number: { min: 1, max: 24, mode: "box" } } },
-  { name: "color_by", selector: { select: { mode: "dropdown", options: [
-    { value: "person", label: "Person" }, { value: "location", label: "Ort" }] } } },
+  {
+    name: "color_by",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "person", label: "Person" },
+          { value: "location", label: "Ort" },
+        ],
+      },
+    },
+  },
   { name: "show_weekends", selector: { boolean: {} } },
   { name: "show_now_line", selector: { boolean: {} } },
+  {
+    name: "refresh_interval",
+    selector: { number: { min: 0, max: 3600, mode: "box", unit_of_measurement: "s" } },
+  },
 ];
 
 const LABELS: Record<string, string> = {
+  title: "Kartentitel",
+  refresh_interval: "Auto-Aktualisierung (Sek., 0 = aus)",
   view: "Standardansicht",
   time_grid: "Zeitraster",
   start_hour: "Startstunde",
@@ -121,12 +159,29 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
               <div class="person-head">
                 <span class="pidx">${p.name || `Person ${idx + 1}`}</span>
                 <div class="ptools">
-                  <button class="icon" title="Nach oben" ?disabled=${idx === 0}
-                    @click=${() => this._movePerson(idx, -1)}>↑</button>
-                  <button class="icon" title="Nach unten" ?disabled=${idx === persons.length - 1}
-                    @click=${() => this._movePerson(idx, 1)}>↓</button>
-                  <button class="icon danger" title="Entfernen"
-                    @click=${() => this._removePerson(idx)}>✕</button>
+                  <button
+                    class="icon"
+                    title="Nach oben"
+                    ?disabled=${idx === 0}
+                    @click=${() => this._movePerson(idx, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    class="icon"
+                    title="Nach unten"
+                    ?disabled=${idx === persons.length - 1}
+                    @click=${() => this._movePerson(idx, 1)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    class="icon danger"
+                    title="Entfernen"
+                    @click=${() => this._removePerson(idx)}
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
               <ha-form
