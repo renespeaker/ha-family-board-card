@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540" font-family="-apple-system, Segoe UI, Roboto, sans-serif">
+  <!-- card -->
+  <rect x="10" y="10" width="880" height="520" rx="16" fill="#ffffff" stroke="#e3e6ec"/>
+
+  <!-- top bar -->
+  <text x="32" y="46" font-size="18" font-weight="700" fill="#1b1f27">Familienplan</text>
+  <rect x="718" y="24" width="152" height="32" rx="9" fill="#eef0f5"/>
+  <rect x="722" y="28" width="72" height="24" rx="7" fill="#5B8CFF"/>
+  <text x="758" y="45" font-size="13" font-weight="600" fill="#ffffff" text-anchor="middle">Tag</text>
+  <text x="832" y="45" font-size="13" font-weight="600" fill="#8a909c" text-anchor="middle">Woche</text>
+  <line x1="10" y1="68" x2="890" y2="68" stroke="#e3e6ec"/>
+
+  <!-- day header + tabs -->
+  <text x="32" y="98" font-size="15" font-weight="700" fill="#1b1f27">Mittwoch</text>
+  <g font-size="12" font-weight="600" text-anchor="middle">
+    <rect x="566" y="80" width="38" height="24" rx="7" fill="#5B8CFF"/>
+    <text x="585" y="96" fill="#ffffff">Mi</text>
+    <text x="546" y="96" fill="#8a909c">Di</text>
+    <text x="526" y="96" fill="#8a909c">Mo</text>
+    <text x="624" y="96" fill="#8a909c">Do</text>
+    <text x="644" y="96" fill="#8a909c">Fr</text>
+    <text x="664" y="96" fill="#8a909c">Sa</text>
+    <text x="684" y="96" fill="#8a909c">So</text>
+  </g>
+  <line x1="10" y1="112" x2="890" y2="112" stroke="#e3e6ec"/>
+
+  <!-- person heads -->
+  <g text-anchor="middle">
+    <!-- Anna -->
+    <circle cx="215" cy="138" r="17" fill="#8B7CF6"/>
+    <text x="215" y="143" font-size="13" font-weight="700" fill="#ffffff">AN</text>
+    <text x="215" y="170" font-size="13" font-weight="600" fill="#1b1f27">Anna</text>
+    <text x="215" y="184" font-size="10.5" fill="#8a909c">zuhause</text>
+    <!-- Ben -->
+    <circle cx="485" cy="138" r="17" fill="#34D399"/>
+    <text x="485" y="143" font-size="13" font-weight="700" fill="#0c3b2e">BE</text>
+    <text x="485" y="170" font-size="13" font-weight="600" fill="#1b1f27">Ben</text>
+    <text x="485" y="184" font-size="10.5" fill="#8a909c">unterwegs</text>
+    <!-- Mia -->
+    <circle cx="755" cy="138" r="17" fill="#FBBF24"/>
+    <text x="755" y="143" font-size="13" font-weight="700" fill="#5a3d00">MI</text>
+    <text x="755" y="170" font-size="13" font-weight="600" fill="#1b1f27">Mia</text>
+    <text x="755" y="184" font-size="10.5" fill="#8a909c">zuhause</text>
+  </g>
+  <line x1="10" y1="196" x2="890" y2="196" stroke="#e3e6ec"/>
+  <line x1="80" y1="112" x2="80" y2="510" stroke="#eef0f5"/>
+  <line x1="350" y1="112" x2="350" y2="510" stroke="#eef0f5"/>
+  <line x1="620" y1="112" x2="620" y2="510" stroke="#eef0f5"/>
+
+  <!-- time grid + axis labels (08:00 .. 14:00) -->
+  <g font-size="11" fill="#8a909c" text-anchor="end" font-variant-numeric="tabular-nums">
+    <line x1="80" y1="207" x2="890" y2="207" stroke="#f1f2f6"/><text x="66" y="211">08:00</text>
+    <line x1="80" y1="259" x2="890" y2="259" stroke="#f1f2f6"/><text x="66" y="263">09:00</text>
+    <line x1="80" y1="311" x2="890" y2="311" stroke="#f1f2f6"/><text x="66" y="315">10:00</text>
+    <line x1="80" y1="363" x2="890" y2="363" stroke="#f1f2f6"/><text x="66" y="367">11:00</text>
+    <line x1="80" y1="415" x2="890" y2="415" stroke="#f1f2f6"/><text x="66" y="419">12:00</text>
+    <line x1="80" y1="467" x2="890" y2="467" stroke="#f1f2f6"/><text x="66" y="471">13:00</text>
+  </g>
+
+  <!-- events: Anna (blue) -->
+  <g>
+    <rect x="88" y="233" width="254" height="50" rx="7" fill="#8B7CF620"/>
+    <rect x="88" y="233" width="3" height="50" rx="1.5" fill="#8B7CF6"/>
+    <text x="100" y="252" font-size="11.5" font-weight="600" fill="#1b1f27">Yoga</text>
+    <text x="100" y="267" font-size="9.5" fill="#8a909c">08:30–09:30</text>
+
+    <rect x="88" y="337" width="254" height="76" rx="7" fill="#8B7CF620"/>
+    <rect x="88" y="337" width="3" height="76" rx="1.5" fill="#8B7CF6"/>
+    <text x="100" y="356" font-size="11.5" font-weight="600" fill="#1b1f27">Meeting Schule</text>
+    <text x="100" y="371" font-size="9.5" fill="#8a909c">11:00–12:30</text>
+  </g>
+
+  <!-- events: Ben (green) - long block over the day -->
+  <g>
+    <rect x="358" y="207" width="254" height="258" rx="7" fill="#34D39920"/>
+    <rect x="358" y="207" width="3" height="258" rx="1.5" fill="#34D399"/>
+    <text x="370" y="226" font-size="11.5" font-weight="600" fill="#1b1f27">Schule</text>
+    <text x="370" y="241" font-size="9.5" fill="#8a909c">08:00–13:00</text>
+  </g>
+
+  <!-- events: Mia (amber) -->
+  <g>
+    <rect x="628" y="259" width="254" height="50" rx="7" fill="#FBBF2426"/>
+    <rect x="628" y="259" width="3" height="50" rx="1.5" fill="#FBBF24"/>
+    <text x="640" y="278" font-size="11.5" font-weight="600" fill="#1b1f27">Zahnarzt</text>
+    <text x="640" y="293" font-size="9.5" fill="#8a909c">09:00–10:00</text>
+
+    <rect x="628" y="467" width="254" height="40" rx="7" fill="#FBBF2426"/>
+    <rect x="628" y="467" width="3" height="40" rx="1.5" fill="#FBBF24"/>
+    <text x="640" y="486" font-size="11.5" font-weight="600" fill="#1b1f27">Ballett</text>
+  </g>
+
+  <!-- now line -->
+  <line x1="80" y1="328" x2="890" y2="328" stroke="#ff5252" stroke-width="2"/>
+  <rect x="32" y="320" width="44" height="16" rx="5" fill="#ff5252"/>
+  <text x="54" y="332" font-size="10" font-weight="600" fill="#ffffff" text-anchor="middle" font-variant-numeric="tabular-nums">10:20</text>
+</svg>

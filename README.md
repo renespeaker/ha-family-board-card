@@ -1,5 +1,7 @@
 # Family Board Card
 
+![Family Board Card – Tagesansicht](docs/preview.svg)
+
 Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https://www.home-assistant.io/). Personen stehen als Spalten oben (mit Avatar aus der `person.*`-Entität), links läuft die Zeitleiste. Die Karte zeigt auf einen Blick, welche Aktivitäten gleichzeitig an unterschiedlichen Orten stattfinden — für bis zu 10 Personen.
 
 - **Tagesansicht** – Personen als Spalten, geteilte Zeitachse, Jetzt-Linie.
