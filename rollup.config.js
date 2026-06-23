@@ -5,9 +5,11 @@ import terser from "@rollup/plugin-terser";
 export default {
   input: "src/ha-family-board-card.ts",
   output: {
-    dir: "dist",
+    file: "dist/ha-family-board-card.js",
     format: "es",
-    entryFileNames: "ha-family-board-card.js",
+    // Single, self-contained bundle so HACS can serve one file.
+    // The editor is imported dynamically but inlined here.
+    inlineDynamicImports: true,
     sourcemap: false,
   },
   plugins: [
