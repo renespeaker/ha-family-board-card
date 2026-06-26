@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="660" viewBox="0 0 1000 660" font-family="-apple-system, Segoe UI, Roboto, sans-serif">
+  <rect x="0" y="0" width="1000" height="660" fill="#f5f6f8"/>
+  <!-- card -->
+  <rect x="10" y="10" width="980" height="640" rx="16" fill="#ffffff" stroke="#e3e6ec"/>
+
+  <!-- top bar -->
+  <text x="32" y="46" font-size="18" font-weight="700" fill="#1b1f27">Familienplan</text>
+  <rect x="800" y="24" width="158" height="32" rx="9" fill="#eef0f5"/>
+  <rect x="804" y="28" width="74" height="24" rx="7" fill="#5B8CFF"/>
+  <text x="841" y="45" font-size="13" font-weight="600" fill="#fff" text-anchor="middle">Tag</text>
+  <text x="918" y="45" font-size="13" font-weight="600" fill="#8a909c" text-anchor="middle">Woche</text>
+  <line x1="10" y1="68" x2="990" y2="68" stroke="#e3e6ec"/>
+
+  <!-- day header + week nav -->
+  <text x="32" y="98" font-size="15" font-weight="700" fill="#1b1f27">Freitag</text>
+  <g>
+    <rect x="770" y="80" width="26" height="26" rx="7" fill="#eef0f5"/>
+    <text x="783" y="98" font-size="15" fill="#5a6170" text-anchor="middle">‹</text>
+    <rect x="800" y="80" width="150" height="26" rx="7" fill="#eef0f5"/>
+    <text x="875" y="98" font-size="12.5" font-weight="600" fill="#3a4150" text-anchor="middle">22. Juni – 28. Juni</text>
+    <rect x="954" y="80" width="26" height="26" rx="7" fill="#eef0f5"/>
+    <text x="967" y="98" font-size="15" fill="#5a6170" text-anchor="middle">›</text>
+  </g>
+  <line x1="10" y1="118" x2="990" y2="118" stroke="#e3e6ec"/>
+
+  <!-- weekday tabs -->
+  <g font-size="12" font-weight="600" text-anchor="middle">
+    <rect x="32" y="128" width="232" height="26" rx="8" fill="#f1f2f6"/>
+    <text x="50" y="145" fill="#8a909c">Mo</text>
+    <text x="82" y="145" fill="#8a909c">Di</text>
+    <text x="114" y="145" fill="#8a909c">Mi</text>
+    <text x="146" y="145" fill="#8a909c">Do</text>
+    <rect x="166" y="131" width="30" height="20" rx="6" fill="#5B8CFF"/>
+    <text x="181" y="145" fill="#fff">Fr</text>
+    <text x="214" y="145" fill="#8a909c">Sa</text>
+    <text x="246" y="145" fill="#8a909c">So</text>
+  </g>
+
+  <!-- person heads -->
+  <g text-anchor="middle">
+    <circle cx="187" cy="178" r="16" fill="#5B8CFF"/><text x="187" y="183" font-size="12" font-weight="700" fill="#fff">RE</text>
+    <text x="187" y="206" font-size="13" font-weight="600" fill="#1b1f27">René</text>
+    <text x="187" y="220" font-size="10.5" fill="#8a909c">zuhause</text>
+    <circle cx="413" cy="178" r="16" fill="#34D399"/><text x="413" y="183" font-size="12" font-weight="700" fill="#0c3b2e">BE</text>
+    <text x="413" y="206" font-size="13" font-weight="600" fill="#1b1f27">Becci</text>
+    <text x="413" y="220" font-size="10.5" fill="#8a909c">zuhause</text>
+    <circle cx="640" cy="178" r="16" fill="#FB7185"/><text x="640" y="183" font-size="12" font-weight="700" fill="#fff">CL</text>
+    <text x="640" y="206" font-size="13" font-weight="600" fill="#1b1f27">Clara</text>
+    <text x="640" y="220" font-size="10.5" fill="#b6bbc4">–</text>
+    <circle cx="866" cy="178" r="16" fill="#C084FC"/><text x="866" y="183" font-size="12" font-weight="700" fill="#fff">EL</text>
+    <text x="866" y="206" font-size="13" font-weight="600" fill="#1b1f27">Elisa</text>
+    <text x="866" y="220" font-size="10.5" fill="#b6bbc4">–</text>
+  </g>
+  <line x1="10" y1="232" x2="990" y2="232" stroke="#e3e6ec"/>
+
+  <!-- subtle alternating row shading (cleaner than dense gridlines) -->
+  <g fill="#f7f8fb">
+    <rect x="74" y="246" width="916" height="56" />
+    <rect x="74" y="358" width="916" height="56" />
+    <rect x="74" y="470" width="916" height="56" />
+    <rect x="74" y="582" width="916" height="56" />
+  </g>
+
+  <!-- crisp hour lines + faint half-hour dashed -->
+  <g>
+    <g stroke="#e7e9ee" stroke-width="1">
+      <line x1="74" y1="246" x2="990" y2="246"/>
+      <line x1="74" y1="302" x2="990" y2="302"/>
+      <line x1="74" y1="358" x2="990" y2="358"/>
+      <line x1="74" y1="414" x2="990" y2="414"/>
+      <line x1="74" y1="470" x2="990" y2="470"/>
+      <line x1="74" y1="526" x2="990" y2="526"/>
+      <line x1="74" y1="582" x2="990" y2="582"/>
+      <line x1="74" y1="638" x2="990" y2="638"/>
+    </g>
+    <g stroke="#eef0f3" stroke-width="1" stroke-dasharray="2 4">
+      <line x1="74" y1="274" x2="990" y2="274"/>
+      <line x1="74" y1="330" x2="990" y2="330"/>
+      <line x1="74" y1="386" x2="990" y2="386"/>
+      <line x1="74" y1="442" x2="990" y2="442"/>
+      <line x1="74" y1="498" x2="990" y2="498"/>
+      <line x1="74" y1="554" x2="990" y2="554"/>
+      <line x1="74" y1="610" x2="990" y2="610"/>
+    </g>
+  </g>
+
+  <!-- hour labels -->
+  <g font-size="11.5" fill="#8a909c" text-anchor="end" font-variant-numeric="tabular-nums">
+    <text x="60" y="250">07:00</text>
+    <text x="60" y="306">08:00</text>
+    <text x="60" y="362">09:00</text>
+    <text x="60" y="418">10:00</text>
+    <text x="60" y="474">11:00</text>
+    <text x="60" y="530">12:00</text>
+    <text x="60" y="586">13:00</text>
+    <text x="60" y="642">14:00</text>
+  </g>
+
+  <!-- column separators (single, crisp) -->
+  <g stroke="#eceef2" stroke-width="1">
+    <line x1="74" y1="232" x2="74" y2="638"/>
+    <line x1="300" y1="232" x2="300" y2="638"/>
+    <line x1="527" y1="232" x2="527" y2="638"/>
+    <line x1="753" y1="232" x2="753" y2="638"/>
+  </g>
+
+  <!-- René: Arbeit 08-12 -->
+  <rect x="82" y="304" width="210" height="106" rx="8" fill="#5B8CFF1f"/>
+  <rect x="82" y="304" width="3" height="106" rx="1.5" fill="#5B8CFF"/>
+  <text x="94" y="322" font-size="12" font-weight="600" fill="#1b1f27">Arbeit</text>
+  <text x="94" y="337" font-size="10" fill="#8a909c">08:00–10:00</text>
+
+  <!-- Becci: overlapping Yoga + Call, side by side -->
+  <rect x="308" y="360" width="103" height="52" rx="8" fill="#34D3991f"/>
+  <rect x="308" y="360" width="3" height="52" rx="1.5" fill="#34D399"/>
+  <text x="318" y="378" font-size="11.5" font-weight="600" fill="#1b1f27">Yoga</text>
+  <text x="318" y="392" font-size="9.5" fill="#8a909c">09:00</text>
+  <rect x="416" y="388" width="103" height="52" rx="8" fill="#FB923c24"/>
+  <rect x="416" y="388" width="3" height="52" rx="1.5" fill="#FB923C"/>
+  <text x="426" y="406" font-size="11.5" font-weight="600" fill="#1b1f27">Call</text>
+  <text x="426" y="420" font-size="9.5" fill="#8a909c">09:30</text>
+
+  <!-- Clara: Schule 08-13 -->
+  <rect x="535" y="304" width="210" height="274" rx="8" fill="#FB71851c"/>
+  <rect x="535" y="304" width="3" height="274" rx="1.5" fill="#FB7185"/>
+  <text x="547" y="322" font-size="12" font-weight="600" fill="#1b1f27">Schule</text>
+  <text x="547" y="337" font-size="10" fill="#8a909c">08:00–13:00</text>
+
+  <!-- Elisa: Turnen 10-11 -->
+  <rect x="761" y="416" width="210" height="52" rx="8" fill="#C084FC1f"/>
+  <rect x="761" y="416" width="3" height="52" rx="1.5" fill="#C084FC"/>
+  <text x="773" y="434" font-size="11.5" font-weight="600" fill="#1b1f27">Turnen</text>
+  <text x="773" y="448" font-size="9.5" fill="#8a909c">10:00</text>
+
+  <!-- now line -->
+  <line x1="74" y1="392" x2="990" y2="392" stroke="#ff5252" stroke-width="2"/>
+  <rect x="30" y="384" width="42" height="16" rx="5" fill="#ff5252"/>
+  <text x="51" y="396" font-size="10" font-weight="600" fill="#fff" text-anchor="middle">09:25</text>
+</svg>
