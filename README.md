@@ -1,6 +1,6 @@
 # Family Board Card
 
-![Family Board Card – Tagesansicht](docs/preview.svg)
+![Family Board Card – Tagesansicht](docs/preview-v2.svg)
 
 Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https://www.home-assistant.io/). Personen stehen als Spalten oben (mit Avatar aus der `person.*`-Entität), links läuft die Zeitleiste. Die Karte zeigt auf einen Blick, welche Aktivitäten gleichzeitig an unterschiedlichen Orten stattfinden — für bis zu 10 Personen.
 
@@ -46,6 +46,7 @@ end_hour: 22
 show_weekends: true
 show_now_line: true
 color_by: person     # person | location
+hour_height: 64      # Pixel pro Stunde (40–96), Tagesansicht
 refresh_interval: 300 # Sekunden; 0 = aus
 persons:
   - name: Anna
@@ -68,6 +69,7 @@ persons:
 | `show_weekends` | boolean | `true`  | Sa/So anzeigen |
 | `show_now_line` | boolean | `true`  | Aktuelle Uhrzeit als Linie |
 | `color_by`      | string  | `person`| Blöcke nach Person oder Ort einfärben |
+| `hour_height`   | number  | `64`    | Höhe einer Stunde in px (40–96) – Tagesansicht skalieren (Wandtablet) |
 | `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus) |
 
 Jede `calendar.*`-Entität funktioniert – egal ob `local_calendar` (lokal, ohne Cloud), Google oder CalDAV. Home Assistant liefert alle einheitlich.

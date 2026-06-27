@@ -51,6 +51,10 @@ const SETTINGS_SCHEMA = [
       },
     },
   },
+  {
+    name: "hour_height",
+    selector: { number: { min: 40, max: 96, step: 4, mode: "slider", unit_of_measurement: "px" } },
+  },
   { name: "show_weekends", selector: { boolean: {} } },
   { name: "show_now_line", selector: { boolean: {} } },
   {
@@ -66,6 +70,7 @@ const LABELS: Record<string, string> = {
   time_grid: "Zeitraster",
   start_hour: "Startstunde",
   end_hour: "Endstunde",
+  hour_height: "Höhe pro Stunde",
   color_by: "Einfärben nach",
   show_weekends: "Wochenende anzeigen",
   show_now_line: "Jetzt-Linie",

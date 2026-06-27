@@ -38,6 +38,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   show_now_line?: boolean;
   color_by?: "person" | "location";
   refresh_interval?: number; // seconds; 0 disables. default 300
+  hour_height?: number; // px per hour in the day view. default 64
 }
 
 /** State of the create/edit dialog. */
@@ -74,7 +75,9 @@ const FALLBACK_COLORS = [
   "#F472B6",
   "#60A5FA",
 ];
-const GRID_PX_PER_MIN: Record<number, number> = { 60: 0.95, 30: 1.25, 15: 1.7 };
+const DEFAULT_HOUR_HEIGHT = 64; // px per hour in the day view
+const HOUR_HEIGHT_MIN = 40;
+const HOUR_HEIGHT_MAX = 96;
 
 // CalendarEntityFeature bitmask (home-assistant/core)
 const FEAT_CREATE = 1;
@@ -265,6 +268,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private get _grid(): number {
     return this._config.time_grid ?? 30;
   }
+  /** Pixels per minute, derived from the configurable hour height. */
+  private get _pxPerMin(): number {
+    const h = Math.min(
+      HOUR_HEIGHT_MAX,
+      Math.max(HOUR_HEIGHT_MIN, this._config.hour_height ?? DEFAULT_HOUR_HEIGHT),
+    );
+    return h / 60;
+  }
   private get _startMin(): number {
     return (this._config.start_hour ?? 6) * 60;
   }
@@ -404,7 +415,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   private _renderDay() {
     const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
-    const px = GRID_PX_PER_MIN[this._grid] ?? 1.25;
+    const px = this._pxPerMin;
+    const hourPx = 60 * px;
     const startMin = this._startMin;
     const endMin = this._endMin;
     const height = (endMin - startMin) * px;
@@ -488,16 +500,17 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             )}
           </div>
           ${this._persons.map((p, i) => {
-            const gridPx = this._grid * px;
             const canCreate = this._canCreate(p.calendar);
             return html`
               <div
                 class="col ${canCreate ? "creatable" : ""}"
                 @click=${(ev: MouseEvent) => this._onColClick(ev, i, day, px, startMin)}
                 style="background-image:
-                  repeating-linear-gradient(var(--divider-color,#8884) 0 1px, transparent 1px ${gridPx}px),
-                  repeating-linear-gradient(var(--divider-color,#8888) 0 1px, transparent 1px ${60 *
-                px}px)"
+                  repeating-linear-gradient(var(--fb-row-shade) 0 ${hourPx}px, transparent ${hourPx}px ${2 *
+                hourPx}px),
+                  repeating-linear-gradient(var(--fb-halfhour) 0 1px, transparent 1px ${hourPx /
+                2}px),
+                  repeating-linear-gradient(var(--fb-hourline) 0 1px, transparent 1px ${hourPx}px)"
               >
                 ${this._timedFor(day, i)
                   .filter((e) => e.endMin > startMin && e.startMin < endMin)
@@ -905,6 +918,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   static styles = css`
     :host {
       font-family: var(--ha-font-family-body, var(--mdc-typography-font-family, inherit));
+      /* grid tokens — theme-aware, calm by default */
+      --fb-hourline: var(--divider-color, #8884);
+      --fb-halfhour: color-mix(in srgb, var(--divider-color, #8884) 45%, transparent);
+      --fb-row-shade: color-mix(in srgb, var(--secondary-text-color, #888) 5%, transparent);
     }
     ha-card {
       overflow: hidden;
@@ -1421,7 +1438,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.3.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.4.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
