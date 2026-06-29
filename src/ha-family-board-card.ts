@@ -1049,21 +1049,20 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       position: relative;
     }
     .addbtn {
-      position: absolute;
-      top: 6px;
-      right: 6px;
+      margin-top: 2px;
       border: none;
       background: var(--secondary-background-color);
-      color: var(--primary-text-color);
-      width: 22px;
+      color: var(--secondary-text-color);
+      width: 26px;
       height: 22px;
-      border-radius: 50%;
+      border-radius: 11px;
       cursor: pointer;
       font-size: 15px;
       line-height: 1;
       padding: 0;
     }
-    .addbtn:hover {
+    .addbtn:hover,
+    .addbtn:focus-visible {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
     }
@@ -1438,7 +1437,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.4.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.4.1 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
