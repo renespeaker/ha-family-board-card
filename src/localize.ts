@@ -9,6 +9,7 @@ const EN: Dict = {
   board_title: "Family board",
   day: "Day",
   week: "Week",
+  agenda: "Agenda",
   all_day: "all-day",
   this_week: "This week",
   prev_week: "Previous week",
@@ -27,6 +28,10 @@ const EN: Dict = {
   field_end: "End",
   field_location: "Location",
   field_note: "Note",
+  field_calendar: "Calendar",
+  recurring: "Recurring event",
+  recur_this: "This event only",
+  recur_future: "This and following",
   read_only: "This calendar is read-only.",
   delete: "Delete",
   cancel: "Cancel",
@@ -45,6 +50,7 @@ const DE: Dict = {
   board_title: "Familienplan",
   day: "Tag",
   week: "Woche",
+  agenda: "Agenda",
   all_day: "ganztägig",
   this_week: "Diese Woche",
   prev_week: "Vorherige Woche",
@@ -63,6 +69,10 @@ const DE: Dict = {
   field_end: "Ende",
   field_location: "Ort",
   field_note: "Notiz",
+  field_calendar: "Kalender",
+  recurring: "Wiederkehrender Termin",
+  recur_this: "Nur dieser Termin",
+  recur_future: "Dieser und folgende",
   read_only: "Dieser Kalender ist schreibgeschützt.",
   delete: "Löschen",
   cancel: "Abbrechen",
@@ -123,13 +133,18 @@ export function formatMinutes(hass: any, min: number): string {
   return formatTime(hass, d);
 }
 
-/** Localized weekday names, Monday-first. `style`: "short" | "long". */
-export function weekdayNames(hass: any, style: "short" | "long"): string[] {
+/**
+ * Localized weekday names ordered by the given week start.
+ * `style`: "short" | "long". `firstDayJs`: 0=Sunday, 1=Monday (default).
+ */
+export function weekdayNames(hass: any, style: "short" | "long", firstDayJs: number = 1): string[] {
   const fmt = new Intl.DateTimeFormat(intlLocale(hass), { weekday: style });
-  // 2024-01-01 is a Monday.
-  return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 1 + i))).map(
-    (s) => s.charAt(0).toUpperCase() + s.slice(1),
-  );
+  // 2024-01-07 is a Sunday -> index by JS weekday (0=Sun..6=Sat).
+  const byJs = Array.from({ length: 7 }, (_, js) => {
+    const s = fmt.format(new Date(2024, 0, 7 + js));
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  });
+  return Array.from({ length: 7 }, (_, i) => byJs[(firstDayJs + i) % 7]);
 }
 
 /** Localized "1 Jan – 7 Jan" style range for a week. */

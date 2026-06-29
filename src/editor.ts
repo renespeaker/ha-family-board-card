@@ -6,7 +6,7 @@ import type { FamilyBoardConfig } from "./ha-family-board-card";
 interface PersonConfig {
   name?: string;
   person?: string;
-  calendar?: string;
+  calendar?: string | string[];
   color?: string;
 }
 
@@ -20,6 +20,7 @@ const SETTINGS_SCHEMA = [
         options: [
           { value: "day", label: "Tag" },
           { value: "week", label: "Woche" },
+          { value: "agenda", label: "Agenda" },
         ],
       },
     },
@@ -40,6 +41,18 @@ const SETTINGS_SCHEMA = [
   { name: "start_hour", selector: { number: { min: 0, max: 23, mode: "box" } } },
   { name: "end_hour", selector: { number: { min: 1, max: 24, mode: "box" } } },
   {
+    name: "first_day",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "monday", label: "Montag" },
+          { value: "sunday", label: "Sonntag" },
+        ],
+      },
+    },
+  },
+  {
     name: "color_by",
     selector: {
       select: {
@@ -57,6 +70,7 @@ const SETTINGS_SCHEMA = [
   },
   { name: "show_weekends", selector: { boolean: {} } },
   { name: "show_now_line", selector: { boolean: {} } },
+  { name: "scroll_to_now", selector: { boolean: {} } },
   {
     name: "refresh_interval",
     selector: { number: { min: 0, max: 3600, mode: "box", unit_of_measurement: "s" } },
@@ -71,12 +85,14 @@ const LABELS: Record<string, string> = {
   start_hour: "Startstunde",
   end_hour: "Endstunde",
   hour_height: "Höhe pro Stunde",
+  first_day: "Wochenstart",
+  scroll_to_now: "Auto-Scroll zu jetzt",
   color_by: "Einfärben nach",
   show_weekends: "Wochenende anzeigen",
   show_now_line: "Jetzt-Linie",
   name: "Anzeigename",
   person: "Person (Avatar & Status)",
-  calendar: "Kalender (Termine)",
+  calendar: "Kalender (Termine, mehrere möglich)",
   color: "Farbe (optional)",
 };
 
@@ -89,7 +105,7 @@ const PERSON_SCHEMA = [
   },
   {
     name: "calendar",
-    selector: { entity: { filter: { domain: "calendar" } } },
+    selector: { entity: { filter: { domain: "calendar" }, multiple: true } },
   },
   { name: "color", selector: { text: {} } },
 ];
@@ -127,8 +143,19 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     const value = { ...ev.detail.value } as PersonConfig;
     // drop empty optional fields so the YAML stays clean
     if (!value.color) delete value.color;
+    // collapse a single-calendar array back to a string for tidy YAML
+    if (Array.isArray(value.calendar)) {
+      if (value.calendar.length === 0) delete value.calendar;
+      else if (value.calendar.length === 1) value.calendar = value.calendar[0];
+    }
     const persons = this._persons.map((p, i) => (i === idx ? value : p));
     this._emit({ ...this._config, persons });
+  }
+
+  /** Normalize a person's calendar to an array for the multi-entity picker. */
+  private _personData(p: PersonConfig): PersonConfig {
+    const calendar = Array.isArray(p.calendar) ? p.calendar : p.calendar ? [p.calendar] : [];
+    return { ...p, calendar };
   }
 
   private _addPerson(): void {
@@ -191,7 +218,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
               </div>
               <ha-form
                 .hass=${this.hass}
-                .data=${p}
+                .data=${this._personData(p)}
                 .schema=${PERSON_SCHEMA}
                 .computeLabel=${(s: { name: string }) => LABELS[s.name] ?? s.name}
                 @value-changed=${(e: CustomEvent) => this._personChanged(idx, e)}

@@ -10,6 +10,7 @@ export interface RawEvent {
   calendar: string;
   uid?: string;
   recurrence_id?: string;
+  rrule?: string;
   summary: string;
   description?: string;
   location?: string;
@@ -68,6 +69,7 @@ export function parseRawEvent(
     calendar,
     uid: ev.uid,
     recurrence_id: ev.recurrence_id,
+    rrule: ev.rrule,
     summary: ev.summary || "Termin",
     description: ev.description,
     location: ev.location,
