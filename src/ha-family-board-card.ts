@@ -30,7 +30,7 @@ interface PersonConfig {
 export interface FamilyBoardConfig extends LovelaceCardConfig {
   persons: PersonConfig[];
   title?: string;
-  view?: "day" | "week";
+  view?: "day" | "week" | "agenda";
   time_grid?: 15 | 30 | 60;
   start_hour?: number;
   end_hour?: number;
@@ -111,7 +111,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: FamilyBoardConfig;
   @state() private _events: BoardEvent[] = [];
-  @state() private _view: "day" | "week" = "day";
+  @state() private _view: "day" | "week" | "agenda" = "day";
   @state() private _day: number = (new Date().getDay() + 6) % 7;
   @state() private _weekOffset = 0;
   @state() private _dialog?: DialogState;
@@ -455,9 +455,21 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             >
               ${this._t("week")}
             </button>
+            <button
+              role="tab"
+              aria-selected=${this._view === "agenda"}
+              class=${this._view === "agenda" ? "on" : ""}
+              @click=${() => (this._view = "agenda")}
+            >
+              ${this._t("agenda")}
+            </button>
           </div>
         </div>
-        ${this._view === "day" ? this._renderDay() : this._renderWeek()}
+        ${this._view === "day"
+          ? this._renderDay()
+          : this._view === "week"
+            ? this._renderWeek()
+            : this._renderAgenda()}
       </ha-card>
       ${this._dialog ? this._renderDialog() : nothing}
     `;
@@ -710,6 +722,69 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             `,
           )}
         </div>
+      </div>
+    `;
+  }
+
+  private _renderAgenda() {
+    const full = weekdayNames(this.hass, "long", this._firstDayJs);
+    const dateFmt = new Intl.DateTimeFormat(this.hass.locale?.language || "en", {
+      day: "numeric",
+      month: "short",
+    });
+    const groups = this._visibleDays
+      .map((d) => ({
+        d,
+        items: this._events
+          .filter((e) => e.day === d)
+          .sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.startMin - b.startMin),
+      }))
+      .filter((g) => g.items.length > 0);
+
+    return html`
+      <div class="weekhead">${this._weekNav()}</div>
+      ${this._loadError ? html`<div class="banner">${this._t("load_error")}</div>` : nothing}
+      <div class="agenda">
+        ${groups.length === 0
+          ? html`<div class="agenda-empty">
+              ${this._loading ? html`<span class="spinner"></span>` : this._t("no_events")}
+            </div>`
+          : groups.map(
+              (g) => html`
+                <div class="agenda-day">
+                  <div class="agenda-date ${this._isRealToday(g.d) ? "today" : ""}">
+                    ${full[g.d]} · ${dateFmt.format(this._dateForDay(g.d))}
+                  </div>
+                  ${g.items.map((e) => this._agendaRow(e))}
+                </div>
+              `,
+            )}
+      </div>
+    `;
+  }
+
+  private _agendaRow(e: BoardEvent) {
+    const c = this._eventColor(e);
+    const name = this._personName(this._persons[e.personIdx], e.personIdx);
+    const time = e.allDay
+      ? this._t("all_day")
+      : `${formatMinutes(this.hass, e.startMin)}–${formatMinutes(this.hass, e.endMin)}`;
+    return html`
+      <div
+        class="agenda-row"
+        tabindex="0"
+        role="button"
+        @click=${() => this._openEvent(e)}
+        @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
+      >
+        <span class="agenda-time">${time}</span>
+        <span class="agenda-bar" style="background:${c}"></span>
+        <span class="agenda-main">
+          <span class="agenda-title"
+            >${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter ? " »" : ""}</span
+          >
+          <span class="agenda-meta">${name}${e.location ? ` · ${e.location}` : ""}</span>
+        </span>
       </div>
     `;
   }
@@ -1321,6 +1396,75 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       padding: 1px 5px;
       border-radius: 5px;
       font-variant-numeric: tabular-nums;
+    }
+    /* agenda */
+    .agenda {
+      max-height: 60vh;
+      overflow: auto;
+      padding: 4px 0 8px;
+    }
+    .agenda-empty {
+      padding: 28px 16px;
+      text-align: center;
+      color: var(--secondary-text-color);
+      font-size: 13px;
+    }
+    .agenda-day {
+      padding: 0 12px;
+    }
+    .agenda-date {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--card-background-color, var(--ha-card-background));
+      font-weight: 600;
+      font-size: 13px;
+      padding: 8px 4px 4px;
+      border-bottom: 1px solid var(--divider-color);
+    }
+    .agenda-date.today {
+      color: var(--primary-color);
+    }
+    .agenda-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 4px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--divider-color);
+    }
+    .agenda-row:hover {
+      background: var(--secondary-background-color);
+    }
+    .agenda-time {
+      flex: 0 0 92px;
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
+    }
+    .agenda-bar {
+      flex: 0 0 4px;
+      align-self: stretch;
+      border-radius: 2px;
+    }
+    .agenda-main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .agenda-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .agenda-meta {
+      font-size: 11px;
+      color: var(--secondary-text-color);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     /* week */
     .weekwrap {

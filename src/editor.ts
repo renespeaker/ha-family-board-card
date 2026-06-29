@@ -20,6 +20,7 @@ const SETTINGS_SCHEMA = [
         options: [
           { value: "day", label: "Tag" },
           { value: "week", label: "Woche" },
+          { value: "agenda", label: "Agenda" },
         ],
       },
     },

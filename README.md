@@ -6,6 +6,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 
 - **Tagesansicht** – Personen als Spalten, geteilte Zeitachse, Jetzt-Linie; **überlappende Termine** werden nebeneinander dargestellt.
 - **Wochenansicht** – Wochentage als Zeilen, Personen als Spalten, kompakte Termin-Chips.
+- **Agenda-/Listenansicht** – chronologische Terminliste, nach Tagen gruppiert; ideal fürs Handy.
 - **Wochen-Navigation** – vor/zurück blättern, ein Klick auf den Datumsbereich springt zurück zu „heute".
 - **Theme-aware** – übernimmt Farben und Schrift des aktiven Dashboard-Themes (nutzt durchgehend HA-CSS-Variablen).
 - **Konfigurierbar** – Zeitraster 15/30/60 min, Tagesfenster, Wochenende ein/aus, Einfärben nach Person oder Ort, Auto-Aktualisierung.
@@ -62,7 +63,7 @@ persons:
 |-----------------|---------|---------|--------------|
 | `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar`, optional `color` |
 | `title`          | string  | –       | Eigener Kartentitel (Default: lokalisiert „Familienplan") |
-| `view`          | string  | `day`   | Startansicht |
+| `view`          | string  | `day`   | Startansicht: `day`, `week` oder `agenda` |
 | `time_grid`     | number  | `30`    | Raster der Zeitleiste in Minuten |
 | `start_hour`    | number  | `6`     | Erste sichtbare Stunde |
 | `end_hour`      | number  | `22`    | Letzte sichtbare Stunde |
