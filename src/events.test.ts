@@ -72,6 +72,22 @@ describe("parseRawEvent", () => {
       parseRawEvent({ start: { dateTime: "nope" }, end: { dateTime: "nope" } }, 0, "c", "#abc"),
     ).toBeNull();
   });
+
+  it("passes through recurrence info (rrule / recurrence_id)", () => {
+    const r = parseRawEvent(
+      {
+        start: { dateTime: "2024-01-01T10:00:00Z" },
+        end: { dateTime: "2024-01-01T11:00:00Z" },
+        rrule: "FREQ=WEEKLY",
+        recurrence_id: "2024-01-01T10:00:00",
+      },
+      0,
+      "calendar.x",
+      "#abc",
+    )!;
+    expect(r.rrule).toBe("FREQ=WEEKLY");
+    expect(r.recurrence_id).toBe("2024-01-01T10:00:00");
+  });
 });
 
 describe("splitIntoSegments", () => {

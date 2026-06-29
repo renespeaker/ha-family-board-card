@@ -6,7 +6,7 @@ import type { FamilyBoardConfig } from "./ha-family-board-card";
 interface PersonConfig {
   name?: string;
   person?: string;
-  calendar?: string;
+  calendar?: string | string[];
   color?: string;
 }
 
@@ -92,7 +92,7 @@ const LABELS: Record<string, string> = {
   show_now_line: "Jetzt-Linie",
   name: "Anzeigename",
   person: "Person (Avatar & Status)",
-  calendar: "Kalender (Termine)",
+  calendar: "Kalender (Termine, mehrere möglich)",
   color: "Farbe (optional)",
 };
 
@@ -105,7 +105,7 @@ const PERSON_SCHEMA = [
   },
   {
     name: "calendar",
-    selector: { entity: { filter: { domain: "calendar" } } },
+    selector: { entity: { filter: { domain: "calendar" }, multiple: true } },
   },
   { name: "color", selector: { text: {} } },
 ];
@@ -143,8 +143,19 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     const value = { ...ev.detail.value } as PersonConfig;
     // drop empty optional fields so the YAML stays clean
     if (!value.color) delete value.color;
+    // collapse a single-calendar array back to a string for tidy YAML
+    if (Array.isArray(value.calendar)) {
+      if (value.calendar.length === 0) delete value.calendar;
+      else if (value.calendar.length === 1) value.calendar = value.calendar[0];
+    }
     const persons = this._persons.map((p, i) => (i === idx ? value : p));
     this._emit({ ...this._config, persons });
+  }
+
+  /** Normalize a person's calendar to an array for the multi-entity picker. */
+  private _personData(p: PersonConfig): PersonConfig {
+    const calendar = Array.isArray(p.calendar) ? p.calendar : p.calendar ? [p.calendar] : [];
+    return { ...p, calendar };
   }
 
   private _addPerson(): void {
@@ -207,7 +218,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
               </div>
               <ha-form
                 .hass=${this.hass}
-                .data=${p}
+                .data=${this._personData(p)}
                 .schema=${PERSON_SCHEMA}
                 .computeLabel=${(s: { name: string }) => LABELS[s.name] ?? s.name}
                 @value-changed=${(e: CustomEvent) => this._personChanged(idx, e)}

@@ -23,7 +23,7 @@ import { localize, formatMinutes, weekdayNames, formatWeekRange } from "./locali
 interface PersonConfig {
   name?: string;
   person?: string; // person.* entity -> avatar (entity_picture) + live status
-  calendar?: string; // calendar.* entity -> events
+  calendar?: string | string[]; // calendar.* entity/entities -> events
   color?: string; // optional override; default falls back to a palette
 }
 
@@ -58,6 +58,9 @@ interface DialogState {
   allDay: boolean;
   start: string; // datetime-local ("YYYY-MM-DDTHH:mm") or date ("YYYY-MM-DD")
   end: string;
+  recurring?: boolean; // event is part of a recurring series
+  recurrenceRange: "" | "THISANDFUTURE"; // scope for edit/delete of a series
+  calendarOptions?: string[]; // when a person has several writable calendars
   busy?: boolean;
   error?: string;
 }
@@ -262,7 +265,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   private async _maybeFetch(): Promise<void> {
     const { monday } = this._weekBounds();
-    const cals = this._config.persons.map((p) => p.calendar || "").join(",");
+    const cals = this._config.persons.map((p) => this._calsOf(p).join("+")).join(",");
     const key = `${monday.toISOString().slice(0, 10)}|${cals}`;
     if (key === this._fetchedKey) return;
     this._fetchedKey = key;
@@ -284,21 +287,24 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this._loading = true;
 
     await Promise.all(
-      this._config.persons.map(async (p, idx) => {
-        if (!p.calendar || !this.hass.states[p.calendar]) return;
+      this._config.persons.flatMap((p, idx) => {
         const color = personColor(p, idx);
-        try {
-          const events = await this.hass.callApi<any[]>(
-            "GET",
-            `calendars/${p.calendar}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
-          );
-          for (const ev of events) {
-            const raw = parseRawEvent(ev, idx, p.calendar!, color);
-            if (raw) out.push(...splitIntoSegments(raw, monday));
-          }
-        } catch (err) {
-          anyError = true;
-        }
+        return this._calsOf(p)
+          .filter((cal) => this.hass.states[cal])
+          .map(async (cal) => {
+            try {
+              const events = await this.hass.callApi<any[]>(
+                "GET",
+                `calendars/${cal}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+              );
+              for (const ev of events) {
+                const raw = parseRawEvent(ev, idx, cal, color);
+                if (raw) out.push(...splitIntoSegments(raw, monday));
+              }
+            } catch (err) {
+              anyError = true;
+            }
+          });
       }),
     );
     this._events = out;
@@ -307,6 +313,19 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   /* ---- capabilities -------------------------------------------- */
+  /** A person's calendars, normalized to a (possibly empty) array. */
+  private _calsOf(p: PersonConfig): string[] {
+    if (Array.isArray(p.calendar)) return p.calendar.filter(Boolean);
+    return p.calendar ? [p.calendar] : [];
+  }
+  /** Calendars of a person that allow creating events. */
+  private _writableCals(p: PersonConfig): string[] {
+    return this._calsOf(p).filter((c) => this._canCreate(c));
+  }
+  /** Whether the person's add (+) affordance should be shown. */
+  private _personCanCreate(p: PersonConfig): boolean {
+    return this._writableCals(p).length > 0;
+  }
   private _calFeatures(entity?: string): number {
     if (!entity) return 0;
     const st = this.hass.states[entity];
@@ -539,7 +558,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           <div class="axis-spacer"></div>
           ${this._persons.map((p, i) => {
             const stateObj = p.person ? this.hass.states[p.person] : undefined;
-            const canCreate = this._canCreate(p.calendar);
+            const canCreate = this._personCanCreate(p);
             return html`
               <div class="phead">
                 ${this._avatar(p, i)}
@@ -599,7 +618,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             )}
           </div>
           ${this._persons.map((p, i) => {
-            const canCreate = this._canCreate(p.calendar);
+            const canCreate = this._personCanCreate(p);
             return html`
               <div
                 class="col ${canCreate ? "creatable" : ""}"
@@ -686,7 +705,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 <b>${short[d]}</b>
               </div>
               ${this._persons.map((p, i) => {
-                const canCreate = this._canCreate(p.calendar);
+                const canCreate = this._personCanCreate(p);
                 return html`
                   <div
                     class="wcell ${this._isRealToday(d) ? "today" : ""} ${canCreate
@@ -805,7 +824,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     startMin: number,
   ): void {
     const p = this._persons[idx];
-    if (!this._canCreate(p.calendar)) return;
+    if (!this._personCanCreate(p)) return;
     const target = ev.currentTarget as HTMLElement;
     const rect = target.getBoundingClientRect();
     const offsetY = ev.clientY - rect.top;
@@ -818,7 +837,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   private _openCreate(idx: number, day: number, startMin?: number): void {
     const p = this._persons[idx];
-    if (!p.calendar || !this._canCreate(p.calendar)) return;
+    const writable = this._writableCals(p);
+    if (writable.length === 0) return;
     const base = startOfDay(this._dateForDay(day));
     const sMin = startMin ?? Math.max(this._startMin, 9 * 60);
     const start = new Date(base.getTime() + sMin * 60000);
@@ -826,7 +846,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this._dialog = {
       mode: "create",
       personIdx: idx,
-      calendar: p.calendar,
+      calendar: writable[0],
+      calendarOptions: writable.length > 1 ? writable : undefined,
       canUpdate: true,
       canDelete: false,
       summary: "",
@@ -835,6 +856,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       allDay: false,
       start: toLocalInput(start),
       end: toLocalInput(end),
+      recurrenceRange: "",
     };
   }
 
@@ -849,6 +871,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       calendar: cal,
       uid: raw.uid,
       recurrence_id: raw.recurrence_id,
+      recurring: !!(raw.recurrence_id || raw.rrule),
+      recurrenceRange: "",
       canUpdate,
       canDelete,
       summary: raw.summary,
@@ -933,7 +957,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           entity_id: d.calendar,
           uid: d.uid,
           recurrence_id: d.recurrence_id,
-          recurrence_range: "",
+          recurrence_range: d.recurring ? d.recurrenceRange : "",
           event,
         });
       }
@@ -954,7 +978,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         entity_id: d.calendar,
         uid: d.uid,
         recurrence_id: d.recurrence_id,
-        recurrence_range: "",
+        recurrence_range: d.recurring ? d.recurrenceRange : "",
       });
       this._dialog = undefined;
       await this._refetch();
@@ -991,7 +1015,23 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               ✕
             </button>
           </div>
-          <div class="dlg-cal">${calName}</div>
+          ${d.calendarOptions && d.calendarOptions.length > 1
+            ? html`<label class="fld">
+                <span>${this._t("field_calendar")}</span>
+                <select
+                  .value=${d.calendar}
+                  @change=${(e: Event) =>
+                    this._dlgField("calendar", (e.target as HTMLSelectElement).value)}
+                >
+                  ${d.calendarOptions.map(
+                    (c) =>
+                      html`<option value=${c} ?selected=${c === d.calendar}>
+                        ${this.hass.states[c]?.attributes?.friendly_name || c}
+                      </option>`,
+                  )}
+                </select>
+              </label>`
+            : html`<div class="dlg-cal">${calName}</div>`}
 
           <label class="fld">
             <span>${this._t("field_title")}</span>
@@ -1059,6 +1099,29 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             ></textarea>
           </label>
 
+          ${d.mode === "edit" && d.recurring && !readOnly
+            ? html`<div class="recur">
+                <span class="recur-label">${this._t("recurring")}</span>
+                <label class="recur-opt">
+                  <input
+                    type="radio"
+                    name="recur"
+                    ?checked=${d.recurrenceRange === ""}
+                    @change=${() => this._dlgField("recurrenceRange", "")}
+                  />
+                  <span>${this._t("recur_this")}</span>
+                </label>
+                <label class="recur-opt">
+                  <input
+                    type="radio"
+                    name="recur"
+                    ?checked=${d.recurrenceRange === "THISANDFUTURE"}
+                    @change=${() => this._dlgField("recurrenceRange", "THISANDFUTURE")}
+                  />
+                  <span>${this._t("recur_future")}</span>
+                </label>
+              </div>`
+            : nothing}
           ${readOnly ? html`<div class="ro-note">${this._t("read_only")}</div>` : nothing}
           ${d.error ? html`<div class="dlg-error">${d.error}</div>` : nothing}
 
@@ -1619,7 +1682,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       flex: 1;
     }
     input,
-    textarea {
+    textarea,
+    select {
       font: inherit;
       font-size: 14px;
       color: var(--primary-text-color);
@@ -1633,6 +1697,31 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     input:disabled,
     textarea:disabled {
       opacity: 0.7;
+    }
+    .recur {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 12px;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--secondary-background-color);
+    }
+    .recur-label {
+      font-size: 12px;
+      color: var(--secondary-text-color);
+      width: 100%;
+    }
+    .recur-opt {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .recur-opt input {
+      width: auto;
     }
     .chk {
       display: flex;
