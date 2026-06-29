@@ -39,6 +39,8 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   color_by?: "person" | "location";
   refresh_interval?: number; // seconds; 0 disables. default 300
   hour_height?: number; // px per hour in the day view. default 64
+  first_day?: "monday" | "sunday"; // week start. default monday
+  scroll_to_now?: boolean; // auto-scroll day view to current time. default true
 }
 
 /** State of the create/edit dialog. */
@@ -114,9 +116,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   @state() private _weekOffset = 0;
   @state() private _dialog?: DialogState;
   @state() private _loadError = false;
+  @state() private _loading = false;
 
   private _fetchedKey = "";
   private _timer?: number;
+  private _scrolledKey = "";
+  private _restoreFocus?: HTMLElement;
 
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
     await import("./editor");
@@ -146,7 +151,17 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     this._config = config;
     this._view = config.view ?? "day";
+    this._day = this._todayIndex();
     if (this.isConnected) this._startTimer();
+  }
+
+  /** JS weekday (0=Sun..6=Sat) of the configured week start. */
+  private get _firstDayJs(): number {
+    return this._config?.first_day === "sunday" ? 0 : 1;
+  }
+  /** Column index (0..6 from week start) of the real today. */
+  private _todayIndex(): number {
+    return (new Date().getDay() - this._firstDayJs + 7) % 7;
   }
 
   public getCardSize(): number {
@@ -156,14 +171,23 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   public connectedCallback(): void {
     super.connectedCallback();
     document.addEventListener("keydown", this._onKeyDown);
+    document.addEventListener("visibilitychange", this._onVisible);
+    window.addEventListener("focus", this._onVisible);
     this._startTimer();
   }
 
   public disconnectedCallback(): void {
     super.disconnectedCallback();
     document.removeEventListener("keydown", this._onKeyDown);
+    document.removeEventListener("visibilitychange", this._onVisible);
+    window.removeEventListener("focus", this._onVisible);
     this._stopTimer();
   }
+
+  /** Refresh when the tab/tablet becomes visible again. */
+  private _onVisible = (): void => {
+    if (document.visibilityState !== "hidden" && this.hass && this._config) this._refetch();
+  };
 
   private _onKeyDown = (e: KeyboardEvent): void => {
     if (e.key === "Escape" && this._dialog) {
@@ -188,14 +212,49 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if ((changed.has("hass") || changed.has("_config")) && this.hass && this._config) {
       this._maybeFetch();
     }
+    if (changed.has("_dialog")) this._manageDialogFocus(changed.get("_dialog") as DialogState);
+    this._maybeScrollToNow();
+  }
+
+  /** Scroll the day board so the current time is in view (once per view). */
+  private _maybeScrollToNow(): void {
+    if (this._view !== "day" || this._config?.scroll_to_now === false) return;
+    const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
+    if (!this._isRealToday(day)) return;
+    const key = `${this._weekOffset}|${this._day}|${this._config?.hour_height}`;
+    if (key === this._scrolledKey) return;
+    const board = this.renderRoot?.querySelector(".board") as HTMLElement | null;
+    const now = this.renderRoot?.querySelector(".nowline") as HTMLElement | null;
+    if (!board || !now) return;
+    this._scrolledKey = key;
+    requestAnimationFrame(() => {
+      const target = now.offsetTop - board.clientHeight / 3;
+      board.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+    });
+  }
+
+  /** Focus the first dialog field on open; restore focus on close. */
+  private _manageDialogFocus(prev?: DialogState): void {
+    if (this._dialog && !prev) {
+      this._restoreFocus = (this.renderRoot as ShadowRoot)?.activeElement as HTMLElement;
+      requestAnimationFrame(() => {
+        const input = this.renderRoot?.querySelector(".dialog input") as HTMLElement | null;
+        input?.focus();
+      });
+    } else if (!this._dialog && prev) {
+      this._restoreFocus?.focus?.();
+      this._restoreFocus = undefined;
+    }
   }
 
   /* ---- data ---------------------------------------------------- */
   private _weekBounds(): { monday: Date; nextMonday: Date } {
     const now = new Date();
-    const monday = new Date(now);
+    const monday = new Date(now); // "monday" = configured week start
     monday.setHours(0, 0, 0, 0);
-    monday.setDate(now.getDate() - ((now.getDay() + 6) % 7) + this._weekOffset * 7);
+    monday.setDate(
+      now.getDate() - ((now.getDay() - this._firstDayJs + 7) % 7) + this._weekOffset * 7,
+    );
     const nextMonday = new Date(monday);
     nextMonday.setDate(monday.getDate() + 7);
     return { monday, nextMonday };
@@ -222,6 +281,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const end = nextMonday.toISOString();
     const out: BoardEvent[] = [];
     let anyError = false;
+    this._loading = true;
 
     await Promise.all(
       this._config.persons.map(async (p, idx) => {
@@ -243,6 +303,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     );
     this._events = out;
     this._loadError = anyError && out.length === 0;
+    this._loading = false;
   }
 
   /* ---- capabilities -------------------------------------------- */
@@ -282,8 +343,19 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private get _endMin(): number {
     return (this._config.end_hour ?? 22) * 60;
   }
+  /** Column index (0..6 from week start) -> JS weekday (0=Sun..6=Sat). */
+  private _jsDay(index: number): number {
+    return (this._firstDayJs + index) % 7;
+  }
   private get _visibleDays(): number[] {
-    return this._config.show_weekends === false ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6];
+    const all = [0, 1, 2, 3, 4, 5, 6];
+    if (this._config.show_weekends === false) {
+      return all.filter((i) => {
+        const js = this._jsDay(i);
+        return js !== 0 && js !== 6; // hide Sat/Sun wherever they fall
+      });
+    }
+    return all;
   }
   private _t(key: string): string {
     return localize(this.hass, key);
@@ -309,13 +381,24 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       .filter((e) => e.day === day && e.personIdx === idx)
       .sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.startMin - b.startMin);
   }
-  /** Monday-based weekday index -> absolute Date in the shown week. */
+  /** Week-start-based column index -> absolute Date in the shown week. */
   private _dateForDay(day: number): Date {
     const { monday } = this._weekBounds();
     return new Date(monday.getTime() + day * DAY_MS);
   }
   private _isRealToday(day: number): boolean {
-    return this._weekOffset === 0 && day === (new Date().getDay() + 6) % 7;
+    return this._weekOffset === 0 && day === this._todayIndex();
+  }
+  /** Open an item on Enter/Space for keyboard users. */
+  private _onItemKey(e: KeyboardEvent, ev: BoardEvent): void {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      e.stopPropagation();
+      this._openEvent(ev);
+    }
+  }
+  private _dayHasEvents(day: number): boolean {
+    return this._persons.some((_, i) => this._eventsFor(day, i).length > 0);
   }
   private _personName(p: PersonConfig, idx: number): string {
     return (
@@ -394,7 +477,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private _renderDayTabs() {
-    const short = weekdayNames(this.hass, "short");
+    const short = weekdayNames(this.hass, "short", this._firstDayJs);
     return html`
       <div class="tabs" role="tablist">
         ${this._visibleDays.map(
@@ -420,7 +503,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const startMin = this._startMin;
     const endMin = this._endMin;
     const height = (endMin - startMin) * px;
-    const full = weekdayNames(this.hass, "long");
+    const full = weekdayNames(this.hass, "long", this._firstDayJs);
 
     const hours: number[] = [];
     for (let h = startMin / 60; h <= endMin / 60; h++) hours.push(h);
@@ -432,7 +515,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
     return html`
       <div class="dayhead">
-        <span class="dayname">${full[day]}</span>
+        <span class="dayname">
+          ${full[day]}${this._loading ? html`<span class="spinner"></span>` : nothing}
+        </span>
         ${this._weekNav()}
       </div>
       ${this._renderDayTabs()}
@@ -476,7 +561,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                             style="border-left:3px solid ${c};background:${c}22"
                             title="${e.title}"
                             tabindex="0"
+                            role="button"
                             @click=${() => this._openEvent(e)}
+                            @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                           >
                             ${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter
                               ? " »"
@@ -524,10 +611,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                       <div
                         class="event"
                         tabindex="0"
+                        role="button"
                         @click=${(ev: MouseEvent) => {
                           ev.stopPropagation();
                           this._openEvent(e);
                         }}
+                        @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                         style="top:${top + 1.5}px;height:${h}px;
                                left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);
                                border-left:3px solid ${c};
@@ -557,13 +646,16 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 <span>${formatMinutes(this.hass, nowMin)}</span>
               </div>`
             : nothing}
+          ${!this._loading && !this._loadError && !this._dayHasEvents(day)
+            ? html`<div class="empty">${this._t("no_events")}</div>`
+            : nothing}
         </div>
       </div>
     `;
   }
 
   private _renderWeek() {
-    const short = weekdayNames(this.hass, "short");
+    const short = weekdayNames(this.hass, "short", this._firstDayJs);
     const cols = `70px repeat(${this._persons.length}, minmax(110px, 1fr))`;
     return html`
       <div class="weekhead">${this._weekNav()}</div>
@@ -598,10 +690,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           style="border-left:2.5px solid ${c};background:${c}22"
                           title="${e.title}"
                           tabindex="0"
+                          role="button"
                           @click=${(ev: MouseEvent) => {
                             ev.stopPropagation();
                             this._openEvent(e);
                           }}
+                          @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                         >
                           <span>${e.continuesBefore ? "« " : ""}${e.title}</span>
                           ${!e.allDay
@@ -1016,6 +1110,40 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       font-size: 12.5px;
       color: var(--text-primary-color, #fff);
       background: var(--error-color, #ff5252);
+    }
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-left: 8px;
+      vertical-align: middle;
+      border: 2px solid var(--divider-color);
+      border-top-color: var(--primary-color);
+      border-radius: 50%;
+      animation: fb-spin 0.7s linear infinite;
+    }
+    @keyframes fb-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .spinner {
+        animation-duration: 2s;
+      }
+    }
+    .empty {
+      position: absolute;
+      top: 0;
+      left: 56px;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--secondary-text-color);
+      font-size: 13px;
+      pointer-events: none;
     }
     .board {
       max-height: 58vh;
@@ -1437,7 +1565,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.4.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.5.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

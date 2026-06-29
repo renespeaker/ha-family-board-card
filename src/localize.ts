@@ -123,13 +123,18 @@ export function formatMinutes(hass: any, min: number): string {
   return formatTime(hass, d);
 }
 
-/** Localized weekday names, Monday-first. `style`: "short" | "long". */
-export function weekdayNames(hass: any, style: "short" | "long"): string[] {
+/**
+ * Localized weekday names ordered by the given week start.
+ * `style`: "short" | "long". `firstDayJs`: 0=Sunday, 1=Monday (default).
+ */
+export function weekdayNames(hass: any, style: "short" | "long", firstDayJs: number = 1): string[] {
   const fmt = new Intl.DateTimeFormat(intlLocale(hass), { weekday: style });
-  // 2024-01-01 is a Monday.
-  return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 1 + i))).map(
-    (s) => s.charAt(0).toUpperCase() + s.slice(1),
-  );
+  // 2024-01-07 is a Sunday -> index by JS weekday (0=Sun..6=Sat).
+  const byJs = Array.from({ length: 7 }, (_, js) => {
+    const s = fmt.format(new Date(2024, 0, 7 + js));
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  });
+  return Array.from({ length: 7 }, (_, i) => byJs[(firstDayJs + i) % 7]);
 }
 
 /** Localized "1 Jan – 7 Jan" style range for a week. */

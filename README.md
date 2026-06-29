@@ -70,7 +70,9 @@ persons:
 | `show_now_line` | boolean | `true`  | Aktuelle Uhrzeit als Linie |
 | `color_by`      | string  | `person`| Blöcke nach Person oder Ort einfärben |
 | `hour_height`   | number  | `64`    | Höhe einer Stunde in px (40–96) – Tagesansicht skalieren (Wandtablet) |
-| `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus) |
+| `first_day`     | string  | `monday`| Wochenstart: `monday` oder `sunday` |
+| `scroll_to_now` | boolean | `true`  | Tagesansicht beim Laden automatisch zur aktuellen Uhrzeit scrollen |
+| `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen |
 
 Jede `calendar.*`-Entität funktioniert – egal ob `local_calendar` (lokal, ohne Cloud), Google oder CalDAV. Home Assistant liefert alle einheitlich.
 

@@ -40,6 +40,18 @@ const SETTINGS_SCHEMA = [
   { name: "start_hour", selector: { number: { min: 0, max: 23, mode: "box" } } },
   { name: "end_hour", selector: { number: { min: 1, max: 24, mode: "box" } } },
   {
+    name: "first_day",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "monday", label: "Montag" },
+          { value: "sunday", label: "Sonntag" },
+        ],
+      },
+    },
+  },
+  {
     name: "color_by",
     selector: {
       select: {
@@ -57,6 +69,7 @@ const SETTINGS_SCHEMA = [
   },
   { name: "show_weekends", selector: { boolean: {} } },
   { name: "show_now_line", selector: { boolean: {} } },
+  { name: "scroll_to_now", selector: { boolean: {} } },
   {
     name: "refresh_interval",
     selector: { number: { min: 0, max: 3600, mode: "box", unit_of_measurement: "s" } },
@@ -71,6 +84,8 @@ const LABELS: Record<string, string> = {
   start_hour: "Startstunde",
   end_hour: "Endstunde",
   hour_height: "Höhe pro Stunde",
+  first_day: "Wochenstart",
+  scroll_to_now: "Auto-Scroll zu jetzt",
   color_by: "Einfärben nach",
   show_weekends: "Wochenende anzeigen",
   show_now_line: "Jetzt-Linie",
