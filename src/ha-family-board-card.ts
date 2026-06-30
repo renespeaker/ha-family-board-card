@@ -1288,6 +1288,16 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       overflow: auto;
       margin-top: 8px;
     }
+    /* keep header, all-day and body columns pixel-aligned: borders must not
+       change box width, or the vertical dividers break between the rows. */
+    .axis-spacer,
+    .phead,
+    .axis,
+    .col,
+    .allday-cell,
+    .allday-label {
+      box-sizing: border-box;
+    }
     .header-row {
       display: flex;
       position: sticky;
@@ -1798,7 +1808,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.5.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.5.1 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
