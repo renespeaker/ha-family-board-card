@@ -18,6 +18,7 @@ export interface RawEvent {
   start: Date; // absolute start
   end: Date; // absolute end (exclusive)
   color: string;
+  tentative?: boolean; // provisional event (dashed styling)
 }
 
 /** A per-day display segment derived from a RawEvent. */
@@ -39,6 +40,7 @@ export interface BoardEvent {
 export interface LaidOutEvent extends BoardEvent {
   col: number; // 0-based column within an overlap cluster
   cols: number; // total columns in that cluster
+  cluster: number; // id of the overlap cluster this event belongs to
 }
 
 /** Normalize a HA calendar API item into an absolute-time RawEvent. */
@@ -77,6 +79,7 @@ export function parseRawEvent(
     start,
     end,
     color,
+    tentative: typeof ev.status === "string" && ev.status.toLowerCase() === "tentative",
   };
 }
 
@@ -127,12 +130,17 @@ export function layoutDayColumns(events: BoardEvent[]): LaidOutEvent[] {
   const result: LaidOutEvent[] = [];
   let cluster: LaidOutEvent[] = [];
   let clusterEnd = -1;
+  let clusterId = 0;
   const colEnds: number[] = [];
 
   const flush = () => {
     if (cluster.length) {
       const cols = Math.max(...cluster.map((e) => e.col)) + 1;
-      cluster.forEach((e) => (e.cols = cols));
+      cluster.forEach((e) => {
+        e.cols = cols;
+        e.cluster = clusterId;
+      });
+      clusterId++;
     }
     cluster = [];
   };
@@ -149,7 +157,7 @@ export function layoutDayColumns(events: BoardEvent[]): LaidOutEvent[] {
     } else {
       colEnds[col] = ev.endMin;
     }
-    const laid: LaidOutEvent = { ...ev, col, cols: 1 };
+    const laid: LaidOutEvent = { ...ev, col, cols: 1, cluster: clusterId };
     cluster.push(laid);
     result.push(laid);
     clusterEnd = cluster.length === 1 ? ev.endMin : Math.max(clusterEnd, ev.endMin);
