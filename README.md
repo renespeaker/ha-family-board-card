@@ -17,6 +17,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Robuste Termin-Logik** – Ganztags-Events (Ende exklusiv), über Mitternacht laufende und mehrtägige Termine werden korrekt auf die Tage aufgeteilt; Zeitzonen werden berücksichtigt.
 - **Mehrsprachig & lokalisiert** – Texte in Deutsch/Englisch, Wochentage und Uhrzeiten (12/24 h) aus der HA-Locale; relative Tage („Heute/Morgen").
 - **Alltags-Politur** – vergangene Termine ausgegraut, Einfärben auch nach Kalender, Ort direkt in Google Maps öffnen, störende Termine per Muster ausblenden.
+- **Live-Fortschritt & Countdown** – laufende Termine zeigen einen Fortschrittsbalken, kommende in der Agenda ein „in 20 Min."; aktualisiert minütlich.
 - **Visueller Editor** – Personen inkl. Entity-Auswahl (`person.*`/`calendar.*`) komplett ohne YAML pflegbar.
 
 > Status: **v0.3 – Anzeige + Schreibzugriff + Skalierung/i18n.**

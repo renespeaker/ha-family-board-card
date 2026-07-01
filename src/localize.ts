@@ -159,6 +159,18 @@ export function weekdayNames(hass: any, style: "short" | "long", firstDayJs: num
   return Array.from({ length: 7 }, (_, i) => byJs[(firstDayJs + i) % 7]);
 }
 
+/** Localized short countdown to a future date, e.g. "in 20 Min." / "in 2 hr.". */
+export function formatCountdown(hass: any, date: Date): string {
+  const diffMs = date.getTime() - Date.now();
+  if (diffMs <= 0) return "";
+  const rtf = new Intl.RelativeTimeFormat(intlLocale(hass), { numeric: "always", style: "short" });
+  const min = Math.round(diffMs / 60000);
+  if (min < 60) return rtf.format(Math.max(1, min), "minute");
+  const hours = Math.round(min / 60);
+  if (hours < 24) return rtf.format(hours, "hour");
+  return rtf.format(Math.round(hours / 24), "day");
+}
+
 /** Localized "1 Jan – 7 Jan" style range for a week. */
 export function formatWeekRange(hass: any, monday: Date): string {
   const sunday = new Date(monday.getTime() + 6 * 86400000);
