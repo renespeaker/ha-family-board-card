@@ -20,6 +20,21 @@ const SETTINGS_SCHEMA = [
         options: [
           { value: "day", label: "Tag" },
           { value: "week", label: "Woche" },
+          { value: "month", label: "Monat" },
+          { value: "agenda", label: "Agenda" },
+        ],
+      },
+    },
+  },
+  {
+    name: "views",
+    selector: {
+      select: {
+        multiple: true,
+        options: [
+          { value: "day", label: "Tag" },
+          { value: "week", label: "Woche" },
+          { value: "month", label: "Monat" },
           { value: "agenda", label: "Agenda" },
         ],
       },
@@ -81,6 +96,7 @@ const LABELS: Record<string, string> = {
   title: "Kartentitel",
   refresh_interval: "Auto-Aktualisierung (Sek., 0 = aus)",
   view: "Standardansicht",
+  views: "Verfügbare Ansichten (Umschalter)",
   time_grid: "Zeitraster",
   start_hour: "Startstunde",
   end_hour: "Endstunde",

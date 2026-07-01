@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { parseRawEvent, splitIntoSegments, layoutDayColumns, DAY_MS, BoardEvent } from "./events";
+import {
+  parseRawEvent,
+  splitIntoSegments,
+  splitAcrossDays,
+  layoutDayColumns,
+  DAY_MS,
+  BoardEvent,
+} from "./events";
 
 // A Monday at local midnight for deterministic week math.
 const monday = (() => {
@@ -139,6 +146,19 @@ describe("splitIntoSegments", () => {
       "#abc",
     )!;
     expect(splitIntoSegments(raw, monday)).toHaveLength(0);
+  });
+
+  it("splitAcrossDays spans an arbitrary grid (month)", () => {
+    const raw = parseRawEvent(
+      { start: { dateTime: "2024-01-10T09:00:00" }, end: { dateTime: "2024-01-10T10:00:00" } },
+      0,
+      "calendar.x",
+      "#abc",
+    )!;
+    // 2024-01-10 is 9 days after gridStart (2024-01-01)
+    const segs = splitAcrossDays(raw, monday, 42);
+    expect(segs).toHaveLength(1);
+    expect(segs[0].day).toBe(9);
   });
 });
 
