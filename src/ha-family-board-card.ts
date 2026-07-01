@@ -1446,6 +1446,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       --fb-hourline: var(--divider-color, #8884);
       --fb-halfhour: color-mix(in srgb, var(--divider-color, #8884) 45%, transparent);
       --fb-row-shade: color-mix(in srgb, var(--secondary-text-color, #888) 5%, transparent);
+      /* customization tokens — override via theme or card-mod */
+      --fb-accent: var(--primary-color);
+      --fb-now-color: var(--error-color, #ff5252);
+      --fb-radius: 7px;
+      --fb-radius-sm: 5px;
+      --fb-avatar-size: 34px;
+      --fb-past-opacity: 0.5;
+      --fb-title-size: 16px;
+      --fb-name-size: 13px;
+      --fb-event-size: 11.5px;
+      --fb-time-size: 9.5px;
+      --fb-chip-size: 10.5px;
     }
     ha-card {
       overflow: hidden;
@@ -1460,7 +1472,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .title {
       font-weight: 600;
-      font-size: 16px;
+      font-size: var(--fb-title-size);
     }
     .switch,
     .tabs {
@@ -1488,7 +1500,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       font-weight: 600;
     }
     .tabs button.today:not(.on) {
-      box-shadow: inset 0 -2px 0 var(--primary-color);
+      box-shadow: inset 0 -2px 0 var(--fb-accent);
     }
     .tabs {
       margin: 8px 16px 0;
@@ -1639,9 +1651,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       gap: 3px;
     }
     .adchip {
-      border-radius: 5px;
+      border-radius: var(--fb-radius-sm);
       padding: 2px 6px;
-      font-size: 10.5px;
+      font-size: var(--fb-chip-size);
       font-weight: 600;
       cursor: pointer;
       white-space: nowrap;
@@ -1649,8 +1661,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       text-overflow: ellipsis;
     }
     .avatar {
-      width: 34px;
-      height: 34px;
+      width: var(--fb-avatar-size);
+      height: var(--fb-avatar-size);
       border-radius: 50%;
       background-size: cover;
       background-position: center;
@@ -1665,7 +1677,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .pname {
       font-weight: 600;
-      font-size: 13px;
+      font-size: var(--fb-name-size);
     }
     .pstatus {
       font-size: 10.5px;
@@ -1703,7 +1715,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .event {
       position: absolute;
-      border-radius: 7px;
+      border-radius: var(--fb-radius);
       padding: 4px 7px;
       overflow: hidden;
       display: flex;
@@ -1713,14 +1725,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       cursor: pointer;
     }
     .etitle {
-      font-size: 11.5px;
+      font-size: var(--fb-event-size);
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .etime {
-      font-size: 9.5px;
+      font-size: var(--fb-time-size);
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
     }
@@ -1728,7 +1740,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       position: absolute;
       left: 56px;
       right: 0;
-      border-top: 2px solid var(--error-color, #ff5252);
+      border-top: 2px solid var(--fb-now-color);
       z-index: 7;
       pointer-events: none;
     }
@@ -1739,7 +1751,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       font-size: 10px;
       font-weight: 600;
       color: var(--text-primary-color, #fff);
-      background: var(--error-color, #ff5252);
+      background: var(--fb-now-color);
       padding: 1px 5px;
       border-radius: 5px;
       font-variant-numeric: tabular-nums;
@@ -1871,7 +1883,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       font-variant-numeric: tabular-nums;
     }
     .mdate.today {
-      background: var(--primary-color);
+      background: var(--fb-accent);
       color: var(--text-primary-color, #fff);
       border-radius: 50%;
     }
@@ -1915,7 +1927,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     /* faded past events + map link */
     .past {
-      opacity: 0.5;
+      opacity: var(--fb-past-opacity);
     }
     /* progress bar inside a running day event */
     .eprog {
@@ -1928,7 +1940,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .eprog > div {
       height: 100%;
-      background: var(--error-color, #ff5252);
+      background: var(--fb-now-color);
     }
     /* agenda: countdown + running progress */
     .agenda-cd {
@@ -1940,7 +1952,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       white-space: nowrap;
     }
     .agenda-row.current {
-      background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+      background: color-mix(in srgb, var(--fb-accent) 6%, transparent);
     }
     .agenda-prog {
       display: block;
@@ -2024,10 +2036,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .wday.today,
     .wcell.today {
-      background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+      background: color-mix(in srgb, var(--fb-accent) 8%, transparent);
     }
     .wchip {
-      border-radius: 5px;
+      border-radius: var(--fb-radius-sm);
       padding: 3px 5px;
       display: flex;
       align-items: center;
@@ -2036,7 +2048,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       cursor: pointer;
     }
     .wchip span {
-      font-size: 10.5px;
+      font-size: var(--fb-chip-size);
       font-weight: 600;
       white-space: nowrap;
       overflow: hidden;
@@ -2232,7 +2244,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.9.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.10.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

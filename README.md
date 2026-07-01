@@ -91,6 +91,40 @@ persons:
 
 Jede `calendar.*`-Entität funktioniert – egal ob `local_calendar` (lokal, ohne Cloud), Google oder CalDAV. Home Assistant liefert alle einheitlich.
 
+## Aussehen anpassen (Theme / card-mod)
+
+Die Karte übernimmt automatisch Farben & Schrift des Themes. Für Feintuning gibt es zusätzlich eigene CSS-Variablen, die du im **Theme** oder per **card-mod** überschreiben kannst:
+
+| Token | Default | Wirkung |
+|-------|---------|---------|
+| `--fb-accent` | `--primary-color` | „Heute"-/Akzentfarbe |
+| `--fb-now-color` | `--error-color` | Jetzt-Linie & Fortschritt |
+| `--fb-radius` | `7px` | Ecken der Termin-Blöcke |
+| `--fb-radius-sm` | `5px` | Ecken der Chips |
+| `--fb-avatar-size` | `34px` | Avatar-Größe |
+| `--fb-past-opacity` | `0.5` | Deckkraft vergangener Termine |
+| `--fb-title-size` | `16px` | Kartentitel |
+| `--fb-name-size` | `13px` | Personennamen |
+| `--fb-event-size` | `11.5px` | Termin-Titel |
+| `--fb-time-size` | `9.5px` | Uhrzeiten im Block |
+| `--fb-chip-size` | `10.5px` | Chip-Schriftgröße |
+| `--fb-hourline` / `--fb-halfhour` / `--fb-row-shade` | – | Rasterlinien / Zeilenschattierung |
+
+Beispiel (card-mod):
+
+```yaml
+type: custom:family-board-card
+card_mod:
+  style: |
+    :host {
+      --fb-accent: #e91e63;
+      --fb-event-size: 13px;
+      --fb-radius: 12px;
+      --fb-avatar-size: 40px;
+    }
+persons: …
+```
+
 ## Entwicklung
 
 ```bash
