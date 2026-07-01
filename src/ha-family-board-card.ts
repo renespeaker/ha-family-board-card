@@ -13,6 +13,7 @@ import {
   DAY_MS,
   parseRawEvent,
   splitIntoSegments,
+  splitAcrossDays,
   layoutDayColumns,
 } from "./events";
 import { localize, formatMinutes, weekdayNames, formatWeekRange } from "./localize";
@@ -20,6 +21,9 @@ import { localize, formatMinutes, weekdayNames, formatWeekRange } from "./locali
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
+type ViewName = "day" | "week" | "month" | "agenda";
+const ALL_VIEWS: ViewName[] = ["day", "week", "month", "agenda"];
+
 interface PersonConfig {
   name?: string;
   person?: string; // person.* entity -> avatar (entity_picture) + live status
@@ -30,7 +34,8 @@ interface PersonConfig {
 export interface FamilyBoardConfig extends LovelaceCardConfig {
   persons: PersonConfig[];
   title?: string;
-  view?: "day" | "week" | "agenda";
+  view?: ViewName;
+  views?: ViewName[]; // which views appear in the toggle. default: all
   time_grid?: 15 | 30 | 60;
   start_hour?: number;
   end_hour?: number;
@@ -114,13 +119,15 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   @property({ attribute: false }) public hass!: HomeAssistant;
   @state() private _config!: FamilyBoardConfig;
   @state() private _events: BoardEvent[] = [];
-  @state() private _view: "day" | "week" | "agenda" = "day";
+  @state() private _view: ViewName = "day";
   @state() private _day: number = (new Date().getDay() + 6) % 7;
   @state() private _weekOffset = 0;
+  @state() private _monthOffset = 0;
   @state() private _dialog?: DialogState;
   @state() private _loadError = false;
   @state() private _loading = false;
 
+  private _raw: RawEvent[] = [];
   private _fetchedKey = "";
   private _timer?: number;
   private _scrolledKey = "";
@@ -153,9 +160,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       throw new Error("Bitte mindestens eine Person unter 'persons' konfigurieren.");
     }
     this._config = config;
-    this._view = config.view ?? "day";
+    const enabled = this._enabledViews;
+    const wanted = config.view ?? "day";
+    this._view = enabled.includes(wanted) ? wanted : enabled[0];
     this._day = this._todayIndex();
     if (this.isConnected) this._startTimer();
+  }
+
+  /** Views shown in the toggle (config order-independent, default all). */
+  private get _enabledViews(): ViewName[] {
+    const v = this._config?.views;
+    const chosen = Array.isArray(v) ? ALL_VIEWS.filter((x) => v.includes(x)) : [];
+    return chosen.length ? chosen : [...ALL_VIEWS];
   }
 
   /** JS weekday (0=Sun..6=Sat) of the configured week start. */
@@ -263,10 +279,31 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return { monday, nextMonday };
   }
 
+  /** Grid geometry for the currently shown month (week-start aware). */
+  private _monthGrid(): { gridStart: Date; weeks: number; month: number; year: number } {
+    const base = new Date();
+    const target = new Date(base.getFullYear(), base.getMonth() + this._monthOffset, 1);
+    const offset = (target.getDay() - this._firstDayJs + 7) % 7;
+    const gridStart = startOfDay(new Date(target.getFullYear(), target.getMonth(), 1 - offset));
+    const daysInMonth = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    const weeks = Math.ceil((offset + daysInMonth) / 7);
+    return { gridStart, weeks, month: target.getMonth(), year: target.getFullYear() };
+  }
+
+  /** Fetch window for the current view. */
+  private _fetchRange(): { start: Date; end: Date } {
+    if (this._view === "month") {
+      const { gridStart, weeks } = this._monthGrid();
+      return { start: gridStart, end: new Date(gridStart.getTime() + weeks * 7 * DAY_MS) };
+    }
+    const { monday, nextMonday } = this._weekBounds();
+    return { start: monday, end: nextMonday };
+  }
+
   private async _maybeFetch(): Promise<void> {
-    const { monday } = this._weekBounds();
     const cals = this._config.persons.map((p) => this._calsOf(p).join("+")).join(",");
-    const key = `${monday.toISOString().slice(0, 10)}|${cals}`;
+    const scope = this._view === "month" ? `m${this._monthOffset}` : `w${this._weekOffset}`;
+    const key = `${scope}|${cals}`;
     if (key === this._fetchedKey) return;
     this._fetchedKey = key;
     await this._fetchEvents();
@@ -279,10 +316,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private async _fetchEvents(): Promise<void> {
-    const { monday, nextMonday } = this._weekBounds();
-    const start = monday.toISOString();
-    const end = nextMonday.toISOString();
-    const out: BoardEvent[] = [];
+    const { start, end } = this._fetchRange();
+    const startIso = start.toISOString();
+    const endIso = end.toISOString();
+    const raws: RawEvent[] = [];
     let anyError = false;
     this._loading = true;
 
@@ -295,11 +332,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             try {
               const events = await this.hass.callApi<any[]>(
                 "GET",
-                `calendars/${cal}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+                `calendars/${cal}?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`,
               );
               for (const ev of events) {
                 const raw = parseRawEvent(ev, idx, cal, color);
-                if (raw) out.push(...splitIntoSegments(raw, monday));
+                if (raw) raws.push(raw);
               }
             } catch (err) {
               anyError = true;
@@ -307,8 +344,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           });
       }),
     );
-    this._events = out;
-    this._loadError = anyError && out.length === 0;
+    this._raw = raws;
+    // Week views index events by weekday; month builds its own grid from _raw.
+    const { monday } = this._weekBounds();
+    this._events = this._view === "month" ? [] : raws.flatMap((r) => splitIntoSegments(r, monday));
+    this._loadError = anyError && raws.length === 0;
     this._loading = false;
   }
 
@@ -446,8 +486,32 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   };
   private _thisWeek = () => {
     this._weekOffset = 0;
-    this._day = (new Date().getDay() + 6) % 7;
+    this._day = this._todayIndex();
   };
+  private _prevMonth = () => {
+    this._monthOffset -= 1;
+  };
+  private _nextMonth = () => {
+    this._monthOffset += 1;
+  };
+  private _thisMonth = () => {
+    this._monthOffset = 0;
+  };
+  /** Jump to the day view for a specific date (from the month grid). */
+  private _goToDate(date: Date): void {
+    const today = startOfDay(new Date());
+    const toWeekStart = (d: Date) => {
+      const s = startOfDay(d);
+      s.setDate(s.getDate() - ((s.getDay() - this._firstDayJs + 7) % 7));
+      return s;
+    };
+    const weeks = Math.round(
+      (toWeekStart(date).getTime() - toWeekStart(today).getTime()) / (7 * DAY_MS),
+    );
+    this._weekOffset = weeks;
+    this._day = (date.getDay() - this._firstDayJs + 7) % 7;
+    this._view = this._enabledViews.includes("day") ? "day" : this._view;
+  }
 
   /* ---- render -------------------------------------------------- */
   protected render() {
@@ -457,38 +521,29 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       <ha-card>
         <div class="top">
           <div class="title">${title}</div>
-          <div class="switch" role="tablist">
-            <button
-              role="tab"
-              aria-selected=${this._view === "day"}
-              class=${this._view === "day" ? "on" : ""}
-              @click=${() => (this._view = "day")}
-            >
-              ${this._t("day")}
-            </button>
-            <button
-              role="tab"
-              aria-selected=${this._view === "week"}
-              class=${this._view === "week" ? "on" : ""}
-              @click=${() => (this._view = "week")}
-            >
-              ${this._t("week")}
-            </button>
-            <button
-              role="tab"
-              aria-selected=${this._view === "agenda"}
-              class=${this._view === "agenda" ? "on" : ""}
-              @click=${() => (this._view = "agenda")}
-            >
-              ${this._t("agenda")}
-            </button>
-          </div>
+          ${this._enabledViews.length > 1
+            ? html`<div class="switch" role="tablist">
+                ${this._enabledViews.map(
+                  (v) =>
+                    html`<button
+                      role="tab"
+                      aria-selected=${this._view === v}
+                      class=${this._view === v ? "on" : ""}
+                      @click=${() => (this._view = v)}
+                    >
+                      ${this._t(v)}
+                    </button>`,
+                )}
+              </div>`
+            : nothing}
         </div>
         ${this._view === "day"
           ? this._renderDay()
           : this._view === "week"
             ? this._renderWeek()
-            : this._renderAgenda()}
+            : this._view === "month"
+              ? this._renderMonth()
+              : this._renderAgenda()}
       </ha-card>
       ${this._dialog ? this._renderDialog() : nothing}
     `;
@@ -794,6 +849,88 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           >
           <span class="agenda-meta">${name}${e.location ? ` · ${e.location}` : ""}</span>
         </span>
+      </div>
+    `;
+  }
+
+  private _renderMonth() {
+    const { gridStart, weeks, month, year } = this._monthGrid();
+    const numDays = weeks * 7;
+    const short = weekdayNames(this.hass, "short", this._firstDayJs);
+    const locale = this.hass.locale?.language || "en";
+    const monthName = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(
+      new Date(year, month, 1),
+    );
+    const byDay = new Map<number, BoardEvent[]>();
+    for (const r of this._raw) {
+      for (const s of splitAcrossDays(r, gridStart, numDays)) {
+        const arr = byDay.get(s.day);
+        if (arr) arr.push(s);
+        else byDay.set(s.day, [s]);
+      }
+    }
+    const today = startOfDay(new Date()).getTime();
+    const maxChips = 3;
+    return html`
+      <div class="weekhead">
+        <div class="weeknav">
+          <button class="nav" aria-label=${this._t("prev_month")} @click=${this._prevMonth}>
+            ‹
+          </button>
+          <button class="nav-now" @click=${this._thisMonth}>${monthName}</button>
+          <button class="nav" aria-label=${this._t("next_month")} @click=${this._nextMonth}>
+            ›
+          </button>
+        </div>
+      </div>
+      ${this._loadError ? html`<div class="banner">${this._t("load_error")}</div>` : nothing}
+      <div class="monthwrap">
+        <div class="monthhead">${short.map((s) => html`<div class="mhcell">${s}</div>`)}</div>
+        <div class="monthgrid">
+          ${Array.from({ length: numDays }, (_, d) => {
+            const date = new Date(gridStart.getTime() + d * DAY_MS);
+            const inMonth = date.getMonth() === month;
+            const isToday = date.getTime() === today;
+            const items = (byDay.get(d) || []).sort(
+              (a, b) => Number(b.allDay) - Number(a.allDay) || a.startMin - b.startMin,
+            );
+            return html`
+              <div
+                class="mcell ${inMonth ? "" : "out"}"
+                role="button"
+                tabindex="0"
+                @click=${() => this._goToDate(date)}
+                @keydown=${(k: KeyboardEvent) => {
+                  if (k.key === "Enter" || k.key === " ") {
+                    k.preventDefault();
+                    this._goToDate(date);
+                  }
+                }}
+              >
+                <div class="mdate ${isToday ? "today" : ""}">${date.getDate()}</div>
+                <div class="mchips">
+                  ${items.slice(0, maxChips).map((e) => {
+                    const col = this._eventColor(e);
+                    return html`<div
+                      class="mchip"
+                      style="background:${col}22;border-left:2px solid ${col}"
+                      title="${e.title}"
+                      @click=${(ev: MouseEvent) => {
+                        ev.stopPropagation();
+                        this._openEvent(e);
+                      }}
+                    >
+                      ${e.continuesBefore ? "« " : ""}${e.title}
+                    </div>`;
+                  })}
+                  ${items.length > maxChips
+                    ? html`<div class="mmore">+${items.length - maxChips}</div>`
+                    : nothing}
+                </div>
+              </div>
+            `;
+          })}
+        </div>
       </div>
     `;
   }
@@ -1511,6 +1648,88 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    /* month */
+    .monthwrap {
+      overflow: auto;
+      max-height: 62vh;
+      padding: 0 8px 8px;
+    }
+    .monthhead {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: var(--card-background-color, var(--ha-card-background));
+    }
+    .mhcell {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+      padding: 6px 0;
+      border-bottom: 1px solid var(--divider-color);
+    }
+    .monthgrid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      grid-auto-rows: minmax(64px, 1fr);
+    }
+    .mcell {
+      border-right: 1px solid var(--divider-color);
+      border-bottom: 1px solid var(--divider-color);
+      padding: 3px;
+      cursor: pointer;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    .mcell:nth-child(7n) {
+      border-right: none;
+    }
+    .mcell.out {
+      background: color-mix(in srgb, var(--secondary-text-color, #888) 4%, transparent);
+    }
+    .mcell.out .mdate {
+      opacity: 0.45;
+    }
+    .mcell:hover {
+      background: var(--secondary-background-color);
+    }
+    .mdate {
+      font-size: 12px;
+      font-weight: 600;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .mdate.today {
+      background: var(--primary-color);
+      color: var(--text-primary-color, #fff);
+      border-radius: 50%;
+    }
+    .mchips {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 2px;
+    }
+    .mchip {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 4px;
+      border-radius: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .mmore {
+      font-size: 9.5px;
+      color: var(--secondary-text-color);
+      padding-left: 4px;
+    }
     /* week */
     .weekwrap {
       overflow: auto;
@@ -1780,7 +1999,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.5.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.6.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

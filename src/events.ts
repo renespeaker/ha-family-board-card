@@ -82,9 +82,18 @@ export function parseRawEvent(
 
 /** Split a RawEvent into per-day display segments within the visible week. */
 export function splitIntoSegments(raw: RawEvent, monday: Date): BoardEvent[] {
+  return splitAcrossDays(raw, monday, 7);
+}
+
+/**
+ * Split a RawEvent into per-day segments across `numDays` days starting at
+ * `gridStart`. `day` is the 0-based offset from `gridStart`. Used by the week
+ * views (numDays = 7) and the month grid (numDays = weeks * 7).
+ */
+export function splitAcrossDays(raw: RawEvent, gridStart: Date, numDays: number): BoardEvent[] {
   const segs: BoardEvent[] = [];
-  for (let d = 0; d < 7; d++) {
-    const dayStart = new Date(monday.getTime() + d * DAY_MS);
+  for (let d = 0; d < numDays; d++) {
+    const dayStart = new Date(gridStart.getTime() + d * DAY_MS);
     const dayEnd = new Date(dayStart.getTime() + DAY_MS);
     const segStartMs = Math.max(raw.start.getTime(), dayStart.getTime());
     const segEndMs = Math.min(raw.end.getTime(), dayEnd.getTime());
