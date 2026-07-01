@@ -50,6 +50,9 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   color_by?: "person" | "location" | "calendar";
   dim_past?: boolean; // fade events that already ended. default true
   hide_patterns?: string[]; // hide events whose title matches any pattern
+  show_progress?: boolean; // progress bar on running events. default true
+  weather_entity?: string; // weather.* entity for the daily forecast
+  show_weather?: boolean; // show weather in headers. default true when entity set
   refresh_interval?: number; // seconds; 0 disables. default 300
   hour_height?: number; // px per hour in the day view. default 64
   first_day?: "monday" | "sunday"; // week start. default monday
@@ -96,6 +99,25 @@ const FALLBACK_COLORS = [
 const DEFAULT_HOUR_HEIGHT = 64; // px per hour in the day view
 const HOUR_HEIGHT_MIN = 40;
 const HOUR_HEIGHT_MAX = 96;
+
+// HA weather condition -> mdi icon
+const WEATHER_ICON: Record<string, string> = {
+  "clear-night": "weather-night",
+  cloudy: "weather-cloudy",
+  fog: "weather-fog",
+  hail: "weather-hail",
+  lightning: "weather-lightning",
+  "lightning-rainy": "weather-lightning-rainy",
+  partlycloudy: "weather-partly-cloudy",
+  pouring: "weather-pouring",
+  rainy: "weather-rainy",
+  snowy: "weather-snowy",
+  "snowy-rainy": "weather-snowy-rainy",
+  sunny: "weather-sunny",
+  windy: "weather-windy",
+  "windy-variant": "weather-windy-variant",
+  exceptional: "weather-cloudy-alert",
+};
 
 // CalendarEntityFeature bitmask (home-assistant/core)
 const FEAT_CREATE = 1;
@@ -146,6 +168,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _fetchedKey = "";
   private _timer?: number;
   private _tick?: number;
+  @state() private _forecast: Record<string, { temp: number; condition: string }> = {};
+  private _weatherKey = "";
   private _scrolledKey = "";
   private _restoreFocus?: HTMLElement;
 
@@ -225,6 +249,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
   }
 
+  private get _progressOn(): boolean {
+    return this._config?.show_progress !== false;
+  }
   /** Whether an event is happening right now. */
   private _isCurrent(e: BoardEvent): boolean {
     const n = Date.now();
@@ -265,6 +292,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   protected updated(changed: PropertyValues): void {
     if ((changed.has("hass") || changed.has("_config")) && this.hass && this._config) {
       this._maybeFetch();
+      this._maybeFetchWeather();
     }
     if (changed.has("_dialog")) this._manageDialogFocus(changed.get("_dialog") as DialogState);
     this._maybeScrollToNow();
@@ -348,6 +376,52 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private async _refetch(): Promise<void> {
     this._fetchedKey = "";
     await this._maybeFetch();
+  }
+
+  /** Fetch the daily forecast for the configured weather entity (once/day). */
+  private async _maybeFetchWeather(): Promise<void> {
+    const ent = this._config.weather_entity;
+    if (!ent || this._config.show_weather === false || !this.hass.states[ent]) {
+      if (Object.keys(this._forecast).length) this._forecast = {};
+      this._weatherKey = "";
+      return;
+    }
+    const key = `${ent}|${new Date().toISOString().slice(0, 10)}`;
+    if (key === this._weatherKey) return;
+    this._weatherKey = key;
+    try {
+      const res: any = await this.hass.callWS({
+        type: "call_service",
+        domain: "weather",
+        service: "get_forecasts",
+        service_data: { type: "daily" },
+        target: { entity_id: ent },
+        return_response: true,
+      });
+      const list: any[] = res?.response?.[ent]?.forecast ?? [];
+      const map: Record<string, { temp: number; condition: string }> = {};
+      for (const f of list) {
+        if (!f?.datetime) continue;
+        map[toLocalDate(new Date(f.datetime))] = {
+          temp: Math.round(f.temperature),
+          condition: f.condition,
+        };
+      }
+      this._forecast = map;
+    } catch (e) {
+      this._forecast = {};
+    }
+  }
+
+  /** Small weather chip (icon + temperature) for a given date, or nothing. */
+  private _weatherChip(date: Date) {
+    const f = this._forecast[toLocalDate(date)];
+    if (!f) return nothing;
+    const icon = WEATHER_ICON[f.condition] || "weather-cloudy";
+    const unit = (this.hass.config as any)?.unit_system?.temperature ?? "°";
+    return html`<span class="wx" title=${f.condition}>
+      <ha-icon icon="mdi:${icon}"></ha-icon>${f.temp}${unit}
+    </span>`;
   }
 
   /** Whether an event title matches a configured hide pattern (case-insensitive). */
@@ -660,7 +734,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return html`
       <div class="dayhead">
         <span class="dayname">
-          ${this._relativeDay(this._dateForDay(day)) ?? full[day]}${this._loading
+          ${this._relativeDay(this._dateForDay(day)) ?? full[day]}
+          ${this._weatherChip(this._dateForDay(day))}${this._loading
             ? html`<span class="spinner"></span>`
             : nothing}
         </span>
@@ -771,7 +846,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                               )}</span
                             >`
                           : nothing}
-                        ${this._isCurrent(e)
+                        ${this._progressOn && this._isCurrent(e)
                           ? html`<div class="eprog">
                               <div style="width:${this._progressPct(e)}%"></div>
                             </div>`
@@ -884,6 +959,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   <div class="agenda-date ${this._isRealToday(g.d) ? "today" : ""}">
                     ${this._relativeDay(this._dateForDay(g.d)) ?? full[g.d]} ·
                     ${dateFmt.format(this._dateForDay(g.d))}
+                    ${this._weatherChip(this._dateForDay(g.d))}
                   </div>
                   ${g.items.map((e) => this._agendaRow(e))}
                 </div>
@@ -917,7 +993,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             >${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter ? " »" : ""}</span
           >
           <span class="agenda-meta">${name}${e.location ? ` · ${e.location}` : ""}</span>
-          ${current
+          ${current && this._progressOn
             ? html`<span class="agenda-prog"
                 ><span style="width:${this._progressPct(e)}%;background:${c}"></span
               ></span>`
@@ -1819,6 +1895,24 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--secondary-text-color);
       padding-left: 4px;
     }
+    /* weather chip */
+    .wx {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary-text-color);
+      vertical-align: middle;
+      font-variant-numeric: tabular-nums;
+    }
+    .wx ha-icon {
+      --mdc-icon-size: 18px;
+      color: var(--primary-text-color);
+    }
+    .agenda-date .wx {
+      margin-left: 4px;
+    }
     /* faded past events + map link */
     .past {
       opacity: 0.5;
@@ -2138,7 +2232,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.8.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.9.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
