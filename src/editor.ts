@@ -75,6 +75,7 @@ const SETTINGS_SCHEMA = [
         options: [
           { value: "person", label: "Person" },
           { value: "location", label: "Ort" },
+          { value: "calendar", label: "Kalender" },
         ],
       },
     },
@@ -86,6 +87,8 @@ const SETTINGS_SCHEMA = [
   { name: "show_weekends", selector: { boolean: {} } },
   { name: "show_now_line", selector: { boolean: {} } },
   { name: "scroll_to_now", selector: { boolean: {} } },
+  { name: "dim_past", selector: { boolean: {} } },
+  { name: "hide_patterns", selector: { text: { multiple: true } } },
   {
     name: "refresh_interval",
     selector: { number: { min: 0, max: 3600, mode: "box", unit_of_measurement: "s" } },
@@ -106,6 +109,8 @@ const LABELS: Record<string, string> = {
   color_by: "Einfärben nach",
   show_weekends: "Wochenende anzeigen",
   show_now_line: "Jetzt-Linie",
+  dim_past: "Vergangene Termine ausgrauen",
+  hide_patterns: "Termine ausblenden (Text-Muster)",
   name: "Anzeigename",
   person: "Person (Avatar & Status)",
   calendar: "Kalender (Termine, mehrere möglich)",

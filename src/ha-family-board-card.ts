@@ -41,7 +41,9 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   end_hour?: number;
   show_weekends?: boolean;
   show_now_line?: boolean;
-  color_by?: "person" | "location";
+  color_by?: "person" | "location" | "calendar";
+  dim_past?: boolean; // fade events that already ended. default true
+  hide_patterns?: string[]; // hide events whose title matches any pattern
   refresh_interval?: number; // seconds; 0 disables. default 300
   hour_height?: number; // px per hour in the day view. default 64
   first_day?: "monday" | "sunday"; // week start. default monday
@@ -111,6 +113,13 @@ const startOfDay = (d: Date) => {
 
 const personColor = (p: PersonConfig, idx: number) =>
   p.color || FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+
+/** Deterministic palette color from a string (for location/calendar coloring). */
+const hashColor = (s: string): string => {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return FALLBACK_COLORS[h % FALLBACK_COLORS.length];
+};
 
 /* ------------------------------------------------------------------ */
 /*  Card                                                               */
@@ -315,6 +324,17 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     await this._maybeFetch();
   }
 
+  /** Whether an event title matches a configured hide pattern (case-insensitive). */
+  private _hidden(summary: string): boolean {
+    const pats = this._config.hide_patterns;
+    if (!Array.isArray(pats) || pats.length === 0) return false;
+    const s = summary.toLowerCase();
+    return pats.some((p) => {
+      const pat = String(p).trim().toLowerCase();
+      return pat.length > 0 && s.includes(pat);
+    });
+  }
+
   private async _fetchEvents(): Promise<void> {
     const { start, end } = this._fetchRange();
     const startIso = start.toISOString();
@@ -336,7 +356,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               );
               for (const ev of events) {
                 const raw = parseRawEvent(ev, idx, cal, color);
-                if (raw) raws.push(raw);
+                if (raw && !this._hidden(raw.summary)) raws.push(raw);
               }
             } catch (err) {
               anyError = true;
@@ -421,12 +441,24 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
   /** Color for an event respecting the color_by option. */
   private _eventColor(e: BoardEvent): string {
-    if (this._config.color_by === "location" && e.location) {
-      let h = 0;
-      for (let i = 0; i < e.location.length; i++) h = (h * 31 + e.location.charCodeAt(i)) >>> 0;
-      return FALLBACK_COLORS[h % FALLBACK_COLORS.length];
-    }
+    const by = this._config.color_by;
+    if (by === "location" && e.location) return hashColor(e.location);
+    if (by === "calendar" && e.ref.calendar) return hashColor(e.ref.calendar);
     return e.color;
+  }
+  /** Whether an event has already ended (for dimming). */
+  private _isPast(e: BoardEvent): boolean {
+    return this._config.dim_past !== false && e.ref.end.getTime() <= Date.now();
+  }
+  /** Localized "Today"/"Tomorrow"/"Yesterday" for a date, else null. */
+  private _relativeDay(date: Date): string | null {
+    const diff = Math.round(
+      (startOfDay(date).getTime() - startOfDay(new Date()).getTime()) / DAY_MS,
+    );
+    if (diff === 0) return this._t("today");
+    if (diff === 1) return this._t("tomorrow");
+    if (diff === -1) return this._t("yesterday");
+    return null;
   }
   private _timedFor(day: number, idx: number): LaidOutEvent[] {
     const evs = this._events.filter((e) => e.day === day && e.personIdx === idx && !e.allDay);
@@ -602,7 +634,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return html`
       <div class="dayhead">
         <span class="dayname">
-          ${full[day]}${this._loading ? html`<span class="spinner"></span>` : nothing}
+          ${this._relativeDay(this._dateForDay(day)) ?? full[day]}${this._loading
+            ? html`<span class="spinner"></span>`
+            : nothing}
         </span>
         ${this._weekNav()}
       </div>
@@ -685,7 +719,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                     const widthPct = 100 / e.cols;
                     return html`
                       <div
-                        class="event"
+                        class="event ${this._isPast(e) ? "past" : ""}"
                         tabindex="0"
                         role="button"
                         @click=${(ev: MouseEvent) => {
@@ -762,7 +796,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                       const c = this._eventColor(e);
                       return html`
                         <div
-                          class="wchip"
+                          class="wchip ${this._isPast(e) ? "past" : ""}"
                           style="border-left:2.5px solid ${c};background:${c}22"
                           title="${e.title}"
                           tabindex="0"
@@ -817,7 +851,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               (g) => html`
                 <div class="agenda-day">
                   <div class="agenda-date ${this._isRealToday(g.d) ? "today" : ""}">
-                    ${full[g.d]} · ${dateFmt.format(this._dateForDay(g.d))}
+                    ${this._relativeDay(this._dateForDay(g.d)) ?? full[g.d]} ·
+                    ${dateFmt.format(this._dateForDay(g.d))}
                   </div>
                   ${g.items.map((e) => this._agendaRow(e))}
                 </div>
@@ -835,7 +870,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       : `${formatMinutes(this.hass, e.startMin)}–${formatMinutes(this.hass, e.endMin)}`;
     return html`
       <div
-        class="agenda-row"
+        class="agenda-row ${this._isPast(e) ? "past" : ""}"
         tabindex="0"
         role="button"
         @click=${() => this._openEvent(e)}
@@ -912,7 +947,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   ${items.slice(0, maxChips).map((e) => {
                     const col = this._eventColor(e);
                     return html`<div
-                      class="mchip"
+                      class="mchip ${this._isPast(e) ? "past" : ""}"
                       style="background:${col}22;border-left:2px solid ${col}"
                       title="${e.title}"
                       @click=${(ev: MouseEvent) => {
@@ -1205,7 +1240,21 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           </div>
 
           <label class="fld">
-            <span>${this._t("field_location")}</span>
+            <span>
+              ${this._t("field_location")}
+              ${d.location.trim()
+                ? html`<a
+                    class="maplink"
+                    href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      d.location,
+                    )}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    @click=${(e: Event) => e.stopPropagation()}
+                    >${this._t("open_map")}</a
+                  >`
+                : nothing}
+            </span>
             <input
               type="text"
               .value=${d.location}
@@ -1730,6 +1779,19 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--secondary-text-color);
       padding-left: 4px;
     }
+    /* faded past events + map link */
+    .past {
+      opacity: 0.5;
+    }
+    .maplink {
+      margin-left: 8px;
+      font-size: 11px;
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+    .maplink:hover {
+      text-decoration: underline;
+    }
     /* week */
     .weekwrap {
       overflow: auto;
@@ -1999,7 +2061,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.6.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.7.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
