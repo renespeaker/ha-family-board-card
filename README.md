@@ -17,7 +17,8 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Robuste Termin-Logik** – Ganztags-Events (Ende exklusiv), über Mitternacht laufende und mehrtägige Termine werden korrekt auf die Tage aufgeteilt; Zeitzonen werden berücksichtigt.
 - **Mehrsprachig & lokalisiert** – Texte in Deutsch/Englisch, Wochentage und Uhrzeiten (12/24 h) aus der HA-Locale; relative Tage („Heute/Morgen").
 - **Alltags-Politur** – vergangene Termine ausgegraut, Einfärben auch nach Kalender, Ort direkt in Google Maps öffnen, störende Termine per Muster ausblenden.
-- **Live-Fortschritt & Countdown** – laufende Termine zeigen einen Fortschrittsbalken, kommende in der Agenda ein „in 20 Min."; aktualisiert minütlich.
+- **Live-Fortschritt & Countdown** – laufende Termine zeigen einen Fortschrittsbalken (abschaltbar), kommende in der Agenda ein „in 20 Min."; aktualisiert minütlich.
+- **Wetter** – Symbol + Temperatur pro Tag aus einer `weather.*`-Entität im Tages-/Agenda-Header (HA-Standort, nicht die Termin-Adresse).
 - **Visueller Editor** – Personen inkl. Entity-Auswahl (`person.*`/`calendar.*`) komplett ohne YAML pflegbar.
 
 > Status: **v0.3 – Anzeige + Schreibzugriff + Skalierung/i18n.**
@@ -80,6 +81,9 @@ persons:
 | `color_by`      | string  | `person`| Einfärben nach `person`, `location` oder `calendar` |
 | `dim_past`      | boolean | `true`  | Bereits vergangene Termine ausgrauen |
 | `hide_patterns` | Liste   | –       | Termine ausblenden, deren Titel eines der Textmuster enthält (z. B. `["Frei", "Privat"]`) |
+| `show_progress` | boolean | `true`  | Fortschrittsbalken am laufenden Termin |
+| `weather_entity`| string  | –       | `weather.*`-Entität für die Tages-Vorhersage (HA-Standort) |
+| `show_weather`  | boolean | `true`* | Wetter im Header anzeigen (*wirkt nur, wenn `weather_entity` gesetzt) |
 | `hour_height`   | number  | `64`    | Höhe einer Stunde in px (40–96) – Tagesansicht skalieren (Wandtablet) |
 | `first_day`     | string  | `monday`| Wochenstart: `monday` oder `sunday` |
 | `scroll_to_now` | boolean | `true`  | Tagesansicht beim Laden automatisch zur aktuellen Uhrzeit scrollen |
