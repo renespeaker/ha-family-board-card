@@ -15,7 +15,8 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Termine verwalten** – anlegen/bearbeiten/löschen direkt in der Karte, **aber nur** bei Kalendern, die das unterstützen (Local Calendar, CalDAV …). Schreibgeschützte Kalender (z. B. ICS-Abos) werden automatisch erkannt und nur angezeigt. Wiederkehrende Termine: Wahl **„nur dieser / dieser und folgende"**.
 - **Mehrere Kalender pro Person** – z. B. Arbeit + privat in einer Spalte (im Editor auswählbar).
 - **Robuste Termin-Logik** – Ganztags-Events (Ende exklusiv), über Mitternacht laufende und mehrtägige Termine werden korrekt auf die Tage aufgeteilt; Zeitzonen werden berücksichtigt.
-- **Mehrsprachig & lokalisiert** – Texte in Deutsch/Englisch, Wochentage und Uhrzeiten (12/24 h) aus der HA-Locale.
+- **Mehrsprachig & lokalisiert** – Texte in Deutsch/Englisch, Wochentage und Uhrzeiten (12/24 h) aus der HA-Locale; relative Tage („Heute/Morgen").
+- **Alltags-Politur** – vergangene Termine ausgegraut, Einfärben auch nach Kalender, Ort direkt in Google Maps öffnen, störende Termine per Muster ausblenden.
 - **Visueller Editor** – Personen inkl. Entity-Auswahl (`person.*`/`calendar.*`) komplett ohne YAML pflegbar.
 
 > Status: **v0.3 – Anzeige + Schreibzugriff + Skalierung/i18n.**
@@ -75,7 +76,9 @@ persons:
 | `end_hour`      | number  | `22`    | Letzte sichtbare Stunde |
 | `show_weekends` | boolean | `true`  | Sa/So anzeigen |
 | `show_now_line` | boolean | `true`  | Aktuelle Uhrzeit als Linie |
-| `color_by`      | string  | `person`| Blöcke nach Person oder Ort einfärben |
+| `color_by`      | string  | `person`| Einfärben nach `person`, `location` oder `calendar` |
+| `dim_past`      | boolean | `true`  | Bereits vergangene Termine ausgrauen |
+| `hide_patterns` | Liste   | –       | Termine ausblenden, deren Titel eines der Textmuster enthält (z. B. `["Frei", "Privat"]`) |
 | `hour_height`   | number  | `64`    | Höhe einer Stunde in px (40–96) – Tagesansicht skalieren (Wandtablet) |
 | `first_day`     | string  | `monday`| Wochenstart: `monday` oder `sunday` |
 | `scroll_to_now` | boolean | `true`  | Tagesansicht beim Laden automatisch zur aktuellen Uhrzeit scrollen |
