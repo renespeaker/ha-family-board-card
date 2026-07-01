@@ -558,21 +558,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           <div class="axis-spacer"></div>
           ${this._persons.map((p, i) => {
             const stateObj = p.person ? this.hass.states[p.person] : undefined;
-            const canCreate = this._personCanCreate(p);
             return html`
               <div class="phead">
                 ${this._avatar(p, i)}
                 <div class="pname">${this._personName(p, i)}</div>
                 <div class="pstatus">${stateObj ? this._statusLabel(stateObj.state) : ""}</div>
-                ${canCreate
-                  ? html`<button
-                      class="addbtn"
-                      aria-label=${this._t("add_event")}
-                      @click=${() => this._openCreate(i, day)}
-                    >
-                      ＋
-                    </button>`
-                  : nothing}
               </div>
             `;
           })}
@@ -1288,6 +1278,16 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       overflow: auto;
       margin-top: 8px;
     }
+    /* keep header, all-day and body columns pixel-aligned: borders must not
+       change box width, or the vertical dividers break between the rows. */
+    .axis-spacer,
+    .phead,
+    .axis,
+    .col,
+    .allday-cell,
+    .allday-label {
+      box-sizing: border-box;
+    }
     .header-row {
       display: flex;
       position: sticky;
@@ -1313,24 +1313,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       gap: 4px;
       border-left: 1px solid var(--divider-color);
       position: relative;
-    }
-    .addbtn {
-      margin-top: 2px;
-      border: none;
-      background: var(--secondary-background-color);
-      color: var(--secondary-text-color);
-      width: 26px;
-      height: 22px;
-      border-radius: 11px;
-      cursor: pointer;
-      font-size: 15px;
-      line-height: 1;
-      padding: 0;
-    }
-    .addbtn:hover,
-    .addbtn:focus-visible {
-      background: var(--primary-color);
-      color: var(--text-primary-color, #fff);
     }
     .allday-row {
       display: flex;
@@ -1798,7 +1780,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.5.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.5.1 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
