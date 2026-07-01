@@ -16,7 +16,13 @@ import {
   splitAcrossDays,
   layoutDayColumns,
 } from "./events";
-import { localize, formatMinutes, weekdayNames, formatWeekRange } from "./localize";
+import {
+  localize,
+  formatMinutes,
+  formatCountdown,
+  weekdayNames,
+  formatWeekRange,
+} from "./localize";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -139,6 +145,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _raw: RawEvent[] = [];
   private _fetchedKey = "";
   private _timer?: number;
+  private _tick?: number;
   private _scrolledKey = "";
   private _restoreFocus?: HTMLElement;
 
@@ -202,6 +209,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     document.addEventListener("visibilitychange", this._onVisible);
     window.addEventListener("focus", this._onVisible);
     this._startTimer();
+    // minute tick so countdowns and progress bars stay live when idle
+    this._tick = window.setInterval(() => this.requestUpdate(), 60000);
   }
 
   public disconnectedCallback(): void {
@@ -210,6 +219,23 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     document.removeEventListener("visibilitychange", this._onVisible);
     window.removeEventListener("focus", this._onVisible);
     this._stopTimer();
+    if (this._tick) {
+      clearInterval(this._tick);
+      this._tick = undefined;
+    }
+  }
+
+  /** Whether an event is happening right now. */
+  private _isCurrent(e: BoardEvent): boolean {
+    const n = Date.now();
+    return e.ref.start.getTime() <= n && n < e.ref.end.getTime();
+  }
+  /** Elapsed percentage (0–100) of a currently running event. */
+  private _progressPct(e: BoardEvent): number {
+    const s = e.ref.start.getTime();
+    const en = e.ref.end.getTime();
+    if (en <= s) return 0;
+    return Math.min(100, Math.max(0, ((Date.now() - s) / (en - s)) * 100));
   }
 
   /** Refresh when the tab/tablet becomes visible again. */
@@ -745,6 +771,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                               )}</span
                             >`
                           : nothing}
+                        ${this._isCurrent(e)
+                          ? html`<div class="eprog">
+                              <div style="width:${this._progressPct(e)}%"></div>
+                            </div>`
+                          : nothing}
                       </div>
                     `;
                   })}
@@ -868,9 +899,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const time = e.allDay
       ? this._t("all_day")
       : `${formatMinutes(this.hass, e.startMin)}–${formatMinutes(this.hass, e.endMin)}`;
+    const current = this._isCurrent(e);
+    const countdown =
+      !e.allDay && !current && !e.continuesBefore ? formatCountdown(this.hass, e.ref.start) : "";
     return html`
       <div
-        class="agenda-row ${this._isPast(e) ? "past" : ""}"
+        class="agenda-row ${this._isPast(e) ? "past" : ""} ${current ? "current" : ""}"
         tabindex="0"
         role="button"
         @click=${() => this._openEvent(e)}
@@ -883,7 +917,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             >${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter ? " »" : ""}</span
           >
           <span class="agenda-meta">${name}${e.location ? ` · ${e.location}` : ""}</span>
+          ${current
+            ? html`<span class="agenda-prog"
+                ><span style="width:${this._progressPct(e)}%;background:${c}"></span
+              ></span>`
+            : nothing}
         </span>
+        ${countdown ? html`<span class="agenda-cd">${countdown}</span>` : nothing}
       </div>
     `;
   }
@@ -1783,6 +1823,43 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .past {
       opacity: 0.5;
     }
+    /* progress bar inside a running day event */
+    .eprog {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 3px;
+      background: var(--divider-color);
+    }
+    .eprog > div {
+      height: 100%;
+      background: var(--error-color, #ff5252);
+    }
+    /* agenda: countdown + running progress */
+    .agenda-cd {
+      flex: 0 0 auto;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--primary-color);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .agenda-row.current {
+      background: color-mix(in srgb, var(--primary-color) 6%, transparent);
+    }
+    .agenda-prog {
+      display: block;
+      height: 3px;
+      margin-top: 4px;
+      border-radius: 2px;
+      background: var(--divider-color);
+      overflow: hidden;
+    }
+    .agenda-prog > span {
+      display: block;
+      height: 100%;
+    }
     .maplink {
       margin-left: 8px;
       font-size: 11px;
@@ -2061,7 +2138,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.7.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.8.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
