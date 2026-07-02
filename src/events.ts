@@ -79,7 +79,10 @@ export function parseRawEvent(
     start,
     end,
     color,
-    tentative: typeof ev.status === "string" && ev.status.toLowerCase() === "tentative",
+    // Tentative is opt-in via `tentative_patterns` only. We deliberately do NOT
+    // derive it from the calendar status: some feeds (e.g. school timetables)
+    // mark every event TENTATIVE, which would make whole columns look faded.
+    tentative: false,
   };
 }
 
