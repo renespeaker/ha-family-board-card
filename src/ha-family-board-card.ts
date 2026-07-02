@@ -56,6 +56,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   show_weather?: boolean; // show weather in headers. default true when entity set
   refresh_interval?: number; // seconds; 0 disables. default 300
   hour_height?: number; // px per hour in the day view. default 64
+  fit_height?: boolean; // shrink the day view so start..end fits without scroll
   max_columns?: number; // max side-by-side columns per person/day. default 3
   first_day?: "monday" | "sunday"; // week start. default monday
   scroll_to_now?: boolean; // auto-scroll day view to current time. default true
@@ -174,6 +175,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   @state() private _dialog?: DialogState;
   @state() private _loadError = false;
   @state() private _loading = false;
+  @state() private _fitPx = 0; // measured px/min when fit_height is on (0 = not measured)
 
   private _raw: RawEvent[] = [];
   private _fetchedKey = "";
@@ -183,6 +185,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _weatherKey = "";
   private _scrolledKey = "";
   private _restoreFocus?: HTMLElement;
+  private _ro?: ResizeObserver;
 
   public static async getConfigElement(): Promise<LovelaceCardEditor> {
     await import("./editor");
@@ -246,6 +249,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this._startTimer();
     // minute tick so countdowns and progress bars stay live when idle
     this._tick = window.setInterval(() => this.requestUpdate(), 60000);
+    // recompute the fit-to-height scaling whenever the card is resized
+    if (typeof ResizeObserver !== "undefined") {
+      this._ro = new ResizeObserver(() => requestAnimationFrame(() => this._measureFit()));
+      this._ro.observe(this);
+    }
   }
 
   public disconnectedCallback(): void {
@@ -258,6 +266,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       clearInterval(this._tick);
       this._tick = undefined;
     }
+    this._ro?.disconnect();
+    this._ro = undefined;
   }
 
   private get _progressOn(): boolean {
@@ -306,7 +316,37 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._maybeFetchWeather();
     }
     if (changed.has("_dialog")) this._manageDialogFocus(changed.get("_dialog") as DialogState);
+    this._measureFit();
     this._maybeScrollToNow();
+  }
+
+  /**
+   * When `fit_height` is on, shrink the day grid so the whole start..end range
+   * fits inside the board without scrolling. Only ever scales DOWN from the
+   * configured hour height (never blows small days up into giant blocks).
+   */
+  private _measureFit(): void {
+    if (!this._config?.fit_height || this._view !== "day") {
+      if (this._fitPx !== 0) this._fitPx = 0;
+      return;
+    }
+    const board = this.renderRoot?.querySelector(".board") as HTMLElement | null;
+    if (!board) return;
+    const header = board.querySelector(".header-row") as HTMLElement | null;
+    const allday = board.querySelector(".allday-row") as HTMLElement | null;
+    const span = this._endMin - this._startMin;
+    if (span <= 0) return;
+    const chrome = (header?.offsetHeight ?? 0) + (allday?.offsetHeight ?? 0);
+    const avail = board.clientHeight - chrome - 2;
+    if (avail <= 0) return;
+    const configuredPx =
+      Math.min(
+        HOUR_HEIGHT_MAX,
+        Math.max(HOUR_HEIGHT_MIN, this._config.hour_height ?? DEFAULT_HOUR_HEIGHT),
+      ) / 60;
+    // shrink to fit, floored at the minimum readable height, capped at configured
+    const px = Math.max(HOUR_HEIGHT_MIN / 60, Math.min(configuredPx, avail / span));
+    if (Math.abs(px - this._fitPx) > 0.02) this._fitPx = px;
   }
 
   /** Scroll the day board so the current time is in view (once per view). */
@@ -533,8 +573,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private get _grid(): number {
     return this._config.time_grid ?? 30;
   }
-  /** Pixels per minute, derived from the configurable hour height. */
+  /** Pixels per minute, derived from the configurable hour height (or fit mode). */
   private get _pxPerMin(): number {
+    if (this._config.fit_height && this._fitPx > 0) return this._fitPx;
     const h = Math.min(
       HOUR_HEIGHT_MAX,
       Math.max(HOUR_HEIGHT_MIN, this._config.hour_height ?? DEFAULT_HOUR_HEIGHT),
@@ -2401,7 +2442,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.11.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.12.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
