@@ -57,6 +57,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   refresh_interval?: number; // seconds; 0 disables. default 300
   hour_height?: number; // px per hour in the day view. default 64
   fit_height?: boolean; // shrink the day view so start..end fits without scroll
+  background_hours?: number; // timed events >= this many hours become a faint band. default 3, 0=off
   max_columns?: number; // max side-by-side columns per person/day. default 3
   first_day?: "monday" | "sunday"; // week start. default monday
   scroll_to_now?: boolean; // auto-scroll day view to current time. default true
@@ -627,8 +628,27 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return null;
   }
   private _timedFor(day: number, idx: number): LaidOutEvent[] {
-    const evs = this._events.filter((e) => e.day === day && e.personIdx === idx && !e.allDay);
+    const evs = this._events.filter(
+      (e) => e.day === day && e.personIdx === idx && !e.allDay && !this._isBackground(e),
+    );
     return layoutDayColumns(evs);
+  }
+  /** Threshold (minutes) at/above which a timed event becomes a background band. */
+  private _bgMinMin(): number {
+    const h = Number(this._config.background_hours ?? 3);
+    if (!Number.isFinite(h) || h <= 0) return 0; // 0 disables background bands
+    return h * 60;
+  }
+  /** Long, day-spanning events (e.g. OGS/Freispiel) shown as a faint full-width band. */
+  private _isBackground(e: BoardEvent): boolean {
+    const min = this._bgMinMin();
+    return min > 0 && !e.allDay && e.endMin - e.startMin >= min;
+  }
+  /** Background-band segments for a person/day, longest first (so they stack cleanly). */
+  private _bgFor(day: number, idx: number): BoardEvent[] {
+    return this._events
+      .filter((e) => e.day === day && e.personIdx === idx && !e.allDay && this._isBackground(e))
+      .sort((a, b) => b.endMin - b.startMin - (a.endMin - a.startMin));
   }
   /** Max side-by-side columns before dense overlaps collapse into a "+N" chip. */
   private _maxCols(): number {
@@ -936,6 +956,39 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 2}px),
                   repeating-linear-gradient(var(--fb-hourline) 0 1px, transparent 1px ${hourPx}px)"
               >
+                ${this._bgFor(day, i)
+                  .filter((e) => e.endMin > startMin && e.startMin < endMin)
+                  .map((e) => {
+                    const top = (e.startMin - startMin) * px;
+                    const h = Math.max((e.endMin - e.startMin) * px - 3, 16);
+                    const c = this._eventColor(e);
+                    const tent = this._isTentative(e);
+                    return html`
+                      <div
+                        class="band ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
+                        tabindex="0"
+                        role="button"
+                        @click=${(ev: MouseEvent) => {
+                          ev.stopPropagation();
+                          this._openEvent(e);
+                        }}
+                        @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
+                        style="top:${top + 1.5}px;height:${h}px;
+                               border-left:3px ${tent ? "dashed" : "solid"} ${c};
+                               background:linear-gradient(135deg, ${c}22, ${c}12)"
+                        title="${e.title} · ${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
+                          this.hass,
+                          e.endMin,
+                        )}"
+                      >
+                        <span class="etitle"
+                          >${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter
+                            ? " »"
+                            : ""}</span
+                        >
+                      </div>
+                    `;
+                  })}
                 ${layout.events
                   .filter((e) => e.endMin > startMin && e.startMin < endMin)
                   .map((e) => {
@@ -1889,6 +1942,24 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       gap: 2px;
       box-sizing: border-box;
       cursor: pointer;
+      z-index: 2;
+    }
+    /* long "background" events (OGS, Freispiel …): faint full-width band behind
+       the normal event blocks so short lessons keep the full column width. */
+    .band {
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      border-radius: var(--fb-radius);
+      padding: 3px 7px;
+      overflow: hidden;
+      box-sizing: border-box;
+      cursor: pointer;
+      z-index: 1;
+    }
+    .band .etitle {
+      opacity: 0.85;
+      font-weight: 600;
     }
     .event.tentative {
       opacity: 0.72;
@@ -2442,7 +2513,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.12.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.13.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
