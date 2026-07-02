@@ -958,7 +958,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               >
                 ${this._bgFor(day, i)
                   .filter((e) => e.endMin > startMin && e.startMin < endMin)
-                  .map((e) => {
+                  .map((e, bi) => {
                     const top = (e.startMin - startMin) * px;
                     const h = Math.max((e.endMin - e.startMin) * px - 3, 16);
                     const c = this._eventColor(e);
@@ -981,7 +981,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           e.endMin,
                         )}"
                       >
-                        <span class="etitle"
+                        <span class="etitle" style="margin-top:${bi * 17}px"
                           >${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter
                             ? " »"
                             : ""}</span
@@ -1956,10 +1956,17 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       box-sizing: border-box;
       cursor: pointer;
       z-index: 1;
+      display: flex;
+      justify-content: flex-end; /* keep label clear of left-aligned event blocks */
+      align-items: flex-start;
     }
     .band .etitle {
-      opacity: 0.85;
+      max-width: 90%;
       font-weight: 600;
+      color: var(--secondary-text-color);
+      background: var(--card-background-color, var(--ha-card-background));
+      border-radius: 4px;
+      padding: 0 4px;
     }
     .event.tentative {
       opacity: 0.72;
@@ -2513,7 +2520,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.13.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.13.1 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
