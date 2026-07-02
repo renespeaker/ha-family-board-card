@@ -186,4 +186,13 @@ describe("layoutDayColumns", () => {
     expect(last.cols).toBe(1);
     expect(last.col).toBe(0);
   });
+
+  it("tags overlapping events with a shared cluster id and separates gaps", () => {
+    // Two overlapping (one cluster) then a gap event (a new cluster).
+    const out = layoutDayColumns([seg(0, 540, 660), seg(0, 600, 720), seg(0, 800, 860)]);
+    const overlapping = out.filter((e) => e.startMin < 720);
+    const gapEvent = out.find((e) => e.startMin === 800)!;
+    expect(new Set(overlapping.map((e) => e.cluster)).size).toBe(1);
+    expect(gapEvent.cluster).not.toBe(overlapping[0].cluster);
+  });
 });
