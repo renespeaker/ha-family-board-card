@@ -917,7 +917,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                         style="top:${top + 1.5}px;height:${h}px;
                                left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);
                                border-left:3px ${tent ? "dashed" : "solid"} ${c};
-                               background:linear-gradient(135deg, ${c}30, ${c}1a)"
+                               background:linear-gradient(135deg, ${c}55, ${c}3a)"
                         title="${e.title} · ${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
                           this.hass,
                           e.endMin,
@@ -2401,7 +2401,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.11.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.11.1 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
