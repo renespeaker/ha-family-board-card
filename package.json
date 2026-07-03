@@ -1,6 +1,6 @@
 {
   "name": "ha-family-board-card",
-  "version": "0.13.1",
+  "version": "0.14.0",
   "description": "Family calendar / who-is-where board for Home Assistant",
   "type": "module",
   "license": "MIT",

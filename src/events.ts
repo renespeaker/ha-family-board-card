@@ -40,6 +40,7 @@ export interface BoardEvent {
 export interface LaidOutEvent extends BoardEvent {
   col: number; // 0-based column within an overlap cluster
   cols: number; // total columns in that cluster
+  span: number; // how many columns this event may stretch across (>= 1)
   cluster: number; // id of the overlap cluster this event belongs to
 }
 
@@ -142,6 +143,15 @@ export function layoutDayColumns(events: BoardEvent[]): LaidOutEvent[] {
       cluster.forEach((e) => {
         e.cols = cols;
         e.cluster = clusterId;
+        // Stretch into free columns to the right until we hit a column used by
+        // an event that overlaps in time (Google-Calendar-style expansion).
+        let limit = cols;
+        for (const o of cluster) {
+          if (o !== e && o.col > e.col && o.startMin < e.endMin && o.endMin > e.startMin) {
+            limit = Math.min(limit, o.col);
+          }
+        }
+        e.span = Math.max(1, limit - e.col);
       });
       clusterId++;
     }
@@ -160,7 +170,7 @@ export function layoutDayColumns(events: BoardEvent[]): LaidOutEvent[] {
     } else {
       colEnds[col] = ev.endMin;
     }
-    const laid: LaidOutEvent = { ...ev, col, cols: 1, cluster: clusterId };
+    const laid: LaidOutEvent = { ...ev, col, cols: 1, span: 1, cluster: clusterId };
     cluster.push(laid);
     result.push(laid);
     clusterEnd = cluster.length === 1 ? ev.endMin : Math.max(clusterEnd, ev.endMin);

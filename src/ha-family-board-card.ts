@@ -684,7 +684,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       let endMin = -Infinity;
       for (const e of group) {
         if (e.col <= maxCols - 2) {
-          events.push({ ...e, cols: maxCols });
+          events.push({
+            ...e,
+            cols: maxCols,
+            span: Math.max(1, Math.min(e.span, maxCols - e.col)),
+          });
         } else {
           count++;
           startMin = Math.min(startMin, e.startMin);
@@ -914,7 +918,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                             class="adchip ${tent ? "tentative" : ""}"
                             style="border-left:3px ${tent
                               ? "dashed"
-                              : "solid"} ${c};background:${c}22"
+                              : "solid"} ${c};background:${c}30;background:color-mix(in srgb, ${c} 22%, var(--card-background-color, #fff))"
                             title="${e.title}"
                             tabindex="0"
                             role="button"
@@ -996,7 +1000,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                     const h = Math.max((e.endMin - e.startMin) * px - 3, 16);
                     const c = this._eventColor(e);
                     const leftPct = (e.col / e.cols) * 100;
-                    const widthPct = 100 / e.cols;
+                    const widthPct = ((e.span ?? 1) / e.cols) * 100;
                     const tent = this._isTentative(e);
                     return html`
                       <div
@@ -1011,7 +1015,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                         style="top:${top + 1.5}px;height:${h}px;
                                left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);
                                border-left:3px ${tent ? "dashed" : "solid"} ${c};
-                               background:linear-gradient(135deg, ${c}55, ${c}3a)"
+                               background:${c}40;
+                               background:color-mix(in srgb, ${c} 32%, var(--card-background-color, #fff))"
                         title="${e.title} · ${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
                           this.hass,
                           e.endMin,
@@ -1116,7 +1121,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           class="wchip ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
                           style="border-left:2.5px ${tent
                             ? "dashed"
-                            : "solid"} ${c};background:${c}22"
+                            : "solid"} ${c};background:${c}30;background:color-mix(in srgb, ${c} 22%, var(--card-background-color, #fff))"
                           title="${e.title}"
                           tabindex="0"
                           role="button"
@@ -1281,7 +1286,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                     const tent = this._isTentative(e);
                     return html`<div
                       class="mchip ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
-                      style="background:${col}22;border-left:2px ${tent
+                      style="background:${col}30;background:color-mix(in srgb, ${col} 22%, var(--card-background-color, #fff));border-left:2px ${tent
                         ? "dashed"
                         : "solid"} ${col}"
                       title="${e.title}"
@@ -2520,7 +2525,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.13.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.14.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

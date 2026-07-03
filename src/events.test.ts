@@ -187,6 +187,25 @@ describe("layoutDayColumns", () => {
     expect(last.col).toBe(0);
   });
 
+  it("stretches events into free columns to the right", () => {
+    // A 9:00-11:40 col0, B+C 9:00-10:00 col1/col2 (3 columns), then
+    // D 10:10-11:00 lands in col1 and may stretch across the free col2.
+    const out = layoutDayColumns([
+      seg(0, 540, 700),
+      seg(0, 540, 600),
+      seg(0, 540, 600),
+      seg(0, 610, 660),
+    ]);
+    // sort puts the shorter 9-10 events first: B col0, C col1, A col2, D col0
+    const a = out.find((e) => e.endMin === 700)!;
+    const d = out.find((e) => e.startMin === 610)!;
+    expect(a.col).toBe(2);
+    expect(a.span).toBe(1); // last column, nothing to stretch into
+    expect(d.col).toBe(0);
+    expect(d.cols).toBe(3);
+    expect(d.span).toBe(2); // col1 is free during 10:10-11:00, col2 blocked by A
+  });
+
   it("tags overlapping events with a shared cluster id and separates gaps", () => {
     // Two overlapping (one cluster) then a gap event (a new cluster).
     const out = layoutDayColumns([seg(0, 540, 660), seg(0, 600, 720), seg(0, 800, 860)]);
