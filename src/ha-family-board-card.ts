@@ -57,6 +57,8 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   refresh_interval?: number; // seconds; 0 disables. default 300
   hour_height?: number; // px per hour in the day view. default 64
   fit_height?: boolean; // shrink the day view so start..end fits without scroll
+  full_height?: boolean; // stretch the board to the bottom of the screen (wall tablet)
+  col_min_width?: number; // min px per person column before horizontal scroll. default 120
   background_hours?: number; // timed events >= this many hours become a faint band. default 3, 0=off
   max_columns?: number; // max side-by-side columns per person/day. default 3
   first_day?: "monday" | "sunday"; // week start. default monday
@@ -219,6 +221,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const wanted = config.view ?? "day";
     this._view = enabled.includes(wanted) ? wanted : enabled[0];
     this._day = this._todayIndex();
+    // simple size knobs -> CSS tokens (also overridable via theme/card-mod)
+    const colMin = Number(config.col_min_width);
+    if (Number.isFinite(colMin) && colMin >= 60) {
+      this.style.setProperty("--fb-col-min", `${Math.min(colMin, 400)}px`);
+    } else {
+      this.style.removeProperty("--fb-col-min");
+    }
     if (this.isConnected) this._startTimer();
   }
 
@@ -327,6 +336,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
    * configured hour height (never blows small days up into giant blocks).
    */
   private _measureFit(): void {
+    this._applyFullHeight();
     if (!this._config?.fit_height || this._view !== "day") {
       if (this._fitPx !== 0) this._fitPx = 0;
       return;
@@ -348,6 +358,30 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     // shrink to fit, floored at the minimum readable height, capped at configured
     const px = Math.max(HOUR_HEIGHT_MIN / 60, Math.min(configuredPx, avail / span));
     if (Math.abs(px - this._fitPx) > 0.02) this._fitPx = px;
+  }
+
+  /**
+   * `full_height`: stretch the board down to the bottom of the viewport
+   * (wall-tablet / panel view). Applied as inline styles so the default
+   * 58vh cap stays for normal dashboards.
+   */
+  private _applyFullHeight(): void {
+    const board = this.renderRoot?.querySelector(".board") as HTMLElement | null;
+    if (!board) return;
+    if (!this._config?.full_height) {
+      if (board.style.height) {
+        board.style.height = "";
+        board.style.maxHeight = "";
+      }
+      return;
+    }
+    const top = board.getBoundingClientRect().top + window.scrollY;
+    const h = Math.max(200, Math.round(window.innerHeight - top - 16));
+    const want = `${h}px`;
+    if (board.style.height !== want) {
+      board.style.height = want;
+      board.style.maxHeight = want;
+    }
   }
 
   /** Scroll the day board so the current time is in view (once per view). */
@@ -1801,7 +1835,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .empty {
       position: absolute;
       top: 0;
-      left: 56px;
+      left: var(--fb-axis-width, 56px);
       right: 0;
       bottom: 0;
       display: flex;
@@ -1812,7 +1846,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       pointer-events: none;
     }
     .board {
-      max-height: 58vh;
+      max-height: var(--fb-board-max-height, 58vh);
       overflow: auto;
       margin-top: 8px;
     }
@@ -1835,16 +1869,16 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       border-bottom: 1px solid var(--divider-color);
     }
     .axis-spacer {
-      width: 56px;
-      flex: 0 0 56px;
+      width: var(--fb-axis-width, 56px);
+      flex: 0 0 var(--fb-axis-width, 56px);
       position: sticky;
       left: 0;
       background: inherit;
     }
     .phead {
-      width: 140px;
-      flex: 0 0 140px;
-      padding: 10px 6px;
+      flex: 1 1 0;
+      min-width: var(--fb-col-min, 120px);
+      padding: var(--fb-head-pad, 10px 6px);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1866,8 +1900,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       padding-right: 8px;
     }
     .allday-cell {
-      width: 140px;
-      flex: 0 0 140px;
+      flex: 1 1 0;
+      min-width: var(--fb-col-min, 120px);
       border-left: 1px solid var(--divider-color);
       padding: 4px;
       display: flex;
@@ -1912,8 +1946,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       position: relative;
     }
     .axis {
-      width: 56px;
-      flex: 0 0 56px;
+      width: var(--fb-axis-width, 56px);
+      flex: 0 0 var(--fb-axis-width, 56px);
       position: sticky;
       left: 0;
       background: var(--card-background-color, var(--ha-card-background));
@@ -1929,8 +1963,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       font-variant-numeric: tabular-nums;
     }
     .col {
-      width: 140px;
-      flex: 0 0 140px;
+      flex: 1 1 0;
+      min-width: var(--fb-col-min, 120px);
       position: relative;
       border-left: 1px solid var(--divider-color);
     }
@@ -1940,7 +1974,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .event {
       position: absolute;
       border-radius: var(--fb-radius);
-      padding: 4px 7px;
+      padding: var(--fb-event-pad, 4px 7px);
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -2019,7 +2053,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .nowline {
       position: absolute;
-      left: 56px;
+      left: var(--fb-axis-width, 56px);
       right: 0;
       border-top: 2px solid var(--fb-now-color);
       z-index: 7;
@@ -2525,7 +2559,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.14.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.15.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

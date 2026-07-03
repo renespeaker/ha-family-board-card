@@ -89,6 +89,13 @@ const SETTINGS_SCHEMA = [
     selector: { number: { min: 1, max: 8, step: 1, mode: "slider" } },
   },
   { name: "fit_height", selector: { boolean: {} } },
+  { name: "full_height", selector: { boolean: {} } },
+  {
+    name: "col_min_width",
+    selector: {
+      number: { min: 60, max: 400, step: 10, mode: "slider", unit_of_measurement: "px" },
+    },
+  },
   {
     name: "background_hours",
     selector: { number: { min: 0, max: 12, step: 1, mode: "slider", unit_of_measurement: "h" } },
@@ -121,6 +128,8 @@ const LABELS: Record<string, string> = {
   end_hour: "Endstunde",
   hour_height: "Höhe pro Stunde (max. bei Auto-Fit)",
   fit_height: "Auto-Fit: Tag ohne Scrollen einpassen",
+  full_height: "Volle Höhe: bis zum unteren Bildschirmrand",
+  col_min_width: "Min. Spaltenbreite pro Person",
   background_hours: "Lange Termine als Hintergrund-Band ab (Std., 0 = aus)",
   max_columns: "Max. Spalten pro Tag (dichte Termine)",
   first_day: "Wochenstart",
