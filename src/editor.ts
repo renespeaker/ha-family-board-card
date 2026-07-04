@@ -91,6 +91,7 @@ const SETTINGS_SCHEMA = [
   },
   { name: "fit_height", selector: { boolean: {} } },
   { name: "full_height", selector: { boolean: {} } },
+  { name: "trim_hours", selector: { boolean: {} } },
   {
     name: "col_min_width",
     selector: {
@@ -135,6 +136,7 @@ const LABELS: Record<string, string> = {
   hour_height: "Höhe pro Stunde (max. bei Auto-Fit)",
   fit_height: "Auto-Fit: Tag ohne Scrollen einpassen",
   full_height: "Volle Höhe: bis zum unteren Bildschirmrand",
+  trim_hours: "Leere Randstunden automatisch ausblenden",
   col_min_width: "Min. Spaltenbreite pro Person",
   background_hours: "Lange Termine als Hintergrund-Band ab (Std., 0 = aus)",
   max_columns: "Max. Spalten pro Tag (dichte Termine)",
