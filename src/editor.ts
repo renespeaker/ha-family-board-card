@@ -8,6 +8,7 @@ interface PersonConfig {
   person?: string;
   calendar?: string | string[];
   color?: string;
+  badges?: string[];
 }
 
 const SETTINGS_SCHEMA = [
@@ -100,6 +101,11 @@ const SETTINGS_SCHEMA = [
     name: "background_hours",
     selector: { number: { min: 0, max: 12, step: 1, mode: "slider", unit_of_measurement: "h" } },
   },
+  { name: "hide_empty_persons", selector: { boolean: {} } },
+  {
+    name: "auto_return",
+    selector: { number: { min: 0, max: 60, step: 1, mode: "box", unit_of_measurement: "min" } },
+  },
   { name: "show_weekends", selector: { boolean: {} } },
   { name: "show_now_line", selector: { boolean: {} } },
   { name: "scroll_to_now", selector: { boolean: {} } },
@@ -143,10 +149,13 @@ const LABELS: Record<string, string> = {
   tentative_patterns: "Als vorläufig markieren (Text-Muster)",
   weather_entity: "Wetter-Entität (weather.*)",
   show_weather: "Wetter anzeigen",
+  hide_empty_persons: "Woche: Personen ohne Termine ausblenden",
+  auto_return: "Kiosk: nach Inaktivität zur Startansicht (Min., 0 = aus)",
   name: "Anzeigename",
   person: "Person (Avatar & Status)",
   calendar: "Kalender (Termine, mehrere möglich)",
   color: "Farbe (optional)",
+  badges: "Badges (Entitäten, z. B. Akku/Sensor)",
 };
 
 // One ha-form per person row, with entity pickers filtered by domain.
@@ -161,6 +170,10 @@ const PERSON_SCHEMA = [
     selector: { entity: { filter: { domain: "calendar" }, multiple: true } },
   },
   { name: "color", selector: { text: {} } },
+  {
+    name: "badges",
+    selector: { entity: { multiple: true } },
+  },
 ];
 
 export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEditor {
@@ -196,6 +209,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     const value = { ...ev.detail.value } as PersonConfig;
     // drop empty optional fields so the YAML stays clean
     if (!value.color) delete value.color;
+    if (Array.isArray(value.badges) && value.badges.length === 0) delete value.badges;
     // collapse a single-calendar array back to a string for tidy YAML
     if (Array.isArray(value.calendar)) {
       if (value.calendar.length === 0) delete value.calendar;
