@@ -62,6 +62,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   col_min_width?: number; // min px per person column before horizontal scroll. default 120
   hide_empty_persons?: boolean; // week view: skip persons without events that week
   auto_return?: number; // kiosk: minutes of inactivity before returning to the default view. 0=off
+  trim_hours?: boolean; // day view: cut empty edge hours so events get the full height. default true
   background_hours?: number; // timed events >= this many hours become a faint band. default 3, 0=off
   max_columns?: number; // max side-by-side columns per person/day. default 3
   first_day?: "monday" | "sunday"; // week start. default monday
@@ -372,7 +373,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (!board) return;
     const header = board.querySelector(".header-row") as HTMLElement | null;
     const allday = board.querySelector(".allday-row") as HTMLElement | null;
-    const span = this._endMin - this._startMin;
+    const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
+    const win = this._dayWindow(day);
+    const span = win.endMin - win.startMin;
     if (span <= 0) return;
     const chrome = (header?.offsetHeight ?? 0) + (allday?.offsetHeight ?? 0);
     const avail = board.clientHeight - chrome - 2;
@@ -649,6 +652,39 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
   private get _endMin(): number {
     return (this._config.end_hour ?? 22) * 60;
+  }
+  /**
+   * Visible minute window of the day view. With `trim_hours` (default on) the
+   * configured start/end window is shrunk to the hours that actually contain
+   * events, so the occupied part of the day gets the full height instead of
+   * being squeezed by empty morning/evening hours.
+   */
+  private _dayWindow(day: number): { startMin: number; endMin: number } {
+    const cfgStart = this._startMin;
+    const cfgEnd = this._endMin;
+    if (this._config.trim_hours === false) return { startMin: cfgStart, endMin: cfgEnd };
+    const evs = this._events.filter((e) => e.day === day && !e.allDay);
+    if (evs.length === 0) return { startMin: cfgStart, endMin: cfgEnd };
+    let first = Math.min(...evs.map((e) => e.startMin));
+    let last = Math.max(...evs.map((e) => e.endMin));
+    // keep the now-line visible on today
+    if (this._isRealToday(day)) {
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      if (nowMin >= cfgStart && nowMin <= cfgEnd) {
+        first = Math.min(first, nowMin);
+        last = Math.max(last, nowMin);
+      }
+    }
+    let s = Math.max(cfgStart, Math.floor(first / 60) * 60);
+    let e = Math.min(cfgEnd, Math.ceil(last / 60) * 60);
+    // never shrink below a sane 6-hour window
+    const MIN_WINDOW = 6 * 60;
+    if (e - s < MIN_WINDOW) {
+      e = Math.min(cfgEnd, s + MIN_WINDOW);
+      s = Math.max(cfgStart, e - MIN_WINDOW);
+    }
+    return { startMin: s, endMin: e };
   }
   /** Column index (0..6 from week start) -> JS weekday (0=Sun..6=Sat). */
   private _jsDay(index: number): number {
@@ -970,8 +1006,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
     const px = this._pxPerMin;
     const hourPx = 60 * px;
-    const startMin = this._startMin;
-    const endMin = this._endMin;
+    const { startMin, endMin } = this._dayWindow(day);
     const height = (endMin - startMin) * px;
     const full = weekdayNames(this.hass, "long", this._firstDayJs);
 
@@ -2716,7 +2751,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.16.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.17.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
