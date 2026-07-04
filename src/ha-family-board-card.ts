@@ -1449,7 +1449,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             );
             return html`
               <div
-                class="mcell ${inMonth ? "" : "out"} ${isToday ? "today" : ""}"
+                class="mcell ${inMonth ? "" : "out"} ${isToday ? "today" : ""} ${date.getDay() ===
+                  0 || date.getDay() === 6
+                  ? "wkend"
+                  : ""}"
                 role="button"
                 tabindex="0"
                 @click=${() => this._goToDate(date)}
@@ -1893,16 +1896,25 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       cursor: pointer;
       background: transparent;
       color: var(--secondary-text-color);
-      padding: 5px 11px;
-      border-radius: 7px;
+      padding: 5px 12px;
+      border-radius: 999px;
       font: inherit;
       font-size: 13px;
+      transition:
+        background 0.12s ease,
+        color 0.12s ease;
+    }
+    .switch button:hover:not(.on),
+    .tabs button:hover:not(.on) {
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
     }
     .switch button.on,
     .tabs button.on {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
       font-weight: 600;
+      box-shadow: 0 1px 4px color-mix(in srgb, var(--primary-color) 45%, transparent);
     }
     .tabs button.today:not(.on) {
       box-shadow: inset 0 -2px 0 var(--fb-accent);
@@ -1922,8 +1934,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       flex-wrap: wrap;
     }
     .dayname {
-      font-weight: 600;
-      font-size: 15px;
+      font-weight: 700;
+      font-size: 15.5px;
+      display: inline-flex;
+      align-items: center;
     }
     .weeknav {
       display: inline-flex;
@@ -2134,6 +2148,15 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       box-sizing: border-box;
       cursor: pointer;
       z-index: 2;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      transition:
+        box-shadow 0.12s ease,
+        transform 0.12s ease;
+    }
+    .event:hover {
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+      transform: translateY(-1px);
+      z-index: 4;
     }
     /* long "background" events (OGS, Freispiel …): faint full-width band behind
        the normal event blocks so short lessons keep the full column width. */
@@ -2265,6 +2288,22 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         padding: 1px 5px;
       }
     }
+    .wchip,
+    .adchip,
+    .mchip {
+      transition: box-shadow 0.12s ease;
+    }
+    .wchip:hover,
+    .adchip:hover,
+    .mchip:hover {
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    }
+    .agenda-row {
+      transition: background 0.12s ease;
+    }
+    .agenda-row:hover {
+      background: var(--secondary-background-color);
+    }
     .wchip.tentative,
     .mchip.tentative,
     .adchip.tentative {
@@ -2280,6 +2319,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .etitle {
       font-size: var(--fb-event-size);
       font-weight: 600;
+      line-height: 1.3;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -2296,6 +2336,65 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       border-top: 2px solid var(--fb-now-color);
       z-index: 7;
       pointer-events: none;
+    }
+    .nowline::after {
+      content: "";
+      position: absolute;
+      left: -3px;
+      top: -5px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--fb-now-color);
+      animation: fb-pulse 2s ease-out infinite;
+    }
+    @keyframes fb-pulse {
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--fb-now-color) 40%, transparent);
+      }
+      50% {
+        box-shadow: 0 0 0 7px transparent;
+      }
+    }
+    @keyframes fb-fade {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    .board,
+    .weekwrap,
+    .agenda,
+    .monthgrid {
+      animation: fb-fade 0.18s ease;
+    }
+    .board::-webkit-scrollbar,
+    .weekwrap::-webkit-scrollbar,
+    .agenda::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    .board::-webkit-scrollbar-thumb,
+    .weekwrap::-webkit-scrollbar-thumb,
+    .agenda::-webkit-scrollbar-thumb {
+      background: var(--divider-color);
+      border-radius: 8px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .board,
+      .weekwrap,
+      .agenda,
+      .monthgrid,
+      .nowline::after,
+      .event {
+        animation: none !important;
+        transition: none !important;
+      }
     }
     .nowline span {
       position: absolute;
@@ -2429,6 +2528,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       background: color-mix(in srgb, var(--fb-accent) 7%, transparent);
       box-shadow: inset 0 0 0 1.5px var(--fb-accent);
     }
+    .mcell.wkend:not(.today) {
+      background: color-mix(in srgb, var(--secondary-text-color, #888) 3.5%, transparent);
+    }
     .mdate {
       font-size: 12px;
       font-weight: 600;
@@ -2468,12 +2570,16 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .wx {
       display: inline-flex;
       align-items: center;
-      gap: 2px;
+      gap: 3px;
       font-size: 12px;
       font-weight: 600;
       color: var(--secondary-text-color);
       vertical-align: middle;
       font-variant-numeric: tabular-nums;
+      background: var(--secondary-background-color);
+      border-radius: 999px;
+      padding: 2px 9px 2px 5px;
+      margin-left: 6px;
     }
     .wx ha-icon {
       --mdc-icon-size: 18px;
@@ -2802,7 +2908,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.17.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.18.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
