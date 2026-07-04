@@ -1120,14 +1120,21 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                         }}
                         @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                         style="top:${top + 1.5}px;height:${h}px;
-                               border-left:3px ${tent ? "dashed" : "solid"} ${c};
-                               background:linear-gradient(135deg, ${c}22, ${c}12)"
+                               border:1.5px dashed ${c}55;
+                               background:${c}0d;
+                               background:repeating-linear-gradient(45deg,
+                                 color-mix(in srgb, ${c} 8%, transparent) 0 8px,
+                                 transparent 8px 16px)"
                         title="${e.title} · ${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
                           this.hass,
                           e.endMin,
                         )}"
                       >
-                        <span class="etitle" style="margin-top:${bi * 17}px"
+                        <span
+                          class="etitle"
+                          style="margin-top:${bi * 19}px;
+                                 background:${c}26;
+                                 background:color-mix(in srgb, ${c} 16%, var(--card-background-color, #fff))"
                           >${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter
                             ? " »"
                             : ""}</span
@@ -1135,55 +1142,64 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                       </div>
                     `;
                   })}
-                ${layout.events
-                  .filter((e) => e.endMin > startMin && e.startMin < endMin)
-                  .map((e) => {
-                    const top = (e.startMin - startMin) * px;
-                    const h = Math.max((e.endMin - e.startMin) * px - 3, 16);
-                    const c = this._eventColor(e);
-                    const leftPct = (e.col / e.cols) * 100;
-                    const widthPct = ((e.span ?? 1) / e.cols) * 100;
-                    const tent = this._isTentative(e);
-                    const slim = h < 24; // very short events: single-line strip on top
-                    return html`
-                      <div
-                        class="event ${this._isPast(e) ? "past" : ""} ${tent
-                          ? "tentative"
-                          : ""} ${slim ? "slim" : ""}"
-                        tabindex="0"
-                        role="button"
-                        @click=${(ev: MouseEvent) => {
-                          ev.stopPropagation();
-                          this._openEvent(e);
-                        }}
-                        @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
-                        style="top:${top + 1.5}px;height:${h}px;
+                ${(() => {
+                  // consecutive full-width mini events sit at min block height;
+                  // nudge each one below the previous strip so labels never stack
+                  let lastSlimBottom = -Infinity;
+                  return layout.events
+                    .filter((e) => e.endMin > startMin && e.startMin < endMin)
+                    .map((e) => {
+                      let top = (e.startMin - startMin) * px;
+                      const h = Math.max((e.endMin - e.startMin) * px - 3, 16);
+                      const c = this._eventColor(e);
+                      const leftPct = (e.col / e.cols) * 100;
+                      const widthPct = ((e.span ?? 1) / e.cols) * 100;
+                      const tent = this._isTentative(e);
+                      const slim = h < 24; // very short events: single-line strip on top
+                      if (slim && e.cols === 1) {
+                        top = Math.max(top, lastSlimBottom + 1);
+                        lastSlimBottom = top + h;
+                      }
+                      return html`
+                        <div
+                          class="event ${this._isPast(e) ? "past" : ""} ${tent
+                            ? "tentative"
+                            : ""} ${slim ? "slim" : ""}"
+                          tabindex="0"
+                          role="button"
+                          @click=${(ev: MouseEvent) => {
+                            ev.stopPropagation();
+                            this._openEvent(e);
+                          }}
+                          @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
+                          style="top:${top + 1.5}px;height:${h}px;
                                left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);
                                border-left:3px ${tent ? "dashed" : "solid"} ${c};
                                background:${c}40;
                                background:color-mix(in srgb, ${c} 32%, var(--card-background-color, #fff))"
-                        title="${e.title} · ${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
-                          this.hass,
-                          e.endMin,
-                        )}"
-                      >
-                        <span class="etitle">${e.continuesBefore ? "« " : ""}${e.title}</span>
-                        ${h > 32
-                          ? html`<span class="etime"
-                              >${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
-                                this.hass,
-                                e.endMin,
-                              )}</span
-                            >`
-                          : nothing}
-                        ${this._progressOn && this._isCurrent(e)
-                          ? html`<div class="eprog">
-                              <div style="width:${this._progressPct(e)}%"></div>
-                            </div>`
-                          : nothing}
-                      </div>
-                    `;
-                  })}
+                          title="${e.title} · ${formatMinutes(
+                            this.hass,
+                            e.startMin,
+                          )}–${formatMinutes(this.hass, e.endMin)}"
+                        >
+                          <span class="etitle">${e.continuesBefore ? "« " : ""}${e.title}</span>
+                          ${h > 32
+                            ? html`<span class="etime"
+                                >${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
+                                  this.hass,
+                                  e.endMin,
+                                )}</span
+                              >`
+                            : nothing}
+                          ${this._progressOn && this._isCurrent(e)
+                            ? html`<div class="eprog">
+                                <div style="width:${this._progressPct(e)}%"></div>
+                              </div>`
+                            : nothing}
+                        </div>
+                      `;
+                    });
+                })()}
                 ${layout.overflows
                   .filter((o) => o.endMin > startMin && o.startMin < endMin)
                   .map((o) => {
@@ -2138,10 +2154,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .band .etitle {
       max-width: 90%;
       font-weight: 600;
-      color: var(--secondary-text-color);
-      background: var(--card-background-color, var(--ha-card-background));
-      border-radius: 4px;
-      padding: 0 4px;
+      font-size: 10px;
+      color: var(--primary-text-color);
+      border-radius: 999px;
+      padding: 1px 8px;
     }
     .event.tentative {
       opacity: 0.72;
@@ -2212,6 +2228,41 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       .switch button,
       .tabs button {
         padding: 8px 14px;
+      }
+    }
+    /* phones: tighter columns, smaller chrome, everything still scrollable */
+    @media (max-width: 600px) {
+      :host {
+        --fb-col-min: 96px;
+        --fb-avatar-size: 28px;
+        --fb-axis-width: 42px;
+        --fb-title-size: 14px;
+        --fb-name-size: 11.5px;
+        --fb-event-size: 10.5px;
+        --fb-chip-size: 10px;
+      }
+      .top {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .phead {
+        padding: 6px 4px;
+        gap: 2px;
+      }
+      .hour {
+        font-size: 9.5px;
+        right: 4px;
+      }
+      .weeknav {
+        gap: 4px;
+      }
+      .band .etitle {
+        font-size: 9px;
+        padding: 1px 6px;
+      }
+      .pbadge {
+        font-size: 9px;
+        padding: 1px 5px;
       }
     }
     .wchip.tentative,
@@ -2751,7 +2802,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.17.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.17.1 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
