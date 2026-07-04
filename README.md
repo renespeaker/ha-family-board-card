@@ -24,6 +24,8 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Auto-Fit-Höhe** – optional passt sich die Tagesansicht automatisch an die verfügbare Kartenhöhe an, sodass Start–Endstunde ohne Scrollen komplett sichtbar sind (ideal für Wandtablets/Kiosk).
 - **Füllt den Bildschirm** – Personenspalten wachsen mit der Kartenbreite mit (Panel-Ansicht/breite Karten); mit `full_height` reicht das Board bis zum unteren Bildschirmrand. Spaltenbreite, Achsenbreite und Abstände sind einstellbar.
 - **Vorläufige Termine** – Termine, deren Titel ein `tentative_patterns`-Muster enthält, werden gestrichelt und leicht transparent dargestellt (opt-in; der Kalender-Status wird bewusst nicht ausgewertet).
+- **Entitäts-Badges pro Person** – beliebige Entitäten (Handy-Akku, Sensoren …) als kleine Chips unter dem Personenkopf; Klick öffnet den More-Info-Dialog.
+- **Kiosk-Modus** – optional nach X Minuten Inaktivität automatisch zurück zur Startansicht und zu „heute"; größere Touch-Ziele auf Touch-Geräten.
 - **Visueller Editor** – Personen inkl. Entity-Auswahl (`person.*`/`calendar.*`) komplett ohne YAML pflegbar.
 
 > Status: **v0.11 – Anzeige + Schreibzugriff + Skalierung/i18n + lesbare dichte Tage.**
@@ -74,7 +76,9 @@ persons:
 
 | Option          | Typ     | Default | Beschreibung |
 |-----------------|---------|---------|--------------|
-| `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color` |
+| `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color` und `badges` (Liste von Entitäten als Chips im Personenkopf) |
+| `hide_empty_persons` | boolean | `false` | Wochenansicht: Personen ohne Termine in der Woche ausblenden |
+| `auto_return`   | number  | `0`     | Kiosk: nach X Minuten ohne Berührung zurück zur Startansicht/heute (0 = aus) |
 | `title`          | string  | –       | Eigener Kartentitel (Default: lokalisiert „Familienplan") |
 | `view`          | string  | `day`   | Startansicht: `day`, `week`, `month` oder `agenda` |
 | `views`         | Liste   | alle    | Welche Ansichten im Umschalter erscheinen, z. B. `[day, agenda]` |
