@@ -1,6 +1,6 @@
 # Family Board Card
 
-![Family Board Card – Tagesansicht](docs/preview-v2.svg)
+![Family Board Card – Tagesansicht](docs/preview-day.png)
 
 Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https://www.home-assistant.io/). Personen stehen als Spalten oben (mit Avatar aus der `person.*`-Entität), links läuft die Zeitleiste. Die Karte zeigt auf einen Blick, welche Aktivitäten gleichzeitig an unterschiedlichen Orten stattfinden — für bis zu 10 Personen.
 
@@ -28,7 +28,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Kiosk-Modus** – optional nach X Minuten Inaktivität automatisch zurück zur Startansicht und zu „heute"; größere Touch-Ziele auf Touch-Geräten.
 - **Visueller Editor** – Personen inkl. Entity-Auswahl (`person.*`/`calendar.*`) komplett ohne YAML pflegbar.
 
-> Status: **v0.11 – Anzeige + Schreibzugriff + Skalierung/i18n + lesbare dichte Tage.**
+> Status: **v0.18 – vollständige Familien-Tagesplanung: 4 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert.**
 
 ## Installation (HACS, Custom Repository)
 
@@ -163,7 +163,7 @@ Die fehleranfällige Event-Logik (Splitting über Mitternacht, Ganztags-Exklusiv
 
 ## Termine anlegen / bearbeiten / löschen
 
-In der Tagesansicht eine freie Stelle in der Personenspalte anklicken (oder das **＋** im Spaltenkopf) öffnet den Dialog zum Anlegen; ein Klick auf einen Termin öffnet ihn zum Bearbeiten/Löschen. Ob das möglich ist, hängt vom Kalender ab: Die Karte liest `supported_features` der jeweiligen `calendar.*`-Entität und blendet Schreibaktionen aus, wenn der Kalender sie nicht unterstützt. Intern werden die WebSocket-Kommandos `calendar/event/create|update|delete` genutzt (dieselben wie die native HA-Kalenderoberfläche).
+In der Tagesansicht eine freie Stelle in der Personenspalte anklicken öffnet den Dialog zum Anlegen (die Uhrzeit wird aus der Klick-Position übernommen); ein Klick auf einen Termin öffnet ihn zum Bearbeiten/Löschen. Ob das möglich ist, hängt vom Kalender ab: Die Karte liest `supported_features` der jeweiligen `calendar.*`-Entität und blendet Schreibaktionen aus, wenn der Kalender sie nicht unterstützt. Intern werden die WebSocket-Kommandos `calendar/event/create|update|delete` genutzt (dieselben wie die native HA-Kalenderoberfläche).
 
 ## Roadmap
 
@@ -171,9 +171,11 @@ In der Tagesansicht eine freie Stelle in der Personenspalte anklicken (oder das 
 - [x] Personen-Editor im visuellen Config-Editor
 - [x] Wochen-Navigation & Nebeneinander-Layout überlappender Termine
 - [x] Mehrsprachigkeit (i18n, DE/EN) + Locale-Zeitformat
+- [x] Kiosk-/Wandtablet-Modus (`full_height`, `fit_height`, `auto_return`, Touch-Ziele)
+- [x] Mobile-Layout (kompakte Spalten, wischbar)
+- [ ] Drag & Drop zum Verschieben von Terminen
 - [ ] Orts-/Konflikterkennung (z. B. „niemand zuhause", Abhol-Lücken)
-- [ ] Kiosk-/Wandtablet-Modus
-- [ ] Aufnahme in den offiziellen HACS-Store ([Anleitung](docs/HACS_STORE.md))
+- [ ] Aufnahme in den offiziellen HACS-Store (beantragt: [hacs/default#8745](https://github.com/hacs/default/pull/8745))
 
 ## Lizenz
 
