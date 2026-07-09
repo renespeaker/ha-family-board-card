@@ -8,6 +8,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Wochenansicht** – Wochentage als Zeilen, Personen als Spalten, kompakte Termin-Chips.
 - **Monatsansicht** – klassisches Monats-Grid mit farbigen Terminen pro Person; Klick auf einen Tag springt in die Tagesansicht.
 - **Agenda-/Listenansicht** – chronologische Terminliste, nach Tagen gruppiert; ideal fürs Handy.
+- **Zeitstrahl-Ansicht** – Personen als Zeilen links, die Zeit läuft horizontal: Termine als Balken auf einem Zeitstrahl (Gantt-Stil); überlappende Termine stapeln sich in Unterzeilen.
 - **Ansichten wählbar** – im Editor festlegen, welche Umschalter (Tag/Woche/Monat/Agenda) erscheinen.
 - **Wochen-Navigation** – vor/zurück blättern, ein Klick auf den Datumsbereich springt zurück zu „heute".
 - **Theme-aware** – übernimmt Farben und Schrift des aktiven Dashboard-Themes (nutzt durchgehend HA-CSS-Variablen).
@@ -80,7 +81,7 @@ persons:
 | `hide_empty_persons` | boolean | `false` | Wochenansicht: Personen ohne Termine in der Woche ausblenden |
 | `auto_return`   | number  | `0`     | Kiosk: nach X Minuten ohne Berührung zurück zur Startansicht/heute (0 = aus) |
 | `title`          | string  | –       | Eigener Kartentitel (Default: lokalisiert „Familienplan") |
-| `view`          | string  | `day`   | Startansicht: `day`, `week`, `month` oder `agenda` |
+| `view`          | string  | `day`   | Startansicht: `day`, `timeline`, `week`, `month` oder `agenda` |
 | `views`         | Liste   | alle    | Welche Ansichten im Umschalter erscheinen, z. B. `[day, agenda]` |
 | `time_grid`     | number  | `30`    | Raster der Zeitleiste in Minuten |
 | `start_hour`    | number  | `6`     | Erste sichtbare Stunde |
@@ -94,6 +95,7 @@ persons:
 | `weather_entity`| string  | –       | `weather.*`-Entität für die Tages-Vorhersage (HA-Standort) |
 | `show_weather`  | boolean | `true`* | Wetter im Header anzeigen (*wirkt nur, wenn `weather_entity` gesetzt) |
 | `hour_height`   | number  | `64`    | Höhe einer Stunde in px (40–96) – Tagesansicht skalieren (Wandtablet); bei `fit_height` die Obergrenze |
+| `hour_width`    | number  | `96`    | Zeitstrahl-Ansicht: Breite einer Stunde in px (48–240) |
 | `fit_height`    | boolean | `false` | Tagesansicht automatisch so verkleinern, dass Start–Endstunde ohne Scrollen komplett sichtbar sind (Wandtablet/Kiosk) |
 | `full_height`   | boolean | `false` | Board bis zum unteren Bildschirmrand strecken (Panel-/Wandtablet-Ansicht); Standard ist eine 58 %-Deckelung |
 | `trim_hours`    | boolean | `true`  | Tagesansicht: leere Randstunden automatisch abschneiden, damit der belegte Teil des Tages die volle Höhe bekommt (min. 6-h-Fenster; `start_hour`/`end_hour` bleiben die Außengrenzen) |
