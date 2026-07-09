@@ -21,6 +21,7 @@ const SETTINGS_SCHEMA = [
         options: [
           { value: "day", label: "Tag" },
           { value: "week", label: "Woche" },
+          { value: "timeline", label: "Zeitstrahl" },
           { value: "month", label: "Monat" },
           { value: "agenda", label: "Agenda" },
         ],
@@ -35,6 +36,7 @@ const SETTINGS_SCHEMA = [
         options: [
           { value: "day", label: "Tag" },
           { value: "week", label: "Woche" },
+          { value: "timeline", label: "Zeitstrahl" },
           { value: "month", label: "Monat" },
           { value: "agenda", label: "Agenda" },
         ],
@@ -86,6 +88,10 @@ const SETTINGS_SCHEMA = [
     selector: { number: { min: 40, max: 96, step: 4, mode: "slider", unit_of_measurement: "px" } },
   },
   {
+    name: "hour_width",
+    selector: { number: { min: 48, max: 240, step: 8, mode: "slider", unit_of_measurement: "px" } },
+  },
+  {
     name: "max_columns",
     selector: { number: { min: 1, max: 8, step: 1, mode: "slider" } },
   },
@@ -134,6 +140,7 @@ const LABELS: Record<string, string> = {
   start_hour: "Startstunde",
   end_hour: "Endstunde",
   hour_height: "Höhe pro Stunde (max. bei Auto-Fit)",
+  hour_width: "Zeitstrahl: Breite pro Stunde",
   fit_height: "Auto-Fit: Tag ohne Scrollen einpassen",
   full_height: "Volle Höhe: bis zum unteren Bildschirmrand",
   trim_hours: "Leere Randstunden automatisch ausblenden",

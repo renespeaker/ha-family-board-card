@@ -27,8 +27,8 @@ import {
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
-type ViewName = "day" | "week" | "month" | "agenda";
-const ALL_VIEWS: ViewName[] = ["day", "week", "month", "agenda"];
+type ViewName = "day" | "week" | "month" | "agenda" | "timeline";
+const ALL_VIEWS: ViewName[] = ["day", "timeline", "week", "month", "agenda"];
 
 interface PersonConfig {
   name?: string;
@@ -57,6 +57,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   show_weather?: boolean; // show weather in headers. default true when entity set
   refresh_interval?: number; // seconds; 0 disables. default 300
   hour_height?: number; // px per hour in the day view. default 64
+  hour_width?: number; // px per hour in the timeline view. default 96
   fit_height?: boolean; // shrink the day view so start..end fits without scroll
   full_height?: boolean; // stretch the board to the bottom of the screen (wall tablet)
   col_min_width?: number; // min px per person column before horizontal scroll. default 120
@@ -959,11 +960,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         </div>
         ${this._view === "day"
           ? this._renderDay()
-          : this._view === "week"
-            ? this._renderWeek()
-            : this._view === "month"
-              ? this._renderMonth()
-              : this._renderAgenda()}
+          : this._view === "timeline"
+            ? this._renderTimeline()
+            : this._view === "week"
+              ? this._renderWeek()
+              : this._view === "month"
+                ? this._renderMonth()
+                : this._renderAgenda()}
       </ha-card>
       ${this._dialog ? this._renderDialog() : nothing}
     `;
@@ -1244,6 +1247,155 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         </div>
       </div>
     `;
+  }
+
+  /** Horizontal timeline: persons as rows on the left, time flowing left → right. */
+  private _renderTimeline() {
+    const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
+    const { startMin, endMin } = this._dayWindow(day);
+    const hourPx = Math.min(240, Math.max(48, Number(this._config.hour_width) || 96));
+    const px = hourPx / 60;
+    const width = (endMin - startMin) * px;
+    const full = weekdayNames(this.hass, "long", this._firstDayJs);
+    const hours: number[] = [];
+    for (let h = startMin / 60; h <= endMin / 60; h++) hours.push(h);
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const showNow =
+      this._config.show_now_line !== false &&
+      this._isRealToday(day) &&
+      nowMin >= startMin &&
+      nowMin <= endMin;
+    const LANE = 30;
+
+    return html`
+      <div class="dayhead">
+        <span class="dayname">
+          ${this._relativeDay(this._dateForDay(day)) ?? full[day]}
+          ${this._weatherChip(this._dateForDay(day))}${this._loading && this._raw.length === 0
+            ? html`<span class="spinner"></span>`
+            : nothing}
+        </span>
+        ${this._weekNav()}
+      </div>
+      ${this._renderDayTabs()}
+      ${this._loadError ? html`<div class="banner">${this._t("load_error")}</div>` : nothing}
+      <div class="tlwrap">
+        <div class="tlgrid" style="min-width:calc(var(--fb-tl-label, 150px) + ${width}px)">
+          <div class="tlhead">
+            <div class="tlcorner"></div>
+            <div class="tlhours" style="width:${width}px">
+              ${hours.map(
+                (h) =>
+                  html`<span class="tlhour" style="left:${(h * 60 - startMin) * px}px"
+                    >${pad(h)}:00</span
+                  >`,
+              )}
+            </div>
+          </div>
+          ${this._persons.map((p, i) => {
+            const evs = this._events.filter((e) => e.day === day && e.personIdx === i);
+            const laid = layoutDayColumns(evs);
+            const lanes = laid.length ? Math.max(...laid.map((e) => e.cols)) : 1;
+            const canCreate = this._personCanCreate(p);
+            const stateObj = p.person ? this.hass.states[p.person] : undefined;
+            return html`
+              <div class="tlrow">
+                <div class="tlperson">
+                  ${this._avatar(p, i)}
+                  <div>
+                    <div class="pname">${this._personName(p, i)}</div>
+                    <div class="pstatus">${stateObj ? this._statusLabel(stateObj.state) : ""}</div>
+                  </div>
+                </div>
+                <div
+                  class="tlcanvas ${canCreate ? "creatable" : ""}"
+                  style="width:${width}px;height:${lanes * LANE + 8}px;
+                         background-image:repeating-linear-gradient(90deg, var(--fb-hourline) 0 1px, transparent 1px ${hourPx}px),
+                         repeating-linear-gradient(90deg, var(--fb-halfhour) 0 1px, transparent 1px ${hourPx /
+                  2}px)"
+                  @click=${(ev: MouseEvent) => this._onTimelineClick(ev, i, day, px, startMin)}
+                >
+                  ${laid
+                    .filter((e) => e.endMin > startMin && e.startMin < endMin)
+                    .map((e) => {
+                      const s = Math.max(e.startMin, startMin);
+                      const en = Math.min(e.endMin, endMin);
+                      const w = Math.max((en - s) * px - 3, 20);
+                      const c = this._eventColor(e);
+                      const tent = this._isTentative(e);
+                      const before = e.continuesBefore || e.startMin < startMin;
+                      const after = e.continuesAfter || e.endMin > endMin;
+                      return html`
+                        <div
+                          class="tlbar ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
+                          tabindex="0"
+                          role="button"
+                          @click=${(ev: MouseEvent) => {
+                            ev.stopPropagation();
+                            this._openEvent(e);
+                          }}
+                          @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
+                          style="left:${(s - startMin) * px + 1.5}px;width:${w}px;
+                                 top:${e.col * LANE + 4}px;height:${LANE - 6}px;
+                                 border-left:3px ${tent ? "dashed" : "solid"} ${c};
+                                 background:${c}40;
+                                 background:color-mix(in srgb, ${c} 32%, var(--card-background-color, #fff))"
+                          title="${e.title}${e.allDay
+                            ? ` · ${this._t("all_day")}`
+                            : ` · ${formatMinutes(this.hass, e.startMin)}–${formatMinutes(this.hass, e.endMin)}`}"
+                        >
+                          <span class="etitle"
+                            >${before ? "« " : ""}${e.title}${after ? " »" : ""}</span
+                          >
+                          ${!e.allDay && w > 120
+                            ? html`<span class="etime"
+                                >${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
+                                  this.hass,
+                                  e.endMin,
+                                )}</span
+                              >`
+                            : nothing}
+                        </div>
+                      `;
+                    })}
+                </div>
+              </div>
+            `;
+          })}
+          ${showNow
+            ? html`<div
+                class="tlnow"
+                style="left:calc(var(--fb-tl-label, 150px) + ${(nowMin - startMin) * px}px)"
+              >
+                <span>${formatMinutes(this.hass, nowMin)}</span>
+              </div>`
+            : nothing}
+        </div>
+        ${!this._loading && !this._loadError && !this._dayHasEvents(day)
+          ? html`<div class="empty">${this._t("no_events")}</div>`
+          : nothing}
+      </div>
+    `;
+  }
+
+  private _onTimelineClick(
+    ev: MouseEvent,
+    idx: number,
+    day: number,
+    px: number,
+    startMin: number,
+  ): void {
+    const p = this._persons[idx];
+    if (!this._personCanCreate(p)) return;
+    const target = ev.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const offsetX = ev.clientX - rect.left;
+    let min = startMin + offsetX / px;
+    const grid = this._grid;
+    min = Math.round(min / grid) * grid;
+    min = Math.max(0, Math.min(min, 24 * 60 - grid));
+    this._openCreate(idx, day, min);
   }
 
   private _renderWeek() {
@@ -2408,6 +2560,121 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       border-radius: 5px;
       font-variant-numeric: tabular-nums;
     }
+    /* timeline (horizontal) */
+    .tlwrap {
+      overflow: auto;
+      max-height: var(--fb-board-max-height, 58vh);
+      margin-top: 8px;
+      animation: fb-fade 0.18s ease;
+    }
+    .tlgrid {
+      position: relative;
+    }
+    .tlhead {
+      display: flex;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--card-background-color, var(--ha-card-background));
+      border-bottom: 1px solid var(--divider-color);
+      height: 26px;
+    }
+    .tlcorner {
+      width: var(--fb-tl-label, 150px);
+      flex: 0 0 var(--fb-tl-label, 150px);
+      position: sticky;
+      left: 0;
+      background: inherit;
+      z-index: 2;
+    }
+    .tlhours {
+      position: relative;
+    }
+    .tlhour {
+      position: absolute;
+      top: 5px;
+      transform: translateX(-50%);
+      font-size: 10.5px;
+      color: var(--secondary-text-color);
+      font-variant-numeric: tabular-nums;
+    }
+    .tlrow {
+      display: flex;
+      border-bottom: 1px solid var(--divider-color);
+    }
+    .tlperson {
+      width: var(--fb-tl-label, 150px);
+      flex: 0 0 var(--fb-tl-label, 150px);
+      position: sticky;
+      left: 0;
+      z-index: 4;
+      background: var(--card-background-color, var(--ha-card-background));
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      box-sizing: border-box;
+      border-right: 1px solid var(--divider-color);
+    }
+    .tlperson .pname {
+      font-size: 12.5px;
+    }
+    .tlcanvas {
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .tlcanvas.creatable {
+      cursor: copy;
+    }
+    .tlbar {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 7px;
+      border-radius: var(--fb-radius);
+      overflow: hidden;
+      box-sizing: border-box;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      transition:
+        box-shadow 0.12s ease,
+        transform 0.12s ease;
+    }
+    .tlbar:hover {
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+      transform: translateY(-1px);
+      z-index: 3;
+    }
+    .tlbar.tentative {
+      opacity: 0.72;
+      border-style: dashed;
+    }
+    .tlbar .etime {
+      flex: 0 0 auto;
+    }
+    .tlnow {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-left: 2px solid var(--fb-now-color);
+      z-index: 6;
+      pointer-events: none;
+    }
+    .tlnow span {
+      position: absolute;
+      top: 2px;
+      left: -1px;
+      transform: translateX(-50%);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-primary-color, #fff);
+      background: var(--fb-now-color);
+      padding: 1px 5px;
+      border-radius: 5px;
+      font-variant-numeric: tabular-nums;
+    }
     /* agenda */
     .agenda {
       max-height: 60vh;
@@ -2908,7 +3175,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.18.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.19.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
