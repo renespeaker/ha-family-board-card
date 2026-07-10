@@ -27,14 +27,14 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Vorläufige Termine** – Termine, deren Titel ein `tentative_patterns`-Muster enthält, werden gestrichelt und leicht transparent dargestellt (opt-in; der Kalender-Status wird bewusst nicht ausgewertet).
 - **Entitäts-Badges pro Person** – beliebige Entitäten (Handy-Akku, Sensoren …) als kleine Chips unter dem Personenkopf; Klick öffnet den More-Info-Dialog.
 - **Kiosk-Modus** – optional nach X Minuten Inaktivität automatisch zurück zur Startansicht und zu „heute"; größere Touch-Ziele auf Touch-Geräten.
-- **Visueller Editor** – Personen inkl. Entity-Auswahl (`person.*`/`calendar.*`) komplett ohne YAML pflegbar.
+- **Visueller Editor 2.0** – komplett ohne YAML: Erststart-Assistent, Ein-Klick-Profile (🖥️ Wandtablet / 📱 Handy / 🧩 Standard), aufklappbare Themen-Gruppen mit Hilfetexten, Farbpaletten-Wähler pro Person **und pro Kalender** (inkl. Label), Feintuning-Regler (Schriftgröße, Ecken-Radius, Deckkraft) – Felder erscheinen nur, wenn die zugehörige Ansicht aktiv ist.
 - **⚡ Zero-Config-Start** – beim Hinzufügen erkennt die Karte automatisch alle `person.*`-Entitäten und verknüpft passende Kalender per Namensabgleich; im Editor jederzeit per „✨ Automatisch erkennen" nachholbar.
 - **Personen-Toggle** – Klick auf einen Personenkopf blendet die Person temporär aus (Spalte kollabiert zum Avatar); zweiter Klick holt sie zurück. Wirkt in allen Ansichten.
 - **Termin-Aufräumer** – Allow-Liste (`show_patterns`), Titel-Ersetzung (`replace_patterns`, „Suchtext => Ersatz") und Duplikat-Filter (`filter_duplicates`, gleicher Termin in mehreren Kalendern nur 1×).
 - **Mehrtägige Termine** – Segmente zeigen „(2/5)", damit klar ist, der wievielte Tag es ist.
 - **Kalender-Mapping** – über `calendars:` bekommt jeder Kalender eine feste Farbe und ein eigenes Label (wirkt bei `color_by: calendar` und im Termin-Dialog).
 
-> Status: **v0.20 – vollständige Familien-Tagesplanung: 5 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert.**
+> Status: **v0.21 – vollständige Familien-Tagesplanung: 5 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert.**
 
 ## Installation (HACS, Custom Repository)
 
@@ -99,7 +99,10 @@ persons:
 | `show_patterns` | Liste   | –       | Allow-Liste: nur Termine zeigen, deren Titel eines der Muster enthält |
 | `replace_patterns` | Liste | –      | Titel aufräumen: `"Suchtext => Ersatz"` (ohne `=>` wird der Text entfernt) |
 | `filter_duplicates` | boolean | `false` | Identische Termine (Titel+Zeit) pro Person und in der Agenda nur einmal zeigen |
-| `calendars`     | Map     | –       | Pro Kalender feste `color` und `label`, z. B. `calendar.arbeit: {color: "#3f51b5", label: "Arbeit"}` |
+| `calendars`     | Map     | –       | Pro Kalender feste `color` und `label` (im Editor per Farbpalette pflegbar) |
+| `event_size`    | number  | –       | Schriftgröße der Termin-Titel in px (Editor-Slider, setzt `--fb-event-size`) |
+| `radius`        | number  | –       | Ecken-Radius der Termin-Blöcke in px (setzt `--fb-radius`) |
+| `past_opacity`  | number  | –       | Deckkraft vergangener Termine in % (setzt `--fb-past-opacity`) |
 | `show_progress` | boolean | `true`  | Fortschrittsbalken am laufenden Termin |
 | `weather_entity`| string  | –       | `weather.*`-Entität für die Tages-Vorhersage (HA-Standort) |
 | `show_weather`  | boolean | `true`* | Wetter im Header anzeigen (*wirkt nur, wenn `weather_entity` gesetzt) |
