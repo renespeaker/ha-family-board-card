@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
+import { autoDetectPersons } from "./ha-family-board-card";
 import type { FamilyBoardConfig } from "./ha-family-board-card";
 
 interface PersonConfig {
@@ -119,6 +120,9 @@ const SETTINGS_SCHEMA = [
   { name: "dim_past", selector: { boolean: {} } },
   { name: "show_progress", selector: { boolean: {} } },
   { name: "hide_patterns", selector: { text: { multiple: true } } },
+  { name: "show_patterns", selector: { text: { multiple: true } } },
+  { name: "replace_patterns", selector: { text: { multiple: true } } },
+  { name: "filter_duplicates", selector: { boolean: {} } },
   { name: "tentative_patterns", selector: { text: { multiple: true } } },
   {
     name: "weather_entity",
@@ -155,6 +159,9 @@ const LABELS: Record<string, string> = {
   dim_past: "Vergangene Termine ausgrauen",
   show_progress: "Fortschrittsbalken anzeigen",
   hide_patterns: "Termine ausblenden (Text-Muster)",
+  show_patterns: "Nur Termine zeigen mit (Text-Muster)",
+  replace_patterns: "Titel ersetzen (Suchtext => Ersatz)",
+  filter_duplicates: "Doppelte Termine zusammenfassen",
   tentative_patterns: "Als vorläufig markieren (Text-Muster)",
   weather_entity: "Wetter-Entität (weather.*)",
   show_weather: "Wetter anzeigen",
@@ -239,6 +246,17 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     this._emit({ ...this._config, persons });
   }
 
+  /** One-click setup: detect person.* entities and their matching calendars. */
+  private _autoDetect(): void {
+    const detected = autoDetectPersons(this.hass);
+    if (detected.length === 0) return;
+    // keep manually configured persons, append only new ones
+    const known = new Set(this._persons.map((p) => p.person).filter(Boolean));
+    const merged = [...this._persons.filter((p) => p.name || p.person || p.calendar)];
+    for (const d of detected) if (!known.has(d.person)) merged.push(d);
+    this._emit({ ...this._config, persons: merged });
+  }
+
   private _removePerson(idx: number): void {
     const persons = this._persons.filter((_, i) => i !== idx);
     this._emit({ ...this._config, persons });
@@ -302,7 +320,10 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
             </div>
           `,
         )}
-        <button class="add" @click=${this._addPerson}>＋ Person hinzufügen</button>
+        <div class="addrow">
+          <button class="add" @click=${this._addPerson}>＋ Person hinzufügen</button>
+          <button class="add detect" @click=${this._autoDetect}>✨ Automatisch erkennen</button>
+        </div>
       </div>
 
       <div class="section-title">Darstellung</div>
@@ -376,6 +397,16 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     .icon.danger:hover {
       background: var(--error-color, #ff5252);
       color: #fff;
+    }
+    .addrow {
+      display: flex;
+      gap: 8px;
+    }
+    .addrow .add {
+      flex: 1;
+    }
+    .add.detect {
+      border-style: solid;
     }
     .add {
       border: 1px dashed var(--divider-color);
