@@ -51,6 +51,10 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   color_by?: "person" | "location" | "calendar";
   dim_past?: boolean; // fade events that already ended. default true
   hide_patterns?: string[]; // hide events whose title matches any pattern
+  show_patterns?: string[]; // allow-list: only show events whose title matches
+  replace_patterns?: string[]; // clean up titles: "search => replacement" (or "search" to strip)
+  filter_duplicates?: boolean; // drop identical events (title/start/end) per person + in agenda
+  calendars?: Record<string, { color?: string; label?: string }>; // per-calendar color/label
   tentative_patterns?: string[]; // mark events tentative when title matches
   show_progress?: boolean; // progress bar on running events. default true
   weather_entity?: string; // weather.* entity for the daily forecast
@@ -169,6 +173,46 @@ const hashColor = (s: string): string => {
   return FALLBACK_COLORS[h % FALLBACK_COLORS.length];
 };
 
+/**
+ * Auto-detect family members: every person.* entity becomes a row, and
+ * calendar.* entities are matched by entity slug or friendly name.
+ * Exported so the editor can offer a one-click "detect" button.
+ */
+export function autoDetectPersons(hass: HomeAssistant): PersonConfig[] {
+  const states = hass?.states ?? {};
+  const calendars = Object.keys(states).filter((id) => id.startsWith("calendar."));
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
+  const persons: PersonConfig[] = [];
+  for (const id of Object.keys(states)) {
+    if (!id.startsWith("person.")) continue;
+    const slug = id.slice("person.".length);
+    const friendly = (states[id].attributes?.friendly_name as string | undefined) ?? slug;
+    const key = norm(slug);
+    const keyF = norm(friendly);
+    const matched = calendars.filter((c) => {
+      const cSlug = norm(c.slice("calendar.".length));
+      const cName = norm((states[c].attributes?.friendly_name as string | undefined) ?? "");
+      return (
+        cSlug === key ||
+        cSlug.includes(key) ||
+        (keyF.length > 2 && (cSlug.includes(keyF) || cName.includes(keyF)))
+      );
+    });
+    persons.push({
+      name: friendly,
+      person: id,
+      calendar: matched.length === 1 ? matched[0] : matched.length ? matched : "",
+    });
+    if (persons.length >= 10) break;
+  }
+  return persons;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Card                                                               */
 /* ------------------------------------------------------------------ */
@@ -183,7 +227,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   @state() private _dialog?: DialogState;
   @state() private _loadError = false;
   @state() private _loading = false;
-  @state() private _fitPx = 0; // measured px/min when fit_height is on (0 = not measured)
+  @state() private _fitPx = 0;
+  @state() private _hiddenP: number[] = []; // temporarily hidden persons (header click) // measured px/min when fit_height is on (0 = not measured)
 
   private _raw: RawEvent[] = [];
   private _fetchedKey = "";
@@ -201,7 +246,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return document.createElement("ha-family-board-card-editor") as LovelaceCardEditor;
   }
 
-  public static getStubConfig(): FamilyBoardConfig {
+  /** Zero-config start: detect person.* entities and match their calendars. */
+  public static getStubConfig(hass?: HomeAssistant): FamilyBoardConfig {
+    const persons = hass ? autoDetectPersons(hass) : [];
     return {
       type: "custom:family-board-card",
       view: "day",
@@ -211,10 +258,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       show_weekends: true,
       show_now_line: true,
       color_by: "person",
-      persons: [
-        { name: "Person 1", person: "", calendar: "" },
-        { name: "Person 2", person: "", calendar: "" },
-      ],
+      persons: persons.length
+        ? persons
+        : [
+            { name: "Person 1", person: "", calendar: "" },
+            { name: "Person 2", person: "", calendar: "" },
+          ],
     };
   }
 
@@ -322,6 +371,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (this._view !== view) this._view = view;
     if (this._weekOffset !== 0) this._weekOffset = 0;
     if (this._monthOffset !== 0) this._monthOffset = 0;
+    if (this._hiddenP.length) this._hiddenP = [];
     this._day = this._todayIndex();
   }
 
@@ -552,6 +602,33 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     });
   }
 
+  /** Allow-list: when set, only events whose title matches a pattern are shown. */
+  private _allowed(summary: string): boolean {
+    const pats = this._config.show_patterns;
+    if (!Array.isArray(pats) || pats.length === 0) return true;
+    const s = summary.toLowerCase();
+    return pats.some((p) => {
+      const pat = String(p).trim().toLowerCase();
+      return pat.length > 0 && s.includes(pat);
+    });
+  }
+
+  /** Clean up titles via replace_patterns entries: "search => replacement". */
+  private _cleanTitle(summary: string): string {
+    const pats = this._config.replace_patterns;
+    if (!Array.isArray(pats) || pats.length === 0) return summary;
+    let out = summary;
+    for (const p of pats) {
+      const raw = String(p);
+      const idx = raw.indexOf("=>");
+      const from = (idx >= 0 ? raw.slice(0, idx) : raw).trim();
+      const to = idx >= 0 ? raw.slice(idx + 2).trim() : "";
+      if (from.length === 0) continue;
+      out = out.split(from).join(to);
+    }
+    return out.replace(/\s{2,}/g, " ").trim() || summary;
+  }
+
   /** Whether an event title marks it as tentative/provisional (case-insensitive). */
   private _matchesTentative(summary: string): boolean {
     const pats = this._config.tentative_patterns;
@@ -584,8 +661,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               );
               for (const ev of events) {
                 const raw = parseRawEvent(ev, idx, cal, color);
-                if (raw && !this._hidden(raw.summary)) {
+                if (raw && !this._hidden(raw.summary) && this._allowed(raw.summary)) {
                   if (this._matchesTentative(raw.summary)) raw.tentative = true;
+                  raw.summary = this._cleanTitle(raw.summary);
                   raws.push(raw);
                 }
               }
@@ -595,10 +673,22 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           });
       }),
     );
-    this._raw = raws;
+    let cleaned = raws;
+    if (this._config.filter_duplicates) {
+      // same title/start/end within ONE person (e.g. mirrored in two calendars)
+      const seen = new Set<string>();
+      cleaned = raws.filter((r) => {
+        const key = `${r.personIdx}|${r.summary}|${r.start.getTime()}|${r.end.getTime()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+    this._raw = cleaned;
     // Week views index events by weekday; month builds its own grid from _raw.
     const { monday } = this._weekBounds();
-    this._events = this._view === "month" ? [] : raws.flatMap((r) => splitIntoSegments(r, monday));
+    this._events =
+      this._view === "month" ? [] : cleaned.flatMap((r) => splitIntoSegments(r, monday));
     this._loadError = anyError && raws.length === 0;
     this._loading = false;
   }
@@ -704,11 +794,23 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _t(key: string): string {
     return localize(this.hass, key);
   }
+  /** Optional per-calendar color/label from the `calendars:` mapping. */
+  private _calMeta(entity?: string): { color?: string; label?: string } {
+    return (entity && this._config.calendars?.[entity]) || {};
+  }
+  /** Display name of a calendar entity: mapping label > friendly name > id. */
+  private _calLabel(entity: string): string {
+    return (
+      this._calMeta(entity).label ??
+      ((this.hass.states[entity]?.attributes?.friendly_name as string | undefined) || entity)
+    );
+  }
   /** Color for an event respecting the color_by option. */
   private _eventColor(e: BoardEvent): string {
     const by = this._config.color_by;
     if (by === "location" && e.location) return hashColor(e.location);
-    if (by === "calendar" && e.ref.calendar) return hashColor(e.ref.calendar);
+    if (by === "calendar" && e.ref.calendar)
+      return this._calMeta(e.ref.calendar).color ?? hashColor(e.ref.calendar);
     return e.color;
   }
   /** Whether an event has already ended (for dimming). */
@@ -725,7 +827,17 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (diff === -1) return this._t("yesterday");
     return null;
   }
+  /** Person temporarily hidden via header click (legend-style toggle). */
+  private _isOff(idx: number): boolean {
+    return this._hiddenP.includes(idx);
+  }
+  private _togglePerson(idx: number): void {
+    this._hiddenP = this._isOff(idx)
+      ? this._hiddenP.filter((i) => i !== idx)
+      : [...this._hiddenP, idx];
+  }
   private _timedFor(day: number, idx: number): LaidOutEvent[] {
+    if (this._isOff(idx)) return [];
     const evs = this._events.filter(
       (e) => e.day === day && e.personIdx === idx && !e.allDay && !this._isBackground(e),
     );
@@ -744,6 +856,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
   /** Background-band segments for a person/day, longest first (so they stack cleanly). */
   private _bgFor(day: number, idx: number): BoardEvent[] {
+    if (this._isOff(idx)) return [];
     return this._events
       .filter((e) => e.day === day && e.personIdx === idx && !e.allDay && this._isBackground(e))
       .sort((a, b) => b.endMin - b.startMin - (a.endMin - a.startMin));
@@ -799,6 +912,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     return { events, overflows };
   }
+  /** Display title, with "(day X/Y)" suffix for multi-day events. */
+  private _evTitle(e: BoardEvent): string {
+    return e.parts && e.parts > 1 ? `${e.title} (${e.part}/${e.parts})` : e.title;
+  }
+
   /** Whether an event is flagged tentative/provisional. */
   private _isTentative(e: BoardEvent): boolean {
     return e.ref.tentative === true;
@@ -814,9 +932,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (this._enabledViews.includes("day")) this._view = "day";
   }
   private _allDayFor(day: number, idx: number): BoardEvent[] {
+    if (this._isOff(idx)) return [];
     return this._events.filter((e) => e.day === day && e.personIdx === idx && e.allDay);
   }
   private _eventsFor(day: number, idx: number): BoardEvent[] {
+    if (this._isOff(idx)) return [];
     return this._events
       .filter((e) => e.day === day && e.personIdx === idx)
       .sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.startMin - b.startMin);
@@ -1038,12 +1158,29 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           <div class="axis-spacer"></div>
           ${this._persons.map((p, i) => {
             const stateObj = p.person ? this.hass.states[p.person] : undefined;
+            const off = this._isOff(i);
             return html`
-              <div class="phead">
+              <div
+                class="phead ${off ? "off" : ""}"
+                role="button"
+                tabindex="0"
+                title=${this._personName(p, i)}
+                @click=${() => this._togglePerson(i)}
+                @keydown=${(k: KeyboardEvent) => {
+                  if (k.key === "Enter" || k.key === " ") {
+                    k.preventDefault();
+                    this._togglePerson(i);
+                  }
+                }}
+              >
                 ${this._avatar(p, i)}
-                <div class="pname">${this._personName(p, i)}</div>
-                <div class="pstatus">${stateObj ? this._statusLabel(stateObj.state) : ""}</div>
-                ${this._badges(p)}
+                ${off
+                  ? nothing
+                  : html`<div class="pname">${this._personName(p, i)}</div>
+                      <div class="pstatus">
+                        ${stateObj ? this._statusLabel(stateObj.state) : ""}
+                      </div>
+                      ${this._badges(p)}`}
               </div>
             `;
           })}
@@ -1054,7 +1191,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 <div class="axis-spacer allday-label">${this._t("all_day")}</div>
                 ${this._persons.map(
                   (p, i) => html`
-                    <div class="allday-cell">
+                    <div class="allday-cell ${this._isOff(i) ? "off" : ""}">
                       ${this._allDayFor(day, i).map((e) => {
                         const c = this._eventColor(e);
                         const tent = this._isTentative(e);
@@ -1064,13 +1201,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                             style="border-left:3px ${tent
                               ? "dashed"
                               : "solid"} ${c};background:${c}30;background:color-mix(in srgb, ${c} 22%, var(--card-background-color, #fff))"
-                            title="${e.title}"
+                            title="${this._evTitle(e)}"
                             tabindex="0"
                             role="button"
                             @click=${() => this._openEvent(e)}
                             @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                           >
-                            ${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter
+                            ${e.continuesBefore ? "« " : ""}${this._evTitle(e)}${e.continuesAfter
                               ? " »"
                               : ""}
                           </div>
@@ -1096,7 +1233,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             const layout = this._dayLayout(day, i);
             return html`
               <div
-                class="col ${canCreate ? "creatable" : ""}"
+                class="col ${canCreate ? "creatable" : ""} ${this._isOff(i) ? "off" : ""}"
                 @click=${(ev: MouseEvent) => this._onColClick(ev, i, day, px, startMin)}
                 style="background-image:
                   repeating-linear-gradient(var(--fb-row-shade) 0 ${hourPx}px, transparent ${hourPx}px ${2 *
@@ -1128,17 +1265,17 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                                background:repeating-linear-gradient(45deg,
                                  color-mix(in srgb, ${c} 8%, transparent) 0 8px,
                                  transparent 8px 16px)"
-                        title="${e.title} · ${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
+                        title="${this._evTitle(e)} · ${formatMinutes(
                           this.hass,
-                          e.endMin,
-                        )}"
+                          e.startMin,
+                        )}–${formatMinutes(this.hass, e.endMin)}"
                       >
                         <span
                           class="etitle"
                           style="margin-top:${bi * 19}px;
                                  background:${c}26;
                                  background:color-mix(in srgb, ${c} 16%, var(--card-background-color, #fff))"
-                          >${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter
+                          >${e.continuesBefore ? "« " : ""}${this._evTitle(e)}${e.continuesAfter
                             ? " »"
                             : ""}</span
                         >
@@ -1180,12 +1317,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                                border-left:3px ${tent ? "dashed" : "solid"} ${c};
                                background:${c}40;
                                background:color-mix(in srgb, ${c} 32%, var(--card-background-color, #fff))"
-                          title="${e.title} · ${formatMinutes(
+                          title="${this._evTitle(e)} · ${formatMinutes(
                             this.hass,
                             e.startMin,
                           )}–${formatMinutes(this.hass, e.endMin)}"
                         >
-                          <span class="etitle">${e.continuesBefore ? "« " : ""}${e.title}</span>
+                          <span class="etitle"
+                            >${e.continuesBefore ? "« " : ""}${this._evTitle(e)}</span
+                          >
                           ${h > 32
                             ? html`<span class="etime"
                                 >${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
@@ -1294,14 +1433,26 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             </div>
           </div>
           ${this._persons.map((p, i) => {
-            const evs = this._events.filter((e) => e.day === day && e.personIdx === i);
+            const off = this._isOff(i);
+            const evs = off ? [] : this._events.filter((e) => e.day === day && e.personIdx === i);
             const laid = layoutDayColumns(evs);
             const lanes = laid.length ? Math.max(...laid.map((e) => e.cols)) : 1;
             const canCreate = this._personCanCreate(p);
             const stateObj = p.person ? this.hass.states[p.person] : undefined;
             return html`
-              <div class="tlrow">
-                <div class="tlperson">
+              <div class="tlrow ${off ? "off" : ""}">
+                <div
+                  class="tlperson"
+                  role="button"
+                  tabindex="0"
+                  @click=${() => this._togglePerson(i)}
+                  @keydown=${(k: KeyboardEvent) => {
+                    if (k.key === "Enter" || k.key === " ") {
+                      k.preventDefault();
+                      this._togglePerson(i);
+                    }
+                  }}
+                >
                   ${this._avatar(p, i)}
                   <div>
                     <div class="pname">${this._personName(p, i)}</div>
@@ -1341,12 +1492,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                                  border-left:3px ${tent ? "dashed" : "solid"} ${c};
                                  background:${c}40;
                                  background:color-mix(in srgb, ${c} 32%, var(--card-background-color, #fff))"
-                          title="${e.title}${e.allDay
+                          title="${this._evTitle(e)}${e.allDay
                             ? ` · ${this._t("all_day")}`
                             : ` · ${formatMinutes(this.hass, e.startMin)}–${formatMinutes(this.hass, e.endMin)}`}"
                         >
                           <span class="etitle"
-                            >${before ? "« " : ""}${e.title}${after ? " »" : ""}</span
+                            >${before ? "« " : ""}${this._evTitle(e)}${after ? " »" : ""}</span
                           >
                           ${!e.allDay && w > 120
                             ? html`<span class="etime"
@@ -1416,7 +1567,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           <div class="corner"></div>
           ${shown.map(
             ({ p, i }) =>
-              html`<div class="wphead">
+              html`<div
+                class="wphead ${this._isOff(i) ? "off" : ""}"
+                role="button"
+                tabindex="0"
+                @click=${() => this._togglePerson(i)}
+                @keydown=${(k: KeyboardEvent) => {
+                  if (k.key === "Enter" || k.key === " ") {
+                    k.preventDefault();
+                    this._togglePerson(i);
+                  }
+                }}
+              >
                 ${this._avatar(p, i)}<span>${this._personName(p, i)}</span>
               </div>`,
           )}
@@ -1455,7 +1617,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           style="border-left:2.5px ${tent
                             ? "dashed"
                             : "solid"} ${c};background:${c}30;background:color-mix(in srgb, ${c} 22%, var(--card-background-color, #fff))"
-                          title="${e.title}"
+                          title="${this._evTitle(e)}"
                           tabindex="0"
                           role="button"
                           @click=${(ev: MouseEvent) => {
@@ -1464,7 +1626,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           }}
                           @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                         >
-                          <span>${e.continuesBefore ? "« " : ""}${e.title}</span>
+                          <span>${e.continuesBefore ? "« " : ""}${this._evTitle(e)}</span>
                           ${!e.allDay
                             ? html`<small>${formatMinutes(this.hass, e.startMin)}</small>`
                             : nothing}
@@ -1487,12 +1649,24 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       day: "numeric",
       month: "short",
     });
+    const dedupe = (items: BoardEvent[]): BoardEvent[] => {
+      if (!this._config.filter_duplicates) return items;
+      const seen = new Set<string>();
+      return items.filter((e) => {
+        const k = `${this._evTitle(e)}|${e.ref.start.getTime()}|${e.ref.end.getTime()}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    };
     const groups = this._visibleDays
       .map((d) => ({
         d,
-        items: this._events
-          .filter((e) => e.day === d)
-          .sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.startMin - b.startMin),
+        items: dedupe(
+          this._events
+            .filter((e) => e.day === d && !this._isOff(e.personIdx))
+            .sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.startMin - b.startMin),
+        ),
       }))
       .filter((g) => g.items.length > 0);
 
@@ -1544,7 +1718,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         <span class="agenda-bar" style="background:${c}"></span>
         <span class="agenda-main">
           <span class="agenda-title"
-            >${e.continuesBefore ? "« " : ""}${e.title}${e.continuesAfter ? " »" : ""}</span
+            >${e.continuesBefore ? "« " : ""}${this._evTitle(e)}${e.continuesAfter
+              ? " »"
+              : ""}</span
           >
           <span class="agenda-meta">${name}${e.location ? ` · ${e.location}` : ""}</span>
           ${current && this._progressOn
@@ -1568,6 +1744,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     );
     const byDay = new Map<number, BoardEvent[]>();
     for (const r of this._raw) {
+      if (this._isOff(r.personIdx)) continue;
       for (const s of splitAcrossDays(r, gridStart, numDays)) {
         const arr = byDay.get(s.day);
         if (arr) arr.push(s);
@@ -1625,13 +1802,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                       style="background:${col}30;background:color-mix(in srgb, ${col} 22%, var(--card-background-color, #fff));border-left:2px ${tent
                         ? "dashed"
                         : "solid"} ${col}"
-                      title="${e.title}"
+                      title="${this._evTitle(e)}"
                       @click=${(ev: MouseEvent) => {
                         ev.stopPropagation();
                         this._openEvent(e);
                       }}
                     >
-                      ${e.continuesBefore ? "« " : ""}${e.title}
+                      ${e.continuesBefore ? "« " : ""}${this._evTitle(e)}
                     </div>`;
                   })}
                   ${items.length > maxChips
@@ -1832,7 +2009,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _renderDialog() {
     const d = this._dialog!;
     const readOnly = d.mode === "edit" && !d.canUpdate;
-    const calName = this.hass.states[d.calendar]?.attributes?.friendly_name || d.calendar;
+    const calName = this._calLabel(d.calendar);
     const heading =
       d.mode === "create"
         ? this._t("new_event")
@@ -1864,7 +2041,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   ${d.calendarOptions.map(
                     (c) =>
                       html`<option value=${c} ?selected=${c === d.calendar}>
-                        ${this.hass.states[c]?.attributes?.friendly_name || c}
+                        ${this._calLabel(c)}
                       </option>`,
                   )}
                 </select>
@@ -2371,6 +2548,34 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .event.slim .etime,
     .event.slim .eprog {
       display: none;
+    }
+    .phead {
+      cursor: pointer;
+    }
+    .phead.off,
+    .col.off,
+    .allday-cell.off {
+      flex: 0 0 48px;
+      min-width: 48px;
+    }
+    .phead.off .avatar,
+    .wphead.off .avatar,
+    .tlrow.off .avatar {
+      opacity: 0.35;
+      filter: grayscale(0.8);
+    }
+    .wphead {
+      cursor: pointer;
+    }
+    .wphead.off span {
+      opacity: 0.4;
+    }
+    .tlperson {
+      cursor: pointer;
+    }
+    .tlrow.off .pname,
+    .tlrow.off .pstatus {
+      opacity: 0.4;
     }
     .pbadges {
       display: flex;
@@ -3175,7 +3380,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.19.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.20.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

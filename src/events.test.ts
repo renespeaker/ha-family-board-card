@@ -162,6 +162,35 @@ describe("splitIntoSegments", () => {
   });
 });
 
+describe("multi-day parts", () => {
+  it("tags segments of multi-day events with part/parts", () => {
+    const raw = parseRawEvent(
+      { summary: "Klassenfahrt", start: { date: "2024-01-02" }, end: { date: "2024-01-05" } },
+      0,
+      "calendar.test",
+      "#123456",
+    )!;
+    const segs = splitAcrossDays(raw, new Date("2024-01-01T00:00:00"), 7);
+    expect(segs.map((s) => s.part)).toEqual([1, 2, 3]);
+    expect(segs.every((s) => s.parts === 3)).toBe(true);
+  });
+
+  it("leaves single-day events without part info", () => {
+    const raw = parseRawEvent(
+      {
+        summary: "Kurz",
+        start: { dateTime: "2024-01-02T10:00:00" },
+        end: { dateTime: "2024-01-02T11:00:00" },
+      },
+      0,
+      "calendar.test",
+      "#123456",
+    )!;
+    const segs = splitAcrossDays(raw, new Date("2024-01-01T00:00:00"), 7);
+    expect(segs[0].parts).toBeUndefined();
+  });
+});
+
 describe("layoutDayColumns", () => {
   it("gives non-overlapping events a single column", () => {
     const out = layoutDayColumns([seg(0, 600, 660), seg(0, 700, 760)]);

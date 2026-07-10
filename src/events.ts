@@ -34,6 +34,8 @@ export interface BoardEvent {
   color: string;
   continuesBefore: boolean;
   continuesAfter: boolean;
+  part?: number; // 1-based day index for multi-day events ("day 2 of 5")
+  parts?: number; // total days of a multi-day event; unset when single-day
 }
 
 /** A timed segment with its side-by-side overlap placement. */
@@ -99,6 +101,10 @@ export function splitIntoSegments(raw: RawEvent, monday: Date): BoardEvent[] {
  */
 export function splitAcrossDays(raw: RawEvent, gridStart: Date, numDays: number): BoardEvent[] {
   const segs: BoardEvent[] = [];
+  // "day X of Y" for events that span multiple calendar days
+  const firstDay = new Date(raw.start);
+  firstDay.setHours(0, 0, 0, 0);
+  const totalParts = Math.max(1, Math.ceil((raw.end.getTime() - firstDay.getTime()) / DAY_MS));
   for (let d = 0; d < numDays; d++) {
     const dayStart = new Date(gridStart.getTime() + d * DAY_MS);
     const dayEnd = new Date(dayStart.getTime() + DAY_MS);
@@ -107,7 +113,13 @@ export function splitAcrossDays(raw: RawEvent, gridStart: Date, numDays: number)
     if (segEndMs <= segStartMs) continue;
     const startMin = raw.allDay ? 0 : Math.round((segStartMs - dayStart.getTime()) / 60000);
     const endMin = raw.allDay ? 1440 : Math.round((segEndMs - dayStart.getTime()) / 60000);
+    const part =
+      totalParts > 1
+        ? Math.round((dayStart.getTime() - firstDay.getTime()) / DAY_MS) + 1
+        : undefined;
     segs.push({
+      part,
+      parts: totalParts > 1 ? totalParts : undefined,
       ref: raw,
       personIdx: raw.personIdx,
       day: d,
