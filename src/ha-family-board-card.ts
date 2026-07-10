@@ -65,6 +65,9 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   fit_height?: boolean; // shrink the day view so start..end fits without scroll
   full_height?: boolean; // stretch the board to the bottom of the screen (wall tablet)
   col_min_width?: number; // min px per person column before horizontal scroll. default 120
+  event_size?: number; // event title font size in px (editor slider -> --fb-event-size)
+  radius?: number; // corner radius of event blocks in px (-> --fb-radius)
+  past_opacity?: number; // opacity of past events in percent (-> --fb-past-opacity)
   hide_empty_persons?: boolean; // week view: skip persons without events that week
   auto_return?: number; // kiosk: minutes of inactivity before returning to the default view. 0=off
   trim_hours?: boolean; // day view: cut empty edge hours so events get the full height. default true
@@ -282,6 +285,28 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this.style.setProperty("--fb-col-min", `${Math.min(colMin, 400)}px`);
     } else {
       this.style.removeProperty("--fb-col-min");
+    }
+    const evSize = Number(config.event_size);
+    if (Number.isFinite(evSize) && evSize >= 8 && evSize <= 20) {
+      this.style.setProperty("--fb-event-size", `${evSize}px`);
+      this.style.setProperty("--fb-chip-size", `${Math.max(evSize - 1, 8)}px`);
+    } else {
+      this.style.removeProperty("--fb-event-size");
+      this.style.removeProperty("--fb-chip-size");
+    }
+    const radius = Number(config.radius);
+    if (Number.isFinite(radius) && radius >= 0 && radius <= 20) {
+      this.style.setProperty("--fb-radius", `${radius}px`);
+      this.style.setProperty("--fb-radius-sm", `${Math.max(radius - 2, 2)}px`);
+    } else {
+      this.style.removeProperty("--fb-radius");
+      this.style.removeProperty("--fb-radius-sm");
+    }
+    const pastOp = Number(config.past_opacity);
+    if (Number.isFinite(pastOp) && pastOp >= 10 && pastOp <= 100) {
+      this.style.setProperty("--fb-past-opacity", `${pastOp / 100}`);
+    } else {
+      this.style.removeProperty("--fb-past-opacity");
     }
     if (this.isConnected) this._startTimer();
   }
@@ -3380,7 +3405,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.20.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.21.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
