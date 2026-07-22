@@ -52,6 +52,8 @@ const EN: Dict = {
   load_error: "Calendar could not be loaded.",
   no_events: "No events.",
   more_events: "more events",
+  focus_next: "next",
+  focus_free: "free",
 };
 
 const DE: Dict = {
@@ -101,6 +103,8 @@ const DE: Dict = {
   load_error: "Kalender konnte nicht geladen werden.",
   no_events: "Keine Termine.",
   more_events: "weitere Termine",
+  focus_next: "als Nächstes",
+  focus_free: "frei",
 };
 
 const TABLE: Record<string, Dict> = { en: EN, de: DE };

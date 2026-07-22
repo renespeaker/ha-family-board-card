@@ -64,6 +64,9 @@ const LABELS: Record<string, string> = {
   replace_patterns: "Titel ersetzen",
   filter_duplicates: "Doppelte Termine zusammenfassen",
   tentative_patterns: "Als vorläufig markieren",
+  auto_icons: "Auto-Symbole nach Stichwort",
+  icon_patterns: "Eigene Symbol-Regeln",
+  show_focus: "„Jetzt / als Nächstes“-Leiste",
   weather_entity: "Wetter-Entität",
   show_weather: "Wetter anzeigen",
   hide_empty_persons: "Woche: Personen ohne Termine ausblenden",
@@ -91,6 +94,9 @@ const HELPERS: Record<string, string> = {
   trim_hours: "Zeigt nur die Stunden, in denen wirklich Termine liegen",
   col_min_width: "Darunter wird horizontal gescrollt",
   weather_entity: "Tages-Vorhersage im Kopf (HA-Standort)",
+  auto_icons: "z. B. Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂 (Titel mit Emoji bleiben unberührt)",
+  icon_patterns: "eigene Regeln, z. B. „Oma => 👵“",
+  show_focus: "Kompakte Leiste über den Ansichten: was läuft jetzt / kommt als Nächstes",
   views: "Welche Umschalter oben erscheinen",
   badges: "Kleine Chips unter dem Personenkopf; Klick öffnet Details",
   color: "Leer lassen für Palettenfarbe",
@@ -247,6 +253,11 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         ...(hasWeek ? [{ name: "hide_empty_persons", selector: { boolean: {} } }] : []),
       ]),
       group("🎨 Aussehen (Feintuning)", "mdi:palette", [
+        { name: "show_focus", selector: { boolean: {} } },
+        { name: "auto_icons", selector: { boolean: {} } },
+        ...(cfg.auto_icons
+          ? [{ name: "icon_patterns", selector: { text: { multiple: true } } }]
+          : []),
         {
           name: "color_by",
           selector: {
