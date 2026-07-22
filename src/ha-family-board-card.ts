@@ -18,6 +18,7 @@ import {
 } from "./events";
 import {
   localize,
+  formatTime,
   formatMinutes,
   formatCountdown,
   weekdayNames,
@@ -56,6 +57,9 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   filter_duplicates?: boolean; // drop identical events (title/start/end) per person + in agenda
   calendars?: Record<string, { color?: string; label?: string }>; // per-calendar color/label
   tentative_patterns?: string[]; // mark events tentative when title matches
+  auto_icons?: boolean; // prefix events with a matching emoji by keyword. default false
+  icon_patterns?: string[]; // custom icon rules: "keyword => 🎂"
+  show_focus?: boolean; // show a "now / next" focus bar per person above the views
   show_progress?: boolean; // progress bar on running events. default true
   weather_entity?: string; // weather.* entity for the daily forecast
   show_weather?: boolean; // show weather in headers. default true when entity set
@@ -150,6 +154,43 @@ const WEATHER_ICON: Record<string, string> = {
 const FEAT_CREATE = 1;
 const FEAT_DELETE = 2;
 const FEAT_UPDATE = 4;
+
+/** Built-in keyword -> emoji map for auto_icons (DE + EN). First match wins. */
+const ICON_MAP: Array<[RegExp, string]> = [
+  [/zahnarzt|dentist|kieferortho/i, "🦷"],
+  [/arzt|doctor|doktor|klinik|hospital|therapie|physio|impf/i, "🩺"],
+  [/geburtstag|geb\.|birthday|jubiläum|jubilaeum|anniversary/i, "🎂"],
+  [/schwimm|swim|hallenbad|baden/i, "🏊"],
+  [/fußball|fussball|soccer|football|training/i, "⚽"],
+  [/sport|gym|fitness|turnen|joggen|laufen|workout/i, "🏃"],
+  [/reit|pferd|pony|horse/i, "🐴"],
+  [/tanz|ballett|dance/i, "🩰"],
+  [/klavier|gitarre|musik|music|chor|singen|band|orchester|instrument/i, "🎵"],
+  [
+    /schule|unterricht|klasse|klassenverbund|school|nachhilfe|lernen|prüfung|pruefung|klausur/i,
+    "🎒",
+  ],
+  [/kita|kindergarten|krippe|hort/i, "🧸"],
+  [/frühstück|fruehstueck|breakfast/i, "🥐"],
+  [/mittag|lunch|abendessen|dinner|essen|kochen|restaurant|brunch/i, "🍽️"],
+  [/kaffee|coffee|café|cafe/i, "☕"],
+  [/urlaub|ferien|vacation|holiday|reise|trip|strand|beach/i, "🏖️"],
+  [/flug|flight|airport|flughafen/i, "✈️"],
+  [/zug|bahn|train|abfahrt|ankunft/i, "🚆"],
+  [/kino|film|movie|cinema/i, "🎬"],
+  [/party|feier|fest|celebration/i, "🎉"],
+  [/einkauf|shopping|supermarkt|einkaufen|besorgung/i, "🛒"],
+  [/putz|reinig|cleaning|wäsche|waesche|müll|muell|garbage|trash/i, "🧹"],
+  [/schlaf|nap|ruhezeit|mittagsschlaf/i, "😴"],
+  [/spiel|freispiel|play|angebotszeit/i, "🧸"],
+  [/meeting|besprechung|termin|call|konferenz|conference|office|büro|buero|arbeit|work/i, "💼"],
+  [/friseur|haircut|hairdresser|frisör|frisoer/i, "💇"],
+  [/kirche|church|gottesdienst|messe|religion/i, "⛪"],
+  [/pause|hofpause|break/i, "⏸️"],
+];
+
+// Test for an emoji already present in a title (avoid adding a second one).
+const HAS_EMOJI = /\p{Extended_Pictographic}/u;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -939,7 +980,29 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
   /** Display title, with "(day X/Y)" suffix for multi-day events. */
   private _evTitle(e: BoardEvent): string {
-    return e.parts && e.parts > 1 ? `${e.title} (${e.part}/${e.parts})` : e.title;
+    const base = e.parts && e.parts > 1 ? `${e.title} (${e.part}/${e.parts})` : e.title;
+    const icon = this._autoIcon(e.title);
+    return icon ? `${icon} ${base}` : base;
+  }
+
+  /** Emoji for a title via custom rules then the built-in keyword map. */
+  private _autoIcon(title: string): string {
+    if (this._config.auto_icons !== true) return "";
+    if (!title || HAS_EMOJI.test(title)) return "";
+    const custom = this._config.icon_patterns;
+    if (Array.isArray(custom)) {
+      const low = title.toLowerCase();
+      for (const p of custom) {
+        const raw = String(p);
+        const i = raw.indexOf("=>");
+        if (i < 0) continue;
+        const key = raw.slice(0, i).trim().toLowerCase();
+        const emoji = raw.slice(i + 2).trim();
+        if (key && emoji && low.includes(key)) return emoji;
+      }
+    }
+    for (const [re, emoji] of ICON_MAP) if (re.test(title)) return emoji;
+    return "";
   }
 
   /** Whether an event is flagged tentative/provisional. */
@@ -1103,6 +1166,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               </div>`
             : nothing}
         </div>
+        ${this._config.show_focus ? this._renderFocus() : nothing}
         ${this._view === "day"
           ? this._renderDay()
           : this._view === "timeline"
@@ -1114,6 +1178,51 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 : this._renderAgenda()}
       </ha-card>
       ${this._dialog ? this._renderDialog() : nothing}
+    `;
+  }
+
+  /** Current + next timed event for a person, view-independent (from _raw). */
+  private _focusFor(idx: number): { current?: RawEvent; next?: RawEvent } {
+    const now = Date.now();
+    const mine = this._raw
+      .filter((r) => r.personIdx === idx && !r.allDay)
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+    const current = mine.find((r) => r.start.getTime() <= now && now < r.end.getTime());
+    const next = mine.find((r) => r.start.getTime() > now);
+    return { current, next };
+  }
+
+  /** "Jetzt / als Nächstes" glance bar — one chip per (visible) person. */
+  private _renderFocus() {
+    return html`
+      <div class="focus">
+        ${this._persons.map((p, i) => {
+          if (this._isOff(i)) return nothing;
+          const { current, next } = this._focusFor(i);
+          const c = personColor(p, i);
+          const icon = (r: RawEvent) => (this._config.auto_icons ? this._autoIcon(r.summary) : "");
+          return html`
+            <div class="fchip" title=${this._personName(p, i)}>
+              ${this._avatar(p, i)}
+              <div class="fbody">
+                <span class="fname">${this._personName(p, i)}</span>
+                ${current
+                  ? html`<span class="fnow">
+                      <span class="fdot" style="background:${c}"></span>${icon(current)}
+                      ${current.summary}
+                      <small>bis ${formatTime(this.hass, current.end)}</small>
+                    </span>`
+                  : next
+                    ? html`<span class="fnext">
+                        ${this._t("focus_next")}: ${icon(next)} ${next.summary}
+                        <small>${formatCountdown(this.hass, next.start)}</small>
+                      </span>`
+                    : html`<span class="ffree">${this._t("focus_free")}</span>`}
+              </div>
+            </div>
+          `;
+        })}
+      </div>
     `;
   }
 
@@ -2231,6 +2340,68 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       justify-content: space-between;
       padding: 12px 16px;
       border-bottom: 1px solid var(--divider-color);
+    }
+    /* "now / next" glance bar */
+    .focus {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--divider-color);
+      scrollbar-width: thin;
+    }
+    .fchip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1 1 0;
+      min-width: 160px;
+      background: var(--secondary-background-color);
+      border-radius: 12px;
+      padding: 6px 10px;
+    }
+    .fchip .avatar {
+      flex: 0 0 auto;
+    }
+    .fbody {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      line-height: 1.25;
+    }
+    .fname {
+      font-size: 11px;
+      color: var(--secondary-text-color);
+      font-weight: 600;
+    }
+    .fnow,
+    .fnext,
+    .ffree {
+      font-size: 12.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .ffree {
+      color: var(--secondary-text-color);
+      font-weight: 500;
+    }
+    .fnow small,
+    .fnext small {
+      color: var(--secondary-text-color);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+    .fdot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex: 0 0 8px;
+      animation: fb-pulse 2s ease-out infinite;
     }
     .title {
       font-weight: 600;
@@ -3405,7 +3576,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.21.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.22.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
