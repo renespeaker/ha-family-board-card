@@ -4,6 +4,36 @@
 
 export const DAY_MS = 86400000;
 
+/**
+ * Compute new start/end for a drag (move) or resize gesture.
+ * `deltaMin` is the raw dragged offset in minutes; the result snaps to the
+ * `gridMin` raster (absolute, from midnight of the event's day) and keeps a
+ * minimum duration of one grid step.
+ */
+export function dragTimes(
+  origStart: Date,
+  origEnd: Date,
+  deltaMin: number,
+  mode: "move" | "resize",
+  gridMin: number,
+): { start: Date; end: Date } {
+  const grid = Math.max(1, gridMin);
+  const midnight = new Date(origStart);
+  midnight.setHours(0, 0, 0, 0);
+  const base = midnight.getTime();
+  const startMin = (origStart.getTime() - base) / 60000;
+  const durMin = (origEnd.getTime() - origStart.getTime()) / 60000;
+  if (mode === "move") {
+    const snapped = Math.round((startMin + deltaMin) / grid) * grid;
+    const start = new Date(base + snapped * 60000);
+    return { start, end: new Date(start.getTime() + durMin * 60000) };
+  }
+  // resize: keep start, move the end; floor the duration at one grid step
+  let newDur = Math.round((durMin + deltaMin) / grid) * grid;
+  if (newDur < grid) newDur = grid;
+  return { start: origStart, end: new Date(origStart.getTime() + newDur * 60000) };
+}
+
 /** A raw event as returned by HA, kept so we can edit/delete it. */
 export interface RawEvent {
   personIdx: number;

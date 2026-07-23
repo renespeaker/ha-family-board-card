@@ -4,6 +4,7 @@ import {
   splitIntoSegments,
   splitAcrossDays,
   layoutDayColumns,
+  dragTimes,
   DAY_MS,
   BoardEvent,
 } from "./events";
@@ -242,5 +243,31 @@ describe("layoutDayColumns", () => {
     const gapEvent = out.find((e) => e.startMin === 800)!;
     expect(new Set(overlapping.map((e) => e.cluster)).size).toBe(1);
     expect(gapEvent.cluster).not.toBe(overlapping[0].cluster);
+  });
+});
+
+describe("dragTimes", () => {
+  const at = (h: number, m = 0) => new Date(2024, 0, 1, h, m, 0, 0);
+
+  it("moves start+end together, snapped to grid", () => {
+    const { start, end } = dragTimes(at(9, 0), at(10, 0), 22, "move", 30);
+    expect(start.getHours()).toBe(9);
+    expect(start.getMinutes()).toBe(30); // +22 min -> snaps to 30
+    expect(end.getHours()).toBe(10);
+    expect(end.getMinutes()).toBe(30); // duration (60) preserved
+  });
+
+  it("snaps an odd start onto the grid when moving", () => {
+    const { start } = dragTimes(at(9, 7), at(9, 52), 5, "move", 15);
+    // 9:07 + 5 = 9:12 -> nearest 15 -> 9:15
+    expect(start.getMinutes()).toBe(15);
+  });
+
+  it("resizes the end only and keeps a minimum duration", () => {
+    const grown = dragTimes(at(9, 0), at(9, 30), 40, "resize", 30);
+    expect(grown.start.getTime()).toBe(at(9, 0).getTime());
+    expect(grown.end.getHours()).toBe(10); // 30 + 40 -> 60 (snapped)
+    const shrunk = dragTimes(at(9, 0), at(9, 45), -60, "resize", 30);
+    expect((shrunk.end.getTime() - shrunk.start.getTime()) / 60000).toBe(30); // floored
   });
 });
