@@ -15,6 +15,7 @@ import {
   splitIntoSegments,
   splitAcrossDays,
   layoutDayColumns,
+  dragTimes,
 } from "./events";
 import {
   localize,
@@ -60,6 +61,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   auto_icons?: boolean; // prefix events with a matching emoji by keyword. default false
   icon_patterns?: string[]; // custom icon rules: "keyword => 🎂"
   show_focus?: boolean; // show a "now / next" focus bar per person above the views
+  drag_drop?: boolean; // drag to move / resize events in the day view. default true
   show_progress?: boolean; // progress bar on running events. default true
   weather_entity?: string; // weather.* entity for the daily forecast
   show_weather?: boolean; // show weather in headers. default true when entity set
@@ -273,7 +275,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   @state() private _loading = false;
   @state() private _fitPx = 0;
   @state() private _hiddenP: number[] = []; // temporarily hidden persons (header click) // measured px/min when fit_height is on (0 = not measured)
+  @state() private _drag?: {
+    raw: RawEvent;
+    mode: "move" | "resize";
+    deltaMin: number;
+    moved: boolean;
+    busy: boolean;
+  };
 
+  private _dragStartY = 0;
+  private _dragPx = 1;
+  private _dragGrid = 30;
+  private _suppressClick = false;
   private _raw: RawEvent[] = [];
   private _fetchedKey = "";
   private _timer?: number;
@@ -404,6 +417,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     this._ro?.disconnect();
     this._ro = undefined;
+    window.removeEventListener("pointermove", this._onDragMove);
+    window.removeEventListener("pointerup", this._onDragUp);
   }
 
   private get _progressOn(): boolean {
@@ -1423,14 +1438,32 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   return layout.events
                     .filter((e) => e.endMin > startMin && e.startMin < endMin)
                     .map((e) => {
-                      let top = (e.startMin - startMin) * px;
-                      const h = Math.max((e.endMin - e.startMin) * px - 3, 16);
+                      // live preview while dragging this event (in minute space)
+                      const dragging = this._drag?.raw === e.ref;
+                      let sMin = e.startMin;
+                      let eMin = e.endMin;
+                      if (dragging && this._drag) {
+                        const g = this._dragGrid;
+                        if (this._drag.mode === "move") {
+                          const ns = Math.round((e.startMin + this._drag.deltaMin) / g) * g;
+                          eMin = e.endMin + (ns - e.startMin);
+                          sMin = ns;
+                        } else {
+                          let dur =
+                            Math.round((e.endMin - e.startMin + this._drag.deltaMin) / g) * g;
+                          if (dur < g) dur = g;
+                          eMin = e.startMin + dur;
+                        }
+                      }
+                      let top = (sMin - startMin) * px;
+                      const h = Math.max((eMin - sMin) * px - 3, 16);
                       const c = this._eventColor(e);
                       const leftPct = (e.col / e.cols) * 100;
                       const widthPct = ((e.span ?? 1) / e.cols) * 100;
                       const tent = this._isTentative(e);
                       const slim = h < 24; // very short events: single-line strip on top
-                      if (slim && e.cols === 1) {
+                      const canDrag = this._draggable(e);
+                      if (slim && e.cols === 1 && !dragging) {
                         top = Math.max(top, lastSlimBottom + 1);
                         lastSlimBottom = top + h;
                       }
@@ -1438,11 +1471,19 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                         <div
                           class="event ${this._isPast(e) ? "past" : ""} ${tent
                             ? "tentative"
-                            : ""} ${slim ? "slim" : ""}"
+                            : ""} ${slim ? "slim" : ""} ${canDrag ? "draggable" : ""} ${dragging
+                            ? "dragging"
+                            : ""}"
                           tabindex="0"
                           role="button"
+                          @pointerdown=${(ev: PointerEvent) =>
+                            this._onEventPointerDown(ev, e, "move")}
                           @click=${(ev: MouseEvent) => {
                             ev.stopPropagation();
+                            if (this._suppressClick) {
+                              this._suppressClick = false;
+                              return;
+                            }
                             this._openEvent(e);
                           }}
                           @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
@@ -1459,18 +1500,25 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           <span class="etitle"
                             >${e.continuesBefore ? "« " : ""}${this._evTitle(e)}</span
                           >
-                          ${h > 32
+                          ${h > 32 || dragging
                             ? html`<span class="etime"
-                                >${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
+                                >${formatMinutes(this.hass, sMin)}–${formatMinutes(
                                   this.hass,
-                                  e.endMin,
+                                  eMin,
                                 )}</span
                               >`
                             : nothing}
-                          ${this._progressOn && this._isCurrent(e)
+                          ${this._progressOn && this._isCurrent(e) && !dragging
                             ? html`<div class="eprog">
                                 <div style="width:${this._progressPct(e)}%"></div>
                               </div>`
+                            : nothing}
+                          ${canDrag && !slim
+                            ? html`<div
+                                class="rz"
+                                @pointerdown=${(ev: PointerEvent) =>
+                                  this._onEventPointerDown(ev, e, "resize")}
+                              ></div>`
                             : nothing}
                         </div>
                       `;
@@ -2085,6 +2133,86 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (e.getTime() < s.getTime()) return this._t("err_end_before");
     if (!d.allDay && e.getTime() === s.getTime()) return this._t("err_end_equal");
     return null;
+  }
+
+  /* ---- drag & drop -------------------------------------------- */
+  /** Whether an event may be dragged: feature on, timed, writable, non-recurring. */
+  private _draggable(e: BoardEvent): boolean {
+    return (
+      this._config.drag_drop !== false &&
+      !e.allDay &&
+      !e.ref.rrule &&
+      !!e.ref.uid &&
+      this._canUpdate(e.ref.calendar) &&
+      !e.continuesBefore &&
+      !e.continuesAfter
+    );
+  }
+
+  private _onEventPointerDown(ev: PointerEvent, e: BoardEvent, mode: "move" | "resize"): void {
+    if (ev.button !== 0 || !this._draggable(e)) return;
+    ev.stopPropagation();
+    this._dragStartY = ev.clientY;
+    this._dragPx = this._pxPerMin;
+    this._dragGrid = this._grid;
+    this._drag = { raw: e.ref, mode, deltaMin: 0, moved: false, busy: false };
+    (ev.target as HTMLElement).setPointerCapture?.(ev.pointerId);
+    window.addEventListener("pointermove", this._onDragMove);
+    window.addEventListener("pointerup", this._onDragUp);
+  }
+
+  private _onDragMove = (ev: PointerEvent): void => {
+    if (!this._drag) return;
+    ev.preventDefault();
+    const dy = ev.clientY - this._dragStartY;
+    const moved = this._drag.moved || Math.abs(dy) > 4;
+    this._drag = { ...this._drag, deltaMin: dy / this._dragPx, moved };
+  };
+
+  private _onDragUp = (): void => {
+    window.removeEventListener("pointermove", this._onDragMove);
+    window.removeEventListener("pointerup", this._onDragUp);
+    const drag = this._drag;
+    if (!drag) return;
+    if (!drag.moved) {
+      this._drag = undefined; // a plain click -> let @click open the dialog
+      return;
+    }
+    this._suppressClick = true;
+    void this._commitDrag(drag);
+  };
+
+  private async _commitDrag(drag: NonNullable<FamilyBoardCard["_drag"]>): Promise<void> {
+    const raw = drag.raw;
+    const { start, end } = dragTimes(raw.start, raw.end, drag.deltaMin, drag.mode, this._dragGrid);
+    if (start.getTime() === raw.start.getTime() && end.getTime() === raw.end.getTime()) {
+      this._drag = undefined;
+      return;
+    }
+    this._drag = { ...drag, busy: true };
+    try {
+      const event: Record<string, string> = {
+        summary: raw.summary,
+        dtstart: start.toISOString(),
+        dtend: end.toISOString(),
+      };
+      if (raw.location) event.location = raw.location;
+      if (raw.description) event.description = raw.description;
+      await this.hass.callWS({
+        type: "calendar/event/update",
+        entity_id: raw.calendar,
+        uid: raw.uid,
+        recurrence_id: raw.recurrence_id,
+        recurrence_range: "",
+        event,
+      });
+      this._drag = undefined;
+      await this._refetch();
+    } catch (_e) {
+      this._drag = undefined;
+      this._loadError = false;
+      await this._refetch(); // reset to server state on failure
+    }
   }
 
   private async _saveDialog(): Promise<void> {
@@ -2706,6 +2834,43 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--primary-text-color);
       border-radius: 999px;
       padding: 1px 8px;
+    }
+    .event.draggable {
+      touch-action: none;
+      cursor: grab;
+    }
+    .event.dragging {
+      cursor: grabbing;
+      z-index: 20;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+      opacity: 0.94;
+      transition: none;
+    }
+    /* resize grabber at the bottom edge */
+    .rz {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 9px;
+      cursor: ns-resize;
+      touch-action: none;
+    }
+    .rz::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: 2px;
+      width: 20px;
+      height: 3px;
+      transform: translateX(-50%);
+      border-radius: 2px;
+      background: currentColor;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+    .event.draggable:hover .rz::after {
+      opacity: 0.4;
     }
     .event.tentative {
       opacity: 0.72;
@@ -3576,7 +3741,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.22.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.23.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
