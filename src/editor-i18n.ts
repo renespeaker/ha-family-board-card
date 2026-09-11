@@ -56,6 +56,7 @@ const EN: Dict = {
   l_map_url: "Map link (template)",
 
   /* ---- helper texts ---------------------------------------------- */
+  h_scroll_to_now: "Day view to the current time, timeline to the now line, agenda to today",
   h_hide_patterns: "Text patterns, e.g. “Recess” – matches are hidden",
   h_show_patterns: "Allow list: only events whose title contains one of the patterns",
   h_replace_patterns: "e.g. “Homeroom => Lesson” (without => the text is removed)",
@@ -178,6 +179,7 @@ const DE: Dict = {
   l_compact: "Kompakte Darstellung",
   l_map_url: "Karten-Link (Vorlage)",
 
+  h_scroll_to_now: "Tag zur aktuellen Uhrzeit, Zeitstrahl zur Jetzt-Linie, Agenda zu heute",
   h_hide_patterns: "Textmuster, z. B. „Hofpause“ – Treffer werden ausgeblendet",
   h_show_patterns: "Allow-Liste: nur Termine, deren Titel eines der Muster enthält",
   h_replace_patterns: "z. B. „Klassenverbund => Unterricht“ (ohne => wird der Text entfernt)",
