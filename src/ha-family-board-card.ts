@@ -2750,6 +2750,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--secondary-text-color);
       font-weight: 600;
     }
+    /* block, not flex: on a flex container text-overflow has no effect and a
+       chip too narrow for its text would be cut mid-character */
     .fnow,
     .fnext,
     .ffree {
@@ -2758,9 +2760,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      display: flex;
-      align-items: center;
-      gap: 4px;
+    }
+    .fnow small,
+    .fnext small {
+      margin-left: 3px;
     }
     .ffree {
       color: var(--secondary-text-color);
@@ -2773,8 +2776,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       font-variant-numeric: tabular-nums;
     }
     .fdot {
+      display: inline-block;
+      vertical-align: middle;
       width: 8px;
       height: 8px;
+      margin-right: 4px;
       border-radius: 50%;
       flex: 0 0 8px;
       animation: fb-pulse 2s ease-out infinite;
@@ -3229,6 +3235,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     /* phones: tighter columns, smaller chrome, everything still scrollable */
     @media (max-width: 600px) {
+      .focus {
+        flex-wrap: wrap;
+        overflow-x: visible;
+      }
+      .fchip {
+        min-width: 140px;
+      }
       :host {
         --fb-col-min: 96px;
         --fb-avatar-size: 28px;
@@ -3420,6 +3433,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
     }
+    /* the outer labels would be half cut off by the scroll box: pull the first
+       one inside the grid and hang the last one to the left of its line */
+    .tlhour:first-child {
+      transform: none;
+    }
+    .tlhour:last-child {
+      transform: translateX(-100%);
+    }
     .tlrow {
       display: flex;
       border-bottom: 1px solid var(--divider-color);
@@ -3574,7 +3595,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       background: var(--secondary-background-color);
     }
     .agenda-time {
-      flex: 0 0 92px;
+      flex: 0 0 auto;
+      min-width: 92px;
+      white-space: nowrap;
       font-size: 12px;
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
@@ -4035,7 +4058,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.25.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.26.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

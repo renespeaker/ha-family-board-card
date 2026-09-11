@@ -2,7 +2,20 @@
 
 **English** · [Deutsch](README.md)
 
-![Family Board Card – day view](docs/preview-day.png)
+![Family Board Card – day view](docs/preview-day-en.png)
+
+<details>
+<summary><b>See the other views</b> (timeline, agenda)</summary>
+
+**Timeline** – people as rows, time running horizontally:
+
+![Family Board Card – timeline](docs/preview-timeline-en.png)
+
+**Agenda** – chronological, grouped by day, jumps to today on load:
+
+<img src="docs/preview-agenda-en.png" alt="Family Board Card – agenda" width="380">
+
+</details>
 
 A family calendar — a “who is where, when” board — for [Home Assistant](https://www.home-assistant.io/). People are columns across the top (with the avatar from their `person.*` entity), time runs down the left. The card shows at a glance which activities happen at the same time in different places — for up to 10 people.
 
@@ -44,7 +57,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Compact mode** – one switch (`compact`) for smaller fonts and tighter spacing instead of adjusting three sliders.
 - **People hidden on start** – `hidden: true` per person; the column starts collapsed and a click on the header brings it back.
 
-> Status: **v0.25 – complete family day planning: 5 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
+> Status: **v0.26 – complete family day planning: 5 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
 
 ## Installation (HACS)
 
