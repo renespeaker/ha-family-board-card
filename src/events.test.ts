@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  detectDayAlerts,
   parseRawEvent,
   splitIntoSegments,
   splitAcrossDays,
@@ -269,5 +270,92 @@ describe("dragTimes", () => {
     expect(grown.end.getHours()).toBe(10); // 30 + 40 -> 60 (snapped)
     const shrunk = dragTimes(at(9, 0), at(9, 45), -60, "resize", 30);
     expect((shrunk.end.getTime() - shrunk.start.getTime()) / 60000).toBe(30); // floored
+  });
+});
+
+describe("detectDayAlerts", () => {
+  const seg = (personIdx: number, startMin: number, endMin: number, title = "T") =>
+    ({
+      personIdx,
+      startMin,
+      endMin,
+      title,
+      day: 0,
+      allDay: false,
+      color: "#000",
+      continuesBefore: false,
+      continuesAfter: false,
+      ref: {} as never,
+    }) as never;
+
+  it("flags two events of the same person that overlap", () => {
+    const out = detectDayAlerts([seg(0, 600, 720, "Sport"), seg(0, 660, 780, "Arzt")], {
+      persons: [0],
+      gapMin: 0,
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].kind).toBe("conflict");
+    expect(out[0].startMin).toBe(660); // the overlapping window only
+    expect(out[0].endMin).toBe(720);
+    expect(out[0].titles).toEqual(["Sport", "Arzt"]);
+  });
+
+  it("does not flag events that merely touch", () => {
+    const out = detectDayAlerts([seg(0, 600, 660), seg(0, 660, 720)], { persons: [0], gapMin: 0 });
+    expect(out).toEqual([]);
+  });
+
+  it("flags a gap between two events once it reaches the threshold", () => {
+    const evs = [seg(0, 480, 600, "Schule"), seg(0, 720, 780, "Turnen")];
+    expect(detectDayAlerts(evs, { persons: [0], gapMin: 60 })).toMatchObject([
+      { kind: "gap", startMin: 600, endMin: 720, personIdx: 0 },
+    ]);
+    // a higher threshold stays quiet, and 0 turns the check off entirely
+    expect(detectDayAlerts(evs, { persons: [0], gapMin: 180 })).toEqual([]);
+    expect(detectDayAlerts(evs, { persons: [0], gapMin: 0 })).toEqual([]);
+  });
+
+  it("measures a gap from the latest end, not from the previous event", () => {
+    // a long event swallows a short one; the gap starts when the long one ends
+    const out = detectDayAlerts(
+      [seg(0, 480, 720, "OGS"), seg(0, 540, 570, "Pause"), seg(0, 840, 900, "Turnen")],
+      { persons: [0], gapMin: 60 },
+    );
+    const gap = out.filter((a) => a.kind === "gap");
+    expect(gap).toMatchObject([{ startMin: 720, endMin: 840 }]);
+  });
+
+  it("reports the window in which every person is out", () => {
+    const out = detectDayAlerts([seg(0, 540, 720), seg(1, 600, 780)], {
+      persons: [0, 1],
+      gapMin: 0,
+    });
+    expect(out).toMatchObject([{ kind: "empty", startMin: 600, endMin: 720 }]);
+  });
+
+  it("merges adjoining nobody-home stretches into one window", () => {
+    // person 1 hands over from one event to the next without a break
+    const out = detectDayAlerts([seg(0, 540, 780), seg(1, 600, 660), seg(1, 660, 720)], {
+      persons: [0, 1],
+      gapMin: 0,
+    });
+    expect(out.filter((a) => a.kind === "empty")).toMatchObject([{ startMin: 600, endMin: 720 }]);
+  });
+
+  it("stays silent about nobody-home for a single person", () => {
+    expect(detectDayAlerts([seg(0, 540, 720)], { persons: [0], gapMin: 0 })).toEqual([]);
+  });
+
+  it("drops windows that are already over", () => {
+    const evs = [seg(0, 480, 540), seg(0, 660, 720), seg(0, 900, 960)];
+    const all = detectDayAlerts(evs, { persons: [0], gapMin: 60 });
+    expect(all).toHaveLength(2);
+    const later = detectDayAlerts(evs, { persons: [0], gapMin: 60, nowMin: 780 });
+    expect(later).toMatchObject([{ startMin: 720, endMin: 900 }]);
+  });
+
+  it("ignores all-day events", () => {
+    const allDay = { ...(seg(0, 0, 1440, "Ferien") as object), allDay: true } as never;
+    expect(detectDayAlerts([allDay, seg(0, 600, 660)], { persons: [0], gapMin: 60 })).toEqual([]);
   });
 });

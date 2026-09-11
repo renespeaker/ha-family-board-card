@@ -54,6 +54,10 @@ const EN: Dict = {
   more_events: "more events",
   focus_next: "next",
   focus_free: "free",
+  until: "until",
+  alert_conflict: "two events at once",
+  alert_gap: "gap between events",
+  alert_empty: "nobody home",
 };
 
 const DE: Dict = {
@@ -105,6 +109,10 @@ const DE: Dict = {
   more_events: "weitere Termine",
   focus_next: "als Nächstes",
   focus_free: "frei",
+  until: "bis",
+  alert_conflict: "zwei Termine gleichzeitig",
+  alert_gap: "Lücke zwischen Terminen",
+  alert_empty: "niemand zuhause",
 };
 
 const TABLE: Record<string, Dict> = { en: EN, de: DE };

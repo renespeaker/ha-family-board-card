@@ -16,6 +16,7 @@ import {
   splitAcrossDays,
   layoutDayColumns,
   dragTimes,
+  detectDayAlerts,
 } from "./events";
 import {
   localize,
@@ -66,6 +67,8 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   auto_icons?: boolean; // prefix events with a matching emoji by keyword. default false
   icon_patterns?: string[]; // custom icon rules: "keyword => 🎂"
   show_focus?: boolean; // show a "now / next" focus bar per person above the views
+  show_alerts?: boolean; // warn about double bookings, care gaps and "nobody home"
+  gap_min?: number; // minutes a care gap must reach to be flagged. default 60, 0 = off
   drag_drop?: boolean; // drag to move / resize events in the day view. default true
   compact?: boolean; // denser spacing + smaller fonts in one switch
   map_url?: string; // location link template, {location} is replaced (URL-encoded)
@@ -1286,6 +1289,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             : nothing}
         </div>
         ${this._config.show_focus ? this._renderFocus() : nothing}
+        ${this._config.show_alerts && (this._view === "day" || this._view === "timeline")
+          ? this._renderAlerts()
+          : nothing}
         ${this._view === "day"
           ? this._renderDay()
           : this._view === "timeline"
@@ -1312,6 +1318,50 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   /** "Jetzt / als Nächstes" glance bar — one chip per (visible) person. */
+  /**
+   * Day check: double bookings, care gaps and "nobody home" for the shown day.
+   * Background bands (after-school care and friends) are left out - they run
+   * for hours and would collide with everything.
+   */
+  private _renderAlerts() {
+    const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
+    const persons = this._persons.map((_p, i) => i).filter((i) => !this._isOff(i));
+    const segments = this._events.filter(
+      (e) => e.day === day && persons.includes(e.personIdx) && !this._isBackground(e),
+    );
+    const now = new Date();
+    const alerts = detectDayAlerts(segments, {
+      persons,
+      gapMin: Math.max(0, this._config.gap_min ?? 60),
+      nowMin: this._isRealToday(day) ? now.getHours() * 60 + now.getMinutes() : undefined,
+    });
+    if (alerts.length === 0) return nothing;
+    const icon = { conflict: "\u26a0\ufe0f", gap: "\u23f3", empty: "\ud83c\udfe0" };
+    return html`
+      <div class="alerts">
+        ${alerts.map((a) => {
+          const who =
+            a.personIdx === undefined
+              ? ""
+              : this._personName(this._persons[a.personIdx], a.personIdx);
+          const span = `${formatMinutes(this.hass, a.startMin)}\u2013${formatMinutes(
+            this.hass,
+            a.endMin,
+          )}`;
+          return html`
+            <div class="alert a-${a.kind}" title=${a.titles.join(" \u00b7 ")}>
+              <span>${icon[a.kind]}</span>
+              <span>
+                ${who ? html`<b>${who}</b> ` : nothing}${this._t(`alert_${a.kind}`)}
+                <small>${span}</small>
+              </span>
+            </div>
+          `;
+        })}
+      </div>
+    `;
+  }
+
   private _renderFocus() {
     return html`
       <div class="focus">
@@ -1329,7 +1379,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   ? html`<span class="fnow">
                       <span class="fdot" style="background:${c}"></span>${icon(current)}
                       ${current.summary}
-                      <small>bis ${formatTime(this.hass, current.end)}</small>
+                      <small>${this._t("until")} ${formatTime(this.hass, current.end)}</small>
                     </span>`
                   : next
                     ? html`<span class="fnext">
@@ -2638,6 +2688,36 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       padding: 4px 8px;
     }
     /* "now / next" glance bar */
+    .alerts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0 12px 6px;
+    }
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: var(--fb-chip-size, 10.5px);
+      line-height: 1.3;
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+    }
+    .alert.a-conflict {
+      border-color: color-mix(in srgb, var(--error-color, #db4437) 55%, transparent);
+      background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
+    }
+    .alert.a-gap {
+      border-color: color-mix(in srgb, var(--warning-color, #ffa600) 60%, transparent);
+      background: color-mix(in srgb, var(--warning-color, #ffa600) 14%, transparent);
+    }
+    .alert small {
+      opacity: 0.7;
+      margin-left: 3px;
+    }
     .focus {
       display: flex;
       gap: 8px;

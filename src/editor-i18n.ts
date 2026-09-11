@@ -39,6 +39,8 @@ const EN: Dict = {
   l_auto_icons: "Auto icons by keyword",
   l_icon_patterns: "Custom icon rules",
   l_show_focus: "“Now / next” bar",
+  l_show_alerts: "Day check (double bookings, gaps, nobody home)",
+  l_gap_min: "Flag a gap from (min., 0 = off)",
   l_drag_drop: "Move events by dragging (day view)",
   l_weather_entity: "Weather entity",
   l_show_weather: "Show weather",
@@ -74,6 +76,10 @@ const EN: Dict = {
   h_auto_icons: "e.g. doctor → 🩺, sport → 🏃, birthday → 🎂 (titles with emoji stay untouched)",
   h_icon_patterns: "Own rules, e.g. “Grandma => 👵”",
   h_show_focus: "Compact bar above the views: what is running now / coming next",
+  h_show_alerts:
+    "Chips above the day and timeline views: one person booked twice, an unsupervised window between two events, or everyone out at the same time",
+  h_gap_min:
+    "How long a hole between two of a person's events has to be before it is worth a warning",
   h_drag_drop: "Writable calendars only; drag to move, bottom edge changes the duration",
   h_views: "Which switchers appear at the top",
   h_badges: "Small chips below the person header; click opens details",
@@ -165,6 +171,8 @@ const DE: Dict = {
   l_auto_icons: "Auto-Symbole nach Stichwort",
   l_icon_patterns: "Eigene Symbol-Regeln",
   l_show_focus: "„Jetzt / als Nächstes“-Leiste",
+  l_show_alerts: "Tages-Check (Doppelbuchung, Lücken, niemand zuhause)",
+  l_gap_min: "Lücke melden ab (Min., 0 = aus)",
   l_drag_drop: "Termine per Ziehen verschieben (Tagesansicht)",
   l_weather_entity: "Wetter-Entität",
   l_show_weather: "Wetter anzeigen",
@@ -200,6 +208,9 @@ const DE: Dict = {
   h_auto_icons: "z. B. Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂 (Titel mit Emoji bleiben unberührt)",
   h_icon_patterns: "eigene Regeln, z. B. „Oma => 👵“",
   h_show_focus: "Kompakte Leiste über den Ansichten: was läuft jetzt / kommt als Nächstes",
+  h_show_alerts:
+    "Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen oder alle gleichzeitig unterwegs",
+  h_gap_min: "Ab welcher Länge ein Loch zwischen zwei Terminen einer Person eine Warnung wert ist",
   h_drag_drop: "Nur bei schreibbaren Kalendern; Ziehen verschiebt, unterer Rand ändert die Dauer",
   h_views: "Welche Umschalter oben erscheinen",
   h_badges: "Kleine Chips unter dem Personenkopf; Klick öffnet Details",

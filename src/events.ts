@@ -220,3 +220,110 @@ export function layoutDayColumns(events: BoardEvent[]): LaidOutEvent[] {
   flush();
   return result;
 }
+
+/** A problem worth flagging for one day of the board. */
+export interface DayAlert {
+  kind: "conflict" | "gap" | "empty";
+  personIdx?: number; // unset for "empty" (nobody home), which spans everyone
+  startMin: number;
+  endMin: number;
+  titles: string[];
+}
+
+/**
+ * Find the three situations a family board should warn about on a given day:
+ *
+ * - `conflict` – one person has two events running at the same time
+ * - `gap` – one person has an unsupervised window of at least `gapMin`
+ *   minutes between two of their own events (the classic pick-up gap)
+ * - `empty` – every person is out at the same time ("nobody home"); only
+ *   reported for two or more people, since a single column says nothing
+ *   about the household
+ *
+ * `segments` must already be limited to one day and to the persons that are
+ * actually visible. When `nowMin` is given, windows that are already over are
+ * dropped — a gap at 09:00 is noise at 15:00.
+ */
+export function detectDayAlerts(
+  segments: BoardEvent[],
+  opts: { persons: number[]; gapMin: number; nowMin?: number },
+): DayAlert[] {
+  const timed = segments.filter((e) => !e.allDay && e.endMin > e.startMin);
+  const alerts: DayAlert[] = [];
+
+  for (const personIdx of opts.persons) {
+    const mine = timed
+      .filter((e) => e.personIdx === personIdx)
+      .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+
+    // conflicts: compare each event with the ones that started before it
+    for (let i = 0; i < mine.length; i++) {
+      for (let j = i + 1; j < mine.length; j++) {
+        const a = mine[i];
+        const b = mine[j];
+        if (b.startMin >= a.endMin) break; // sorted: nothing later can overlap
+        alerts.push({
+          kind: "conflict",
+          personIdx,
+          startMin: Math.max(a.startMin, b.startMin),
+          endMin: Math.min(a.endMin, b.endMin),
+          titles: [a.title, b.title],
+        });
+      }
+    }
+
+    // gaps: walk the merged busy blocks and look at the holes between them
+    if (opts.gapMin > 0) {
+      let cursor = -1;
+      let prevTitle = "";
+      for (const e of mine) {
+        if (cursor >= 0 && e.startMin - cursor >= opts.gapMin) {
+          alerts.push({
+            kind: "gap",
+            personIdx,
+            startMin: cursor,
+            endMin: e.startMin,
+            titles: [prevTitle, e.title],
+          });
+        }
+        if (e.endMin > cursor) {
+          cursor = e.endMin;
+          prevTitle = e.title;
+        }
+      }
+    }
+  }
+
+  // nobody home: sweep the timeline and keep the stretches where every person
+  // has something running
+  if (opts.persons.length > 1) {
+    const bounds = new Set<number>();
+    for (const e of timed) {
+      bounds.add(e.startMin);
+      bounds.add(e.endMin);
+    }
+    const marks = [...bounds].sort((a, b) => a - b);
+    let open: DayAlert | null = null;
+    for (let i = 0; i < marks.length - 1; i++) {
+      const from = marks[i];
+      const to = marks[i + 1];
+      const busy = opts.persons.filter((p) =>
+        timed.some((e) => e.personIdx === p && e.startMin <= from && e.endMin >= to),
+      );
+      if (busy.length === opts.persons.length) {
+        if (open && open.endMin === from) open.endMin = to;
+        else {
+          open = { kind: "empty", startMin: from, endMin: to, titles: [] };
+          alerts.push(open);
+        }
+      } else {
+        open = null;
+      }
+    }
+  }
+
+  const now = opts.nowMin;
+  return alerts
+    .filter((a) => a.endMin > a.startMin && (now === undefined || a.endMin > now))
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+}
