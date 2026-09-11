@@ -2,7 +2,20 @@
 
 **English** · [Deutsch](README.md)
 
-![Family Board Card – day view](docs/preview-day.png)
+![Family Board Card – day view](docs/preview-day-en.png)
+
+<details>
+<summary><b>See the other views</b> (timeline, agenda)</summary>
+
+**Timeline** – people as rows, time running horizontally:
+
+![Family Board Card – timeline](docs/preview-timeline-en.png)
+
+**Agenda** – chronological, grouped by day, jumps to today on load:
+
+<img src="docs/preview-agenda-en.png" alt="Family Board Card – agenda" width="380">
+
+</details>
 
 A family calendar — a “who is where, when” board — for [Home Assistant](https://www.home-assistant.io/). People are columns across the top (with the avatar from their `person.*` entity), time runs down the left. The card shows at a glance which activities happen at the same time in different places — for up to 10 people.
 
@@ -10,6 +23,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Week view** – weekdays as rows, people as columns, compact event chips.
 - **Month view** – classic month grid with colored events per person; clicking a day jumps into the day view.
 - **Agenda / list view** – chronological list of events grouped by day; ideal on a phone.
+- **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
 - **“Now / next” bar** – optional highlight row above the views: per person, what is running right now (with a pulsing dot) or what is coming next (incl. countdown) – made for the wall tablet.
 - **Auto icons** – optionally every event gets a matching emoji by keyword (doctor → 🩺, sport → 🏃, birthday → 🎂, school → 🎒 …); custom rules possible. Titles that already contain an emoji stay untouched.
 - **Timeline view** – people as rows on the left, time running horizontally: events as bars on a timeline (Gantt style); overlapping events stack into sub-rows.
@@ -43,7 +57,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Compact mode** – one switch (`compact`) for smaller fonts and tighter spacing instead of adjusting three sliders.
 - **People hidden on start** – `hidden: true` per person; the column starts collapsed and a click on the header brings it back.
 
-> Status: **v0.25 – complete family day planning: 5 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
+> Status: **v0.26 – complete family day planning: 5 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
 
 ## Installation (HACS)
 
@@ -92,6 +106,8 @@ persons:
 |--------|------|---------|-------------|
 | `persons` | list | – | 1–10 people with `name`, `person`, `calendar` (string **or list**), optionally `color`, `badges` (entities as chips) and `hidden` (starts collapsed) |
 | `hide_empty_persons` | boolean | `false` | Week view: hide people without events in that week |
+| `show_alerts` | boolean | `false` | Day check above the day/timeline views: double bookings, care gaps and “nobody home” as chips |
+| `gap_min` | number | `60` | How many minutes a gap between two of a person's events must reach to be flagged (0 = off) |
 | `show_focus` | boolean | `false` | “Now / next” bar per person above the views |
 | `drag_drop` | boolean | `true` | Move / resize events in the day view by dragging (writable single events only) |
 | `auto_icons` | boolean | `false` | Prepend an emoji per event based on keywords |
@@ -211,7 +227,8 @@ In the day view, clicking an empty spot in a person's column opens the create di
 - [x] Drag & drop to move events
 - [x] Available in the official HACS store
 - [x] Localized visual editor (EN/DE)
-- [ ] Location / conflict detection (e.g. “nobody home”, pick-up gaps)
+- [x] Conflict detection (double bookings, pick-up gaps, “nobody home”)
+- [x] Drag & drop in the timeline view
 
 ## License
 

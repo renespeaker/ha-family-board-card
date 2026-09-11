@@ -16,6 +16,7 @@ import {
   splitAcrossDays,
   layoutDayColumns,
   dragTimes,
+  detectDayAlerts,
 } from "./events";
 import {
   localize,
@@ -66,6 +67,8 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   auto_icons?: boolean; // prefix events with a matching emoji by keyword. default false
   icon_patterns?: string[]; // custom icon rules: "keyword => 🎂"
   show_focus?: boolean; // show a "now / next" focus bar per person above the views
+  show_alerts?: boolean; // warn about double bookings, care gaps and "nobody home"
+  gap_min?: number; // minutes a care gap must reach to be flagged. default 60, 0 = off
   drag_drop?: boolean; // drag to move / resize events in the day view. default true
   compact?: boolean; // denser spacing + smaller fonts in one switch
   map_url?: string; // location link template, {location} is replaced (URL-encoded)
@@ -291,6 +294,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   };
 
   private _dragStartY = 0;
+  private _dragStartX = 0;
+  private _dragAxis: "x" | "y" = "y";
   private _dragPx = 1;
   private _dragGrid = 30;
   private _suppressClick = false;
@@ -887,6 +892,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private get _grid(): number {
     return this._config.time_grid ?? 30;
   }
+  /** Pixels per minute on the horizontal timeline axis. */
+  private get _tlPxPerMin(): number {
+    return Math.min(240, Math.max(48, Number(this._config.hour_width) || 96)) / 60;
+  }
   /** Pixels per minute, derived from the configurable hour height (or fit mode). */
   private get _pxPerMin(): number {
     if (this._config.fit_height && this._fitPx > 0) return this._fitPx;
@@ -1280,6 +1289,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             : nothing}
         </div>
         ${this._config.show_focus ? this._renderFocus() : nothing}
+        ${this._config.show_alerts && (this._view === "day" || this._view === "timeline")
+          ? this._renderAlerts()
+          : nothing}
         ${this._view === "day"
           ? this._renderDay()
           : this._view === "timeline"
@@ -1306,6 +1318,50 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   /** "Jetzt / als Nächstes" glance bar — one chip per (visible) person. */
+  /**
+   * Day check: double bookings, care gaps and "nobody home" for the shown day.
+   * Background bands (after-school care and friends) are left out - they run
+   * for hours and would collide with everything.
+   */
+  private _renderAlerts() {
+    const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
+    const persons = this._persons.map((_p, i) => i).filter((i) => !this._isOff(i));
+    const segments = this._events.filter(
+      (e) => e.day === day && persons.includes(e.personIdx) && !this._isBackground(e),
+    );
+    const now = new Date();
+    const alerts = detectDayAlerts(segments, {
+      persons,
+      gapMin: Math.max(0, this._config.gap_min ?? 60),
+      nowMin: this._isRealToday(day) ? now.getHours() * 60 + now.getMinutes() : undefined,
+    });
+    if (alerts.length === 0) return nothing;
+    const icon = { conflict: "\u26a0\ufe0f", gap: "\u23f3", empty: "\ud83c\udfe0" };
+    return html`
+      <div class="alerts">
+        ${alerts.map((a) => {
+          const who =
+            a.personIdx === undefined
+              ? ""
+              : this._personName(this._persons[a.personIdx], a.personIdx);
+          const span = `${formatMinutes(this.hass, a.startMin)}\u2013${formatMinutes(
+            this.hass,
+            a.endMin,
+          )}`;
+          return html`
+            <div class="alert a-${a.kind}" title=${a.titles.join(" \u00b7 ")}>
+              <span>${icon[a.kind]}</span>
+              <span>
+                ${who ? html`<b>${who}</b> ` : nothing}${this._t(`alert_${a.kind}`)}
+                <small>${span}</small>
+              </span>
+            </div>
+          `;
+        })}
+      </div>
+    `;
+  }
+
   private _renderFocus() {
     return html`
       <div class="focus">
@@ -1323,7 +1379,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   ? html`<span class="fnow">
                       <span class="fdot" style="background:${c}"></span>${icon(current)}
                       ${current.summary}
-                      <small>bis ${formatTime(this.hass, current.end)}</small>
+                      <small>${this._t("until")} ${formatTime(this.hass, current.end)}</small>
                     </span>`
                   : next
                     ? html`<span class="fnext">
@@ -1537,22 +1593,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                     .filter((e) => e.endMin > startMin && e.startMin < endMin)
                     .map((e) => {
                       // live preview while dragging this event (in minute space)
-                      const dragging = this._drag?.raw === e.ref;
-                      let sMin = e.startMin;
-                      let eMin = e.endMin;
-                      if (dragging && this._drag) {
-                        const g = this._dragGrid;
-                        if (this._drag.mode === "move") {
-                          const ns = Math.round((e.startMin + this._drag.deltaMin) / g) * g;
-                          eMin = e.endMin + (ns - e.startMin);
-                          sMin = ns;
-                        } else {
-                          let dur =
-                            Math.round((e.endMin - e.startMin + this._drag.deltaMin) / g) * g;
-                          if (dur < g) dur = g;
-                          eMin = e.startMin + dur;
-                        }
-                      }
+                      const { sMin, eMin, dragging } = this._dragPreview(e);
                       let top = (sMin - startMin) * px;
                       const h = Math.max((eMin - sMin) * px - 3, 16);
                       const c = this._eventColor(e);
@@ -1752,20 +1793,30 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   ${laid
                     .filter((e) => e.endMin > startMin && e.startMin < endMin)
                     .map((e) => {
-                      const s = Math.max(e.startMin, startMin);
-                      const en = Math.min(e.endMin, endMin);
+                      const prev = this._dragPreview(e);
+                      const s = Math.max(prev.sMin, startMin);
+                      const en = Math.min(prev.eMin, endMin);
                       const w = Math.max((en - s) * px - 3, 20);
                       const c = this._eventColor(e);
                       const tent = this._isTentative(e);
                       const before = e.continuesBefore || e.startMin < startMin;
                       const after = e.continuesAfter || e.endMin > endMin;
+                      const canDrag = this._draggable(e);
                       return html`
                         <div
-                          class="tlbar ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
+                          class="tlbar ${this._isPast(e) ? "past" : ""} ${tent
+                            ? "tentative"
+                            : ""} ${canDrag ? "draggable" : ""} ${prev.dragging ? "dragging" : ""}"
                           tabindex="0"
                           role="button"
+                          @pointerdown=${(ev: PointerEvent) =>
+                            this._onEventPointerDown(ev, e, "move", "x")}
                           @click=${(ev: MouseEvent) => {
                             ev.stopPropagation();
+                            if (this._suppressClick) {
+                              this._suppressClick = false;
+                              return;
+                            }
                             this._openEvent(e);
                           }}
                           @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
@@ -1781,13 +1832,20 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           <span class="etitle"
                             >${before ? "« " : ""}${this._evTitle(e)}${after ? " »" : ""}</span
                           >
-                          ${!e.allDay && w > 120
+                          ${!e.allDay && (w > 120 || prev.dragging)
                             ? html`<span class="etime"
-                                >${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
+                                >${formatMinutes(this.hass, prev.sMin)}–${formatMinutes(
                                   this.hass,
-                                  e.endMin,
+                                  prev.eMin,
                                 )}</span
                               >`
+                            : nothing}
+                          ${canDrag
+                            ? html`<div
+                                class="rzx"
+                                @pointerdown=${(ev: PointerEvent) =>
+                                  this._onEventPointerDown(ev, e, "resize", "x")}
+                              ></div>`
                             : nothing}
                         </div>
                       `;
@@ -2249,6 +2307,22 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   /* ---- drag & drop -------------------------------------------- */
   /** Whether an event may be dragged: feature on, timed, writable, non-recurring. */
+  /**
+   * Start/end of an event in minute space, including the live offset while it
+   * is being dragged. Shared by the day grid and the timeline.
+   */
+  private _dragPreview(e: BoardEvent): { sMin: number; eMin: number; dragging: boolean } {
+    const drag = this._drag;
+    if (!drag || drag.raw !== e.ref) return { sMin: e.startMin, eMin: e.endMin, dragging: false };
+    const g = this._dragGrid;
+    if (drag.mode === "move") {
+      const ns = Math.round((e.startMin + drag.deltaMin) / g) * g;
+      return { sMin: ns, eMin: e.endMin + (ns - e.startMin), dragging: true };
+    }
+    const dur = Math.max(g, Math.round((e.endMin - e.startMin + drag.deltaMin) / g) * g);
+    return { sMin: e.startMin, eMin: e.startMin + dur, dragging: true };
+  }
+
   private _draggable(e: BoardEvent): boolean {
     return (
       this._config.drag_drop !== false &&
@@ -2261,11 +2335,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     );
   }
 
-  private _onEventPointerDown(ev: PointerEvent, e: BoardEvent, mode: "move" | "resize"): void {
+  private _onEventPointerDown(
+    ev: PointerEvent,
+    e: BoardEvent,
+    mode: "move" | "resize",
+    axis: "x" | "y" = "y",
+  ): void {
     if (ev.button !== 0 || !this._draggable(e)) return;
     ev.stopPropagation();
     this._dragStartY = ev.clientY;
-    this._dragPx = this._pxPerMin;
+    this._dragStartX = ev.clientX;
+    this._dragAxis = axis;
+    this._dragPx = axis === "x" ? this._tlPxPerMin : this._pxPerMin;
     this._dragGrid = this._grid;
     this._drag = { raw: e.ref, mode, deltaMin: 0, moved: false, busy: false };
     (ev.target as HTMLElement).setPointerCapture?.(ev.pointerId);
@@ -2276,9 +2357,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _onDragMove = (ev: PointerEvent): void => {
     if (!this._drag) return;
     ev.preventDefault();
-    const dy = ev.clientY - this._dragStartY;
-    const moved = this._drag.moved || Math.abs(dy) > 4;
-    this._drag = { ...this._drag, deltaMin: dy / this._dragPx, moved };
+    const d =
+      this._dragAxis === "x" ? ev.clientX - this._dragStartX : ev.clientY - this._dragStartY;
+    const moved = this._drag.moved || Math.abs(d) > 4;
+    this._drag = { ...this._drag, deltaMin: d / this._dragPx, moved };
   };
 
   private _onDragUp = (): void => {
@@ -2606,6 +2688,36 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       padding: 4px 8px;
     }
     /* "now / next" glance bar */
+    .alerts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0 12px 6px;
+    }
+    .alert {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: var(--fb-chip-size, 10.5px);
+      line-height: 1.3;
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+    }
+    .alert.a-conflict {
+      border-color: color-mix(in srgb, var(--error-color, #db4437) 55%, transparent);
+      background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
+    }
+    .alert.a-gap {
+      border-color: color-mix(in srgb, var(--warning-color, #ffa600) 60%, transparent);
+      background: color-mix(in srgb, var(--warning-color, #ffa600) 14%, transparent);
+    }
+    .alert small {
+      opacity: 0.7;
+      margin-left: 3px;
+    }
     .focus {
       display: flex;
       gap: 8px;
@@ -2638,6 +2750,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--secondary-text-color);
       font-weight: 600;
     }
+    /* block, not flex: on a flex container text-overflow has no effect and a
+       chip too narrow for its text would be cut mid-character */
     .fnow,
     .fnext,
     .ffree {
@@ -2646,9 +2760,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      display: flex;
-      align-items: center;
-      gap: 4px;
+    }
+    .fnow small,
+    .fnext small {
+      margin-left: 3px;
     }
     .ffree {
       color: var(--secondary-text-color);
@@ -2661,8 +2776,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       font-variant-numeric: tabular-nums;
     }
     .fdot {
+      display: inline-block;
+      vertical-align: middle;
       width: 8px;
       height: 8px;
+      margin-right: 4px;
       border-radius: 50%;
       flex: 0 0 8px;
       animation: fb-pulse 2s ease-out infinite;
@@ -3117,6 +3235,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     /* phones: tighter columns, smaller chrome, everything still scrollable */
     @media (max-width: 600px) {
+      .focus {
+        flex-wrap: wrap;
+        overflow-x: visible;
+      }
+      .fchip {
+        min-width: 140px;
+      }
       :host {
         --fb-col-min: 96px;
         --fb-avatar-size: 28px;
@@ -3308,6 +3433,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
     }
+    /* the outer labels would be half cut off by the scroll box: pull the first
+       one inside the grid and hang the last one to the left of its line */
+    .tlhour:first-child {
+      transform: none;
+    }
+    .tlhour:last-child {
+      transform: translateX(-100%);
+    }
     .tlrow {
       display: flex;
       border-bottom: 1px solid var(--divider-color);
@@ -3351,6 +3484,43 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       transition:
         box-shadow 0.12s ease,
         transform 0.12s ease;
+    }
+    .tlbar.draggable {
+      cursor: grab;
+      touch-action: pan-y;
+    }
+    .tlbar.dragging {
+      cursor: grabbing;
+      z-index: 20;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+      opacity: 0.94;
+      transition: none;
+    }
+    /* resize grabber on the right edge (timeline runs horizontally) */
+    .rzx {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: 9px;
+      cursor: ew-resize;
+      touch-action: none;
+    }
+    .rzx::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: 3px;
+      transform: translateY(-50%);
+      height: 12px;
+      width: 2px;
+      border-radius: 1px;
+      background: currentColor;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+    .tlbar:hover .rzx::after {
+      opacity: 0.45;
     }
     .tlbar:hover {
       box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
@@ -3425,7 +3595,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       background: var(--secondary-background-color);
     }
     .agenda-time {
-      flex: 0 0 92px;
+      flex: 0 0 auto;
+      min-width: 92px;
+      white-space: nowrap;
       font-size: 12px;
       color: var(--secondary-text-color);
       font-variant-numeric: tabular-nums;
@@ -3886,7 +4058,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.25.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.26.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
