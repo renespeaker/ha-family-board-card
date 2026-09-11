@@ -291,6 +291,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   };
 
   private _dragStartY = 0;
+  private _dragStartX = 0;
+  private _dragAxis: "x" | "y" = "y";
   private _dragPx = 1;
   private _dragGrid = 30;
   private _suppressClick = false;
@@ -886,6 +888,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
   private get _grid(): number {
     return this._config.time_grid ?? 30;
+  }
+  /** Pixels per minute on the horizontal timeline axis. */
+  private get _tlPxPerMin(): number {
+    return Math.min(240, Math.max(48, Number(this._config.hour_width) || 96)) / 60;
   }
   /** Pixels per minute, derived from the configurable hour height (or fit mode). */
   private get _pxPerMin(): number {
@@ -1537,22 +1543,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                     .filter((e) => e.endMin > startMin && e.startMin < endMin)
                     .map((e) => {
                       // live preview while dragging this event (in minute space)
-                      const dragging = this._drag?.raw === e.ref;
-                      let sMin = e.startMin;
-                      let eMin = e.endMin;
-                      if (dragging && this._drag) {
-                        const g = this._dragGrid;
-                        if (this._drag.mode === "move") {
-                          const ns = Math.round((e.startMin + this._drag.deltaMin) / g) * g;
-                          eMin = e.endMin + (ns - e.startMin);
-                          sMin = ns;
-                        } else {
-                          let dur =
-                            Math.round((e.endMin - e.startMin + this._drag.deltaMin) / g) * g;
-                          if (dur < g) dur = g;
-                          eMin = e.startMin + dur;
-                        }
-                      }
+                      const { sMin, eMin, dragging } = this._dragPreview(e);
                       let top = (sMin - startMin) * px;
                       const h = Math.max((eMin - sMin) * px - 3, 16);
                       const c = this._eventColor(e);
@@ -1752,20 +1743,30 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   ${laid
                     .filter((e) => e.endMin > startMin && e.startMin < endMin)
                     .map((e) => {
-                      const s = Math.max(e.startMin, startMin);
-                      const en = Math.min(e.endMin, endMin);
+                      const prev = this._dragPreview(e);
+                      const s = Math.max(prev.sMin, startMin);
+                      const en = Math.min(prev.eMin, endMin);
                       const w = Math.max((en - s) * px - 3, 20);
                       const c = this._eventColor(e);
                       const tent = this._isTentative(e);
                       const before = e.continuesBefore || e.startMin < startMin;
                       const after = e.continuesAfter || e.endMin > endMin;
+                      const canDrag = this._draggable(e);
                       return html`
                         <div
-                          class="tlbar ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
+                          class="tlbar ${this._isPast(e) ? "past" : ""} ${tent
+                            ? "tentative"
+                            : ""} ${canDrag ? "draggable" : ""} ${prev.dragging ? "dragging" : ""}"
                           tabindex="0"
                           role="button"
+                          @pointerdown=${(ev: PointerEvent) =>
+                            this._onEventPointerDown(ev, e, "move", "x")}
                           @click=${(ev: MouseEvent) => {
                             ev.stopPropagation();
+                            if (this._suppressClick) {
+                              this._suppressClick = false;
+                              return;
+                            }
                             this._openEvent(e);
                           }}
                           @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
@@ -1781,13 +1782,20 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           <span class="etitle"
                             >${before ? "« " : ""}${this._evTitle(e)}${after ? " »" : ""}</span
                           >
-                          ${!e.allDay && w > 120
+                          ${!e.allDay && (w > 120 || prev.dragging)
                             ? html`<span class="etime"
-                                >${formatMinutes(this.hass, e.startMin)}–${formatMinutes(
+                                >${formatMinutes(this.hass, prev.sMin)}–${formatMinutes(
                                   this.hass,
-                                  e.endMin,
+                                  prev.eMin,
                                 )}</span
                               >`
+                            : nothing}
+                          ${canDrag
+                            ? html`<div
+                                class="rzx"
+                                @pointerdown=${(ev: PointerEvent) =>
+                                  this._onEventPointerDown(ev, e, "resize", "x")}
+                              ></div>`
                             : nothing}
                         </div>
                       `;
@@ -2249,6 +2257,22 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   /* ---- drag & drop -------------------------------------------- */
   /** Whether an event may be dragged: feature on, timed, writable, non-recurring. */
+  /**
+   * Start/end of an event in minute space, including the live offset while it
+   * is being dragged. Shared by the day grid and the timeline.
+   */
+  private _dragPreview(e: BoardEvent): { sMin: number; eMin: number; dragging: boolean } {
+    const drag = this._drag;
+    if (!drag || drag.raw !== e.ref) return { sMin: e.startMin, eMin: e.endMin, dragging: false };
+    const g = this._dragGrid;
+    if (drag.mode === "move") {
+      const ns = Math.round((e.startMin + drag.deltaMin) / g) * g;
+      return { sMin: ns, eMin: e.endMin + (ns - e.startMin), dragging: true };
+    }
+    const dur = Math.max(g, Math.round((e.endMin - e.startMin + drag.deltaMin) / g) * g);
+    return { sMin: e.startMin, eMin: e.startMin + dur, dragging: true };
+  }
+
   private _draggable(e: BoardEvent): boolean {
     return (
       this._config.drag_drop !== false &&
@@ -2261,11 +2285,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     );
   }
 
-  private _onEventPointerDown(ev: PointerEvent, e: BoardEvent, mode: "move" | "resize"): void {
+  private _onEventPointerDown(
+    ev: PointerEvent,
+    e: BoardEvent,
+    mode: "move" | "resize",
+    axis: "x" | "y" = "y",
+  ): void {
     if (ev.button !== 0 || !this._draggable(e)) return;
     ev.stopPropagation();
     this._dragStartY = ev.clientY;
-    this._dragPx = this._pxPerMin;
+    this._dragStartX = ev.clientX;
+    this._dragAxis = axis;
+    this._dragPx = axis === "x" ? this._tlPxPerMin : this._pxPerMin;
     this._dragGrid = this._grid;
     this._drag = { raw: e.ref, mode, deltaMin: 0, moved: false, busy: false };
     (ev.target as HTMLElement).setPointerCapture?.(ev.pointerId);
@@ -2276,9 +2307,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _onDragMove = (ev: PointerEvent): void => {
     if (!this._drag) return;
     ev.preventDefault();
-    const dy = ev.clientY - this._dragStartY;
-    const moved = this._drag.moved || Math.abs(dy) > 4;
-    this._drag = { ...this._drag, deltaMin: dy / this._dragPx, moved };
+    const d =
+      this._dragAxis === "x" ? ev.clientX - this._dragStartX : ev.clientY - this._dragStartY;
+    const moved = this._drag.moved || Math.abs(d) > 4;
+    this._drag = { ...this._drag, deltaMin: d / this._dragPx, moved };
   };
 
   private _onDragUp = (): void => {
@@ -3351,6 +3383,43 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       transition:
         box-shadow 0.12s ease,
         transform 0.12s ease;
+    }
+    .tlbar.draggable {
+      cursor: grab;
+      touch-action: pan-y;
+    }
+    .tlbar.dragging {
+      cursor: grabbing;
+      z-index: 20;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+      opacity: 0.94;
+      transition: none;
+    }
+    /* resize grabber on the right edge (timeline runs horizontally) */
+    .rzx {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: 9px;
+      cursor: ew-resize;
+      touch-action: none;
+    }
+    .rzx::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: 3px;
+      transform: translateY(-50%);
+      height: 12px;
+      width: 2px;
+      border-radius: 1px;
+      background: currentColor;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+    .tlbar:hover .rzx::after {
+      opacity: 0.45;
     }
     .tlbar:hover {
       box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
