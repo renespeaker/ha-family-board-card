@@ -110,6 +110,7 @@ persons:
 | `hide_patterns` | list | – | Hide events whose title contains one of the patterns (e.g. `["Free", "Private"]`) |
 | `show_patterns` | list | – | Allow list: only show events whose title contains one of the patterns |
 | `replace_patterns` | list | – | Clean up titles: `"search => replacement"` (without `=>` the text is removed) |
+| `hide_past` | boolean | `false` | Agenda: skip the days before today so the list starts at today (a week you paged back to still shows everything) |
 | `filter_duplicates` | boolean | `false` | Show identical events (title + time) only once per person and in the agenda |
 | `calendars` | map | – | Per calendar `color`, `label`, `icon` (mdi) and `title_field` (editable in the editor) |
 | `compact` | boolean | `false` | Compact layout: smaller fonts and tighter spacing |

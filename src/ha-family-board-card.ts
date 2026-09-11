@@ -57,6 +57,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   show_patterns?: string[]; // allow-list: only show events whose title matches
   replace_patterns?: string[]; // clean up titles: "search => replacement" (or "search" to strip)
   filter_duplicates?: boolean; // drop identical events (title/start/end) per person + in agenda
+  hide_past?: boolean; // agenda: skip days before today in the current week. default false
   calendars?: Record<
     string,
     { color?: string; label?: string; icon?: string; title_field?: string }
@@ -1944,7 +1945,15 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         return true;
       });
     };
-    const groups = this._visibleDays
+    // On a wall tablet the days already over are dead weight. Only in the
+    // current week: paging back explicitly asks for the past.
+    const todayIdx = this._visibleDays.find((d) => this._isRealToday(d));
+    const days =
+      this._config.hide_past && todayIdx !== undefined
+        ? this._visibleDays.filter((d) => d >= todayIdx)
+        : this._visibleDays;
+
+    const groups = days
       .map((d) => ({
         d,
         items: dedupe(
