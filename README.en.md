@@ -110,6 +110,7 @@ persons:
 | `hide_patterns` | list | – | Hide events whose title contains one of the patterns (e.g. `["Free", "Private"]`) |
 | `show_patterns` | list | – | Allow list: only show events whose title contains one of the patterns |
 | `replace_patterns` | list | – | Clean up titles: `"search => replacement"` (without `=>` the text is removed) |
+| `hide_past` | boolean | `false` | Agenda: skip the days before today so the list starts at today (a week you paged back to still shows everything) |
 | `filter_duplicates` | boolean | `false` | Show identical events (title + time) only once per person and in the agenda |
 | `calendars` | map | – | Per calendar `color`, `label`, `icon` (mdi) and `title_field` (editable in the editor) |
 | `compact` | boolean | `false` | Compact layout: smaller fonts and tighter spacing |
@@ -130,7 +131,7 @@ persons:
 | `max_columns` | number | `3` | Max. side-by-side columns per person/day; with more overlaps a “+N” chip appears (1–8) |
 | `tentative_patterns` | list | – | Mark events with a matching title pattern as tentative (dashed / translucent) |
 | `first_day` | string | `monday` | Week starts on `monday` or `sunday` |
-| `scroll_to_now` | boolean | `true` | Scroll the day view to the current time on load |
+| `scroll_to_now` | boolean | `true` | Scroll to “now” on load: the day view to the current time, the timeline horizontally to the now line, the agenda to today's section (or the next day with events when today has none) |
 | `refresh_interval` | number | `300` | Auto refresh of the events in seconds (0 = off); additionally when the tablet wakes up |
 
 Every `calendar.*` entity works – no matter whether `local_calendar` (local, no cloud), Google or CalDAV. Home Assistant delivers them all in the same shape.

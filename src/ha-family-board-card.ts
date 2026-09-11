@@ -57,6 +57,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   show_patterns?: string[]; // allow-list: only show events whose title matches
   replace_patterns?: string[]; // clean up titles: "search => replacement" (or "search" to strip)
   filter_duplicates?: boolean; // drop identical events (title/start/end) per person + in agenda
+  hide_past?: boolean; // agenda: skip days before today in the current week. default false
   calendars?: Record<
     string,
     { color?: string; label?: string; icon?: string; title_field?: string }
@@ -555,20 +556,78 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
   }
 
-  /** Scroll the day board so the current time is in view (once per view). */
+  /**
+   * Scroll the active view to "now" once per view state: the day and timeline
+   * views to the current time, the agenda to today's section (or, when today
+   * has no events, to the next day that has some).
+   */
   private _maybeScrollToNow(): void {
-    if (this._view !== "day" || this._config?.scroll_to_now === false) return;
+    if (this._config?.scroll_to_now === false) return;
+    if (this._view === "day") this._scrollDayToNow();
+    else if (this._view === "timeline") this._scrollTimelineToNow();
+    else if (this._view === "agenda") this._scrollAgendaToToday();
+  }
+
+  /** Guard so each view scrolls only once per week/day/size state. */
+  private _scrollOnce(extra: string): boolean {
+    const key = `${this._view}|${this._weekOffset}|${this._day}|${extra}`;
+    if (key === this._scrolledKey) return false;
+    this._scrolledKey = key;
+    return true;
+  }
+
+  /** Offset of `el` inside the scroll container `box`, independent of layout. */
+  private static _offsetIn(box: HTMLElement, el: HTMLElement): number {
+    return el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+  }
+
+  private _scrollDayToNow(): void {
     const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
     if (!this._isRealToday(day)) return;
-    const key = `${this._weekOffset}|${this._day}|${this._config?.hour_height}`;
-    if (key === this._scrolledKey) return;
     const board = this.renderRoot?.querySelector(".board") as HTMLElement | null;
     const now = this.renderRoot?.querySelector(".nowline") as HTMLElement | null;
     if (!board || !now) return;
-    this._scrolledKey = key;
+    if (!this._scrollOnce(String(this._config?.hour_height))) return;
     requestAnimationFrame(() => {
       const target = now.offsetTop - board.clientHeight / 3;
       board.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+    });
+  }
+
+  /** Timeline runs horizontally: bring the now line into the left third. */
+  private _scrollTimelineToNow(): void {
+    const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
+    if (!this._isRealToday(day)) return;
+    const wrap = this.renderRoot?.querySelector(".tlwrap") as HTMLElement | null;
+    const now = this.renderRoot?.querySelector(".tlnow") as HTMLElement | null;
+    if (!wrap || !now) return;
+    if (!this._scrollOnce(String(this._config?.hour_width))) return;
+    requestAnimationFrame(() => {
+      const left =
+        now.getBoundingClientRect().left - wrap.getBoundingClientRect().left + wrap.scrollLeft;
+      wrap.scrollTo({ left: Math.max(0, left - wrap.clientWidth / 3), behavior: "smooth" });
+    });
+  }
+
+  /**
+   * Agenda lists the whole week, so on a wall tablet today sits below the fold.
+   * Scroll its day section to the top; empty days are not rendered, so fall
+   * back to the next day that has events.
+   */
+  private _scrollAgendaToToday(): void {
+    const today = this._visibleDays.find((d) => this._isRealToday(d));
+    if (today === undefined) return;
+    const box = this.renderRoot?.querySelector(".agenda") as HTMLElement | null;
+    if (!box) return;
+    const days = Array.from(box.querySelectorAll<HTMLElement>(".agenda-day"));
+    const target = days.find((el) => Number(el.dataset.day) >= today);
+    if (!target) return;
+    if (!this._scrollOnce(String(days.length))) return;
+    requestAnimationFrame(() => {
+      box.scrollTo({
+        top: Math.max(0, FamilyBoardCard._offsetIn(box, target)),
+        behavior: "smooth",
+      });
     });
   }
 
@@ -1886,7 +1945,15 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         return true;
       });
     };
-    const groups = this._visibleDays
+    // On a wall tablet the days already over are dead weight. Only in the
+    // current week: paging back explicitly asks for the past.
+    const todayIdx = this._visibleDays.find((d) => this._isRealToday(d));
+    const days =
+      this._config.hide_past && todayIdx !== undefined
+        ? this._visibleDays.filter((d) => d >= todayIdx)
+        : this._visibleDays;
+
+    const groups = days
       .map((d) => ({
         d,
         items: dedupe(
@@ -1907,7 +1974,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             </div>`
           : groups.map(
               (g) => html`
-                <div class="agenda-day">
+                <div class="agenda-day" data-day=${g.d}>
                   <div class="agenda-date ${this._isRealToday(g.d) ? "today" : ""}">
                     ${this._relativeDay(this._dateForDay(g.d)) ?? full[g.d]} ·
                     ${dateFmt.format(this._dateForDay(g.d))}
@@ -3819,7 +3886,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.25.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.25.1 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

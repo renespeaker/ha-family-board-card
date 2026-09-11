@@ -110,6 +110,7 @@ persons:
 | `hide_patterns` | Liste   | –       | Termine ausblenden, deren Titel eines der Textmuster enthält (z. B. `["Frei", "Privat"]`) |
 | `show_patterns` | Liste   | –       | Allow-Liste: nur Termine zeigen, deren Titel eines der Muster enthält |
 | `replace_patterns` | Liste | –      | Titel aufräumen: `"Suchtext => Ersatz"` (ohne `=>` wird der Text entfernt) |
+| `hide_past`     | boolean | `false` | Agenda: Tage vor heute überspringen, die Liste beginnt bei heute (in zurückgeblätterten Wochen weiterhin vollständig) |
 | `filter_duplicates` | boolean | `false` | Identische Termine (Titel+Zeit) pro Person und in der Agenda nur einmal zeigen |
 | `calendars`     | Map     | –       | Pro Kalender `color`, `label`, `icon` (mdi) und `title_field` (im Editor pflegbar) |
 | `compact`       | boolean | `false` | Kompakte Darstellung: kleinere Schriften und engere Abstände |
@@ -130,7 +131,7 @@ persons:
 | `max_columns`   | number  | `3`     | Max. nebeneinander liegende Spalten pro Person/Tag; bei mehr Überlappungen erscheint ein „+N"-Chip (1–8) |
 | `tentative_patterns` | Liste | –    | Termine mit passendem Titel-Muster als vorläufig (gestrichelt/transparent) markieren |
 | `first_day`     | string  | `monday`| Wochenstart: `monday` oder `sunday` |
-| `scroll_to_now` | boolean | `true`  | Tagesansicht beim Laden automatisch zur aktuellen Uhrzeit scrollen |
+| `scroll_to_now` | boolean | `true`  | Beim Laden automatisch zu „jetzt“ scrollen: Tagesansicht zur aktuellen Uhrzeit, Zeitstrahl horizontal zur Jetzt-Linie, Agenda zum heutigen Abschnitt (hat heute keine Termine, zum nächsten Tag mit Terminen) |
 | `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen |
 
 Jede `calendar.*`-Entität funktioniert – egal ob `local_calendar` (lokal, ohne Cloud), Google oder CalDAV. Home Assistant liefert alle einheitlich.
