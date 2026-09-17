@@ -20,15 +20,15 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
         <div class="top">
           <div class="title">${e}</div>
           ${this._enabledViews.length>1?W`<div class="switch" role="tablist">
-                ${this._enabledViews.map(e=>W`<button
-                      role="tab"
-                      aria-selected=${this._view===e}
-                      class=${this._view===e?"on":""}
-                      @click=${()=>this._view=e}
-                    >
-                      ${this._t(e)}
-                    </button>`)}
-              </div>`:K}
+                  ${this._enabledViews.map(e=>W`<button
+                        role="tab"
+                        aria-selected=${this._view===e}
+                        class=${this._view===e?"on":""}
+                        @click=${()=>this._view=e}
+                      >
+                        ${this._t(e)}
+                      </button>`)}
+                </div>`:K}
         </div>
         ${this._config.show_focus?this._renderFocus():K}
         ${!this._config.show_alerts||"day"!==this._view&&"timeline"!==this._view?K:this._renderAlerts()}
@@ -55,13 +55,13 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
               <div class="fbody">
                 <span class="fname">${this._personName(e,t)}</span>
                 ${i?W`<span class="fnow">
-                      <span class="fdot" style="background:${s}"></span>${a(i)}
-                      ${i.summary}
-                      <small>${this._t("until")} ${$e(this.hass,i.end)}</small>
-                    </span>`:r?W`<span class="fnext">
-                        ${this._t("focus_next")}: ${a(r)} ${r.summary}
-                        <small>${De(this.hass,r.start)}</small>
-                      </span>`:W`<span class="ffree">${this._t("focus_free")}</span>`}
+                        <span class="fdot" style="background:${s}"></span>${a(i)}
+                        ${i.summary}
+                        <small>${this._t("until")} ${$e(this.hass,i.end)}</small>
+                      </span>`:r?W`<span class="fnext">
+                          ${this._t("focus_next")}: ${a(r)} ${r.summary}
+                          <small>${De(this.hass,r.start)}</small>
+                        </span>`:W`<span class="ffree">${this._t("focus_free")}</span>`}
               </div>
             </div>
           `})}
@@ -111,35 +111,35 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
               >
                 ${this._avatar(e,t)}
                 ${r?K:W`<div class="pname">${this._personName(e,t)}</div>
-                      <div class="pstatus">
-                        ${i?this._statusLabel(i.state):""}
-                      </div>
-                      ${this._badges(e)}`}
+                        <div class="pstatus">
+                          ${i?this._statusLabel(i.state):""}
+                        </div>
+                        ${this._badges(e)}`}
               </div>
             `})}
         </div>
         ${h?W`
-              <div class="allday-row">
-                <div class="axis-spacer allday-label">${this._t("all_day")}</div>
-                ${this._persons.map((t,i)=>W`
-                    <div class="allday-cell ${this._isOff(i)?"off":""}">
-                      ${this._allDayFor(e,i).map(e=>{const t=this._eventColor(e),i=this._isTentative(e);return W`
-                          <div
-                            class="adchip ${i?"tentative":""}"
-                            style="border-left:3px ${i?"dashed":"solid"} ${t};background:${t}30;background:color-mix(in srgb, ${t} 22%, var(--card-background-color, #fff))"
-                            title="${this._evTitle(e)}"
-                            tabindex="0"
-                            role="button"
-                            @click=${()=>this._openEvent(e)}
-                            @keydown=${t=>this._onItemKey(t,e)}
-                          >
-                            ${e.continuesBefore?"« ":""}${this._evTitle(e)}${e.continuesAfter?" »":""}
-                          </div>
-                        `})}
-                    </div>
-                  `)}
-              </div>
-            `:K}
+                <div class="allday-row">
+                  <div class="axis-spacer allday-label">${this._t("all_day")}</div>
+                  ${this._persons.map((t,i)=>W`
+                      <div class="allday-cell ${this._isOff(i)?"off":""}">
+                        ${this._allDayFor(e,i).map(e=>{const t=this._eventColor(e),i=this._isTentative(e);return W`
+                            <div
+                              class="adchip ${i?"tentative":""}"
+                              style="border-left:3px ${i?"dashed":"solid"} ${t};background:${t}30;background:color-mix(in srgb, ${t} 22%, var(--card-background-color, #fff))"
+                              title="${this._evTitle(e)}"
+                              tabindex="0"
+                              role="button"
+                              @click=${()=>this._openEvent(e)}
+                              @keydown=${t=>this._onItemKey(t,e)}
+                            >
+                              ${e.continuesBefore?"« ":""}${this._evTitle(e)}${e.continuesAfter?" »":""}
+                            </div>
+                          `})}
+                      </div>
+                    `)}
+                </div>
+              `:K}
         <div class="body" style="height:${a}px">
           <div class="axis">
             ${o.map(e=>W`<div class="hour" style="top:${(60*e-r)*t}px">
@@ -198,15 +198,15 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
                             >${this._calIconEl(i)}${i.continuesBefore?"« ":""}${this._evTitle(i)}</span
                           >
                           ${l>32||n?W`<span class="etime"
-                                >${ke(this.hass,s)}–${ke(this.hass,a)}</span
-                              >`:K}
+                                  >${ke(this.hass,s)}–${ke(this.hass,a)}</span
+                                >`:K}
                           ${this._progressOn&&this._isCurrent(i)&&!n?W`<div class="eprog">
-                                <div style="width:${this._progressPct(i)}%"></div>
-                              </div>`:K}
+                                  <div style="width:${this._progressPct(i)}%"></div>
+                                </div>`:K}
                           ${u&&!_?W`<div
-                                class="rz"
-                                @pointerdown=${e=>this._onEventPointerDown(e,i,"resize")}
-                              ></div>`:K}
+                                  class="rz"
+                                  @pointerdown=${e=>this._onEventPointerDown(e,i,"resize")}
+                                ></div>`:K}
                         </div>
                       `})})()}
                 ${l.overflows.filter(e=>e.endMin>r&&e.startMin<s).map(i=>{const s=(i.startMin-r)*t,a=Math.max((i.endMin-i.startMin)*t-3,16),n=i.col/i.cols*100,o=100/i.cols;return W`
@@ -226,8 +226,8 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
               </div>
             `})}
           ${c?W`<div class="nowline" style="top:${(d-r)*t}px">
-                <span>${ke(this.hass,d)}</span>
-              </div>`:K}
+                  <span>${ke(this.hass,d)}</span>
+                </div>`:K}
           ${this._loading||this._loadError||this._dayHasEvents(e)?K:W`<div class="empty">${this._t("no_events")}</div>`}
         </div>
       </div>
@@ -292,23 +292,23 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
                             >${c?"« ":""}${this._evTitle(e)}${h?" »":""}</span
                           >
                           ${!e.allDay&&(o>120||r.dragging)?W`<span class="etime"
-                                >${ke(this.hass,r.sMin)}–${ke(this.hass,r.eMin)}</span
-                              >`:K}
+                                  >${ke(this.hass,r.sMin)}–${ke(this.hass,r.eMin)}</span
+                                >`:K}
                           ${p?W`<div
-                                class="rzx"
-                                @pointerdown=${t=>this._onEventPointerDown(t,e,"resize","x")}
-                              ></div>`:K}
+                                  class="rzx"
+                                  @pointerdown=${t=>this._onEventPointerDown(t,e,"resize","x")}
+                                ></div>`:K}
                         </div>
                       `})}
                 </div>
               </div>
             `})}
           ${c?W`<div
-                class="tlnow"
-                style="left:calc(var(--fb-tl-label, 150px) + ${(d-t)*s}px)"
-              >
-                <span>${ke(this.hass,d)}</span>
-              </div>`:K}
+                  class="tlnow"
+                  style="left:calc(var(--fb-tl-label, 150px) + ${(d-t)*s}px)"
+                >
+                  <span>${ke(this.hass,d)}</span>
+                </div>`:K}
         </div>
         ${this._loading||this._loadError||this._dayHasEvents(e)?K:W`<div class="empty">${this._t("no_events")}</div>`}
       </div>
@@ -368,17 +368,17 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
       ${this._loadError?W`<div class="banner">${this._t("load_error")}</div>`:K}
       <div class="agenda">
         ${0===a.length?W`<div class="agenda-empty">
-              ${this._loading?W`<span class="spinner"></span>`:this._t("no_events")}
-            </div>`:a.map(i=>W`
-                <div class="agenda-day" data-day=${i.d}>
-                  <div class="agenda-date ${this._isRealToday(i.d)?"today":""}">
-                    ${this._relativeDay(this._dateForDay(i.d))??e[i.d]} ·
-                    ${t.format(this._dateForDay(i.d))}
-                    ${this._weatherChip(this._dateForDay(i.d))}
+                ${this._loading?W`<span class="spinner"></span>`:this._t("no_events")}
+              </div>`:a.map(i=>W`
+                  <div class="agenda-day" data-day=${i.d}>
+                    <div class="agenda-date ${this._isRealToday(i.d)?"today":""}">
+                      ${this._relativeDay(this._dateForDay(i.d))??e[i.d]} ·
+                      ${t.format(this._dateForDay(i.d))}
+                      ${this._weatherChip(this._dateForDay(i.d))}
+                    </div>
+                    ${i.items.map(e=>this._agendaRow(e))}
                   </div>
-                  ${i.items.map(e=>this._agendaRow(e))}
-                </div>
-              `)}
+                `)}
       </div>
     `}_agendaRow(e){const t=this._eventColor(e),i=this._personName(this._persons[e.personIdx],e.personIdx),r=e.allDay?this._t("all_day"):`${ke(this.hass,e.startMin)}–${ke(this.hass,e.endMin)}`,s=this._isCurrent(e),a=this._isTentative(e),n=e.allDay||s||e.continuesBefore?"":De(this.hass,e.ref.start);return W`
       <div
@@ -396,8 +396,8 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
           >
           <span class="agenda-meta">${i}${e.location?` · ${e.location}`:""}</span>
           ${s&&this._progressOn?W`<span class="agenda-prog"
-                ><span style="width:${this._progressPct(e)}%;background:${t}"></span
-              ></span>`:K}
+                  ><span style="width:${this._progressPct(e)}%;background:${t}"></span
+                ></span>`:K}
         </span>
         ${n?W`<span class="agenda-cd">${n}</span>`:K}
       </div>
@@ -454,16 +454,16 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
             </button>
           </div>
           ${e.calendarOptions&&e.calendarOptions.length>1?W`<label class="fld">
-                <span>${this._t("field_calendar")}</span>
-                <select
-                  .value=${e.calendar}
-                  @change=${e=>this._dlgField("calendar",e.target.value)}
-                >
-                  ${e.calendarOptions.map(t=>W`<option value=${t} ?selected=${t===e.calendar}>
-                        ${this._calLabel(t)}
-                      </option>`)}
-                </select>
-              </label>`:W`<div class="dlg-cal">${i}</div>`}
+                  <span>${this._t("field_calendar")}</span>
+                  <select
+                    .value=${e.calendar}
+                    @change=${e=>this._dlgField("calendar",e.target.value)}
+                  >
+                    ${e.calendarOptions.map(t=>W`<option value=${t} ?selected=${t===e.calendar}>
+                          ${this._calLabel(t)}
+                        </option>`)}
+                  </select>
+                </label>`:W`<div class="dlg-cal">${i}</div>`}
 
           <label class="fld">
             <span>${this._t("field_title")}</span>
@@ -511,13 +511,13 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
             <span>
               ${this._t("field_location")}
               ${e.location.trim()?W`<a
-                    class="maplink"
-                    href=${this._mapUrl(e.location)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    @click=${e=>e.stopPropagation()}
-                    >${this._t("open_map")}</a
-                  >`:K}
+                      class="maplink"
+                      href=${this._mapUrl(e.location)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      @click=${e=>e.stopPropagation()}
+                      >${this._t("open_map")}</a
+                    >`:K}
             </span>
             <input
               type="text"
@@ -538,40 +538,40 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
           </label>
 
           ${"edit"===e.mode&&e.recurring&&!t?W`<div class="recur">
-                <span class="recur-label">${this._t("recurring")}</span>
-                <label class="recur-opt">
-                  <input
-                    type="radio"
-                    name="recur"
-                    ?checked=${""===e.recurrenceRange}
-                    @change=${()=>this._dlgField("recurrenceRange","")}
-                  />
-                  <span>${this._t("recur_this")}</span>
-                </label>
-                <label class="recur-opt">
-                  <input
-                    type="radio"
-                    name="recur"
-                    ?checked=${"THISANDFUTURE"===e.recurrenceRange}
-                    @change=${()=>this._dlgField("recurrenceRange","THISANDFUTURE")}
-                  />
-                  <span>${this._t("recur_future")}</span>
-                </label>
-              </div>`:K}
+                  <span class="recur-label">${this._t("recurring")}</span>
+                  <label class="recur-opt">
+                    <input
+                      type="radio"
+                      name="recur"
+                      ?checked=${""===e.recurrenceRange}
+                      @change=${()=>this._dlgField("recurrenceRange","")}
+                    />
+                    <span>${this._t("recur_this")}</span>
+                  </label>
+                  <label class="recur-opt">
+                    <input
+                      type="radio"
+                      name="recur"
+                      ?checked=${"THISANDFUTURE"===e.recurrenceRange}
+                      @change=${()=>this._dlgField("recurrenceRange","THISANDFUTURE")}
+                    />
+                    <span>${this._t("recur_future")}</span>
+                  </label>
+                </div>`:K}
           ${t?W`<div class="ro-note">${this._t("read_only")}</div>`:K}
           ${e.error?W`<div class="dlg-error">${e.error}</div>`:K}
 
           <div class="dlg-actions">
             ${"edit"===e.mode&&e.canDelete?W`<button class="danger" ?disabled=${e.busy} @click=${this._deleteDialog}>
-                  ${this._t("delete")}
-                </button>`:K}
+                    ${this._t("delete")}
+                  </button>`:K}
             <span class="spacer"></span>
             <button class="ghost" ?disabled=${e.busy} @click=${this._closeDialog}>
               ${this._t("cancel")}
             </button>
             ${t?K:W`<button class="primary" ?disabled=${e.busy} @click=${this._saveDialog}>
-                  ${e.busy?"…":this._t("save")}
-                </button>`}
+                    ${e.busy?"…":this._t("save")}
+                  </button>`}
           </div>
         </div>
       </div>
@@ -2077,47 +2077,47 @@ function e(e,t,i,r){var s,a=arguments.length,n=a<3?t:null===r?r=Object.getOwnPro
       </div>
 
       ${t.length>1||this._config.calendars?W`
-            <div class="section-title">${this._t("s_calendars")}</div>
-            <div class="cals">
-              ${t.map(e=>{const t=this._config.calendars?.[e]??{};return W`
-                  <div class="cal">
-                    <div class="cal-head">
-                      <span
-                        class="pdot"
-                        style="background:${t.color||"var(--divider-color)"}"
-                      ></span>
-                      <span class="cal-name" title=${e}>${this._calName(e)}</span>
-                      <input
-                        class="cal-label"
-                        type="text"
-                        placeholder=${this._t("ph_label")}
-                        .value=${t.label??""}
-                        @change=${t=>this._setCalMeta(e,{label:t.target.value||null})}
-                      />
+              <div class="section-title">${this._t("s_calendars")}</div>
+              <div class="cals">
+                ${t.map(e=>{const t=this._config.calendars?.[e]??{};return W`
+                    <div class="cal">
+                      <div class="cal-head">
+                        <span
+                          class="pdot"
+                          style="background:${t.color||"var(--divider-color)"}"
+                        ></span>
+                        <span class="cal-name" title=${e}>${this._calName(e)}</span>
+                        <input
+                          class="cal-label"
+                          type="text"
+                          placeholder=${this._t("ph_label")}
+                          .value=${t.label??""}
+                          @change=${t=>this._setCalMeta(e,{label:t.target.value||null})}
+                        />
+                      </div>
+                      ${this._swatches(t.color,t=>this._setCalMeta(e,{color:t??null}))}
+                      <div class="cal-extra">
+                        <input
+                          type="text"
+                          placeholder=${this._t("ph_icon")}
+                          .value=${t.icon??""}
+                          @change=${t=>this._setCalMeta(e,{icon:t.target.value||null})}
+                        />
+                        <input
+                          type="text"
+                          placeholder=${this._t("ph_title_field")}
+                          .value=${t.title_field??""}
+                          @change=${t=>this._setCalMeta(e,{title_field:t.target.value||null})}
+                        />
+                      </div>
                     </div>
-                    ${this._swatches(t.color,t=>this._setCalMeta(e,{color:t??null}))}
-                    <div class="cal-extra">
-                      <input
-                        type="text"
-                        placeholder=${this._t("ph_icon")}
-                        .value=${t.icon??""}
-                        @change=${t=>this._setCalMeta(e,{icon:t.target.value||null})}
-                      />
-                      <input
-                        type="text"
-                        placeholder=${this._t("ph_title_field")}
-                        .value=${t.title_field??""}
-                        @change=${t=>this._setCalMeta(e,{title_field:t.target.value||null})}
-                      />
-                    </div>
-                  </div>
-                `})}
-              <div class="hint">
-                ${this._t("cal_hint_1")} <code>description</code> ${this._t("cal_hint_2")}
-                <code>summary</code> ${this._t("cal_hint_3")}
+                  `})}
+                <div class="hint">
+                  ${this._t("cal_hint_1")} <code>description</code> ${this._t("cal_hint_2")}
+                  <code>summary</code> ${this._t("cal_hint_3")}
+                </div>
               </div>
-            </div>
-          `:K}
+            `:K}
 
       <div class="section-title">${this._t("s_settings")}</div>
       <ha-form

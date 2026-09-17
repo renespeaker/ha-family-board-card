@@ -542,64 +542,66 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         </div>
       </div>
 
-      ${cals.length > 1 || this._config.calendars
-        ? html`
-            <div class="section-title">${this._t("s_calendars")}</div>
-            <div class="cals">
-              ${cals.map((c) => {
-                const meta = this._config.calendars?.[c] ?? {};
-                return html`
-                  <div class="cal">
-                    <div class="cal-head">
-                      <span
-                        class="pdot"
-                        style="background:${meta.color || "var(--divider-color)"}"
-                      ></span>
-                      <span class="cal-name" title=${c}>${this._calName(c)}</span>
-                      <input
-                        class="cal-label"
-                        type="text"
-                        placeholder=${this._t("ph_label")}
-                        .value=${meta.label ?? ""}
-                        @change=${(e: Event) =>
-                          this._setCalMeta(c, {
-                            label: (e.target as HTMLInputElement).value || null,
-                          })}
-                      />
+      ${
+        cals.length > 1 || this._config.calendars
+          ? html`
+              <div class="section-title">${this._t("s_calendars")}</div>
+              <div class="cals">
+                ${cals.map((c) => {
+                  const meta = this._config.calendars?.[c] ?? {};
+                  return html`
+                    <div class="cal">
+                      <div class="cal-head">
+                        <span
+                          class="pdot"
+                          style="background:${meta.color || "var(--divider-color)"}"
+                        ></span>
+                        <span class="cal-name" title=${c}>${this._calName(c)}</span>
+                        <input
+                          class="cal-label"
+                          type="text"
+                          placeholder=${this._t("ph_label")}
+                          .value=${meta.label ?? ""}
+                          @change=${(e: Event) =>
+                            this._setCalMeta(c, {
+                              label: (e.target as HTMLInputElement).value || null,
+                            })}
+                        />
+                      </div>
+                      ${this._swatches(meta.color, (col) =>
+                        this._setCalMeta(c, { color: col ?? null }),
+                      )}
+                      <div class="cal-extra">
+                        <input
+                          type="text"
+                          placeholder=${this._t("ph_icon")}
+                          .value=${meta.icon ?? ""}
+                          @change=${(e: Event) =>
+                            this._setCalMeta(c, {
+                              icon: (e.target as HTMLInputElement).value || null,
+                            })}
+                        />
+                        <input
+                          type="text"
+                          placeholder=${this._t("ph_title_field")}
+                          .value=${meta.title_field ?? ""}
+                          @change=${(e: Event) =>
+                            this._setCalMeta(c, {
+                              title_field: (e.target as HTMLInputElement).value || null,
+                            })}
+                        />
+                      </div>
                     </div>
-                    ${this._swatches(meta.color, (col) =>
-                      this._setCalMeta(c, { color: col ?? null }),
-                    )}
-                    <div class="cal-extra">
-                      <input
-                        type="text"
-                        placeholder=${this._t("ph_icon")}
-                        .value=${meta.icon ?? ""}
-                        @change=${(e: Event) =>
-                          this._setCalMeta(c, {
-                            icon: (e.target as HTMLInputElement).value || null,
-                          })}
-                      />
-                      <input
-                        type="text"
-                        placeholder=${this._t("ph_title_field")}
-                        .value=${meta.title_field ?? ""}
-                        @change=${(e: Event) =>
-                          this._setCalMeta(c, {
-                            title_field: (e.target as HTMLInputElement).value || null,
-                          })}
-                      />
-                    </div>
-                  </div>
-                `;
-              })}
-              <div class="hint">
-                ${this._t("cal_hint_1")} <code>description</code> ${this._t("cal_hint_2")}
-                <code>summary</code> ${this._t("cal_hint_3")}
+                  `;
+                })}
+                <div class="hint">
+                  ${this._t("cal_hint_1")} <code>description</code> ${this._t("cal_hint_2")}
+                  <code>summary</code> ${this._t("cal_hint_3")}
+                </div>
               </div>
-            </div>
-          `
-        : nothing}
+            `
+          : nothing
+      }
 
       <div class="section-title">${this._t("s_settings")}</div>
       <ha-form
