@@ -338,7 +338,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   public setConfig(config: FamilyBoardConfig): void {
     if (!config.persons || !Array.isArray(config.persons)) {
-      throw new Error("Bitte mindestens eine Person unter 'persons' konfigurieren.");
+      // setConfig runs before `hass` is assigned, so this falls back to the
+      // browser language rather than the HA profile language.
+      throw new Error(this._t("err_no_persons"));
     }
     this._config = config;
     const enabled = this._enabledViews;
