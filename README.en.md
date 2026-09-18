@@ -210,7 +210,12 @@ npm run format       # Prettier
 
 Fast loop against a running HA instance: copy `dist/ha-family-board-card.js` to `config/www/` and hard-reload the page.
 
-The error-prone event logic (splitting across midnight, all-day exclusivity, time zones, overlap layout) lives isolated in [`src/events.ts`](src/events.ts) and is covered by [`src/events.test.ts`](src/events.test.ts).
+Testing happens on two levels:
+
+- **Logic** – the error-prone parts (splitting across midnight, all-day exclusivity, time zones, overlap layout, conflict detection) live isolated in [`src/events.ts`](src/events.ts), covered by [`src/events.test.ts`](src/events.test.ts).
+- **Card & editor** – [`src/card.test.ts`](src/card.test.ts) and [`src/editor.test.ts`](src/editor.test.ts) render the card against a stand-in Home Assistant (happy-dom) and check what actually ends up on screen: the day check, agenda grouping, filters, the person toggle and the bilingual card and editor.
+
+`npm test` runs both, no browser required.
 
 ## Creating / editing / deleting events
 

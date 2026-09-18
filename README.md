@@ -210,7 +210,12 @@ npm run format       # Prettier
 
 Schneller Loop gegen die laufende HA-Instanz: `dist/ha-family-board-card.js` nach `config/www/` kopieren und die Seite hart neu laden.
 
-Die fehleranfällige Event-Logik (Splitting über Mitternacht, Ganztags-Exklusivität, Zeitzonen, Überlappungs-Layout) liegt isoliert in [`src/events.ts`](src/events.ts) und ist über [`src/events.test.ts`](src/events.test.ts) abgedeckt.
+Getestet wird auf zwei Ebenen:
+
+- **Logik** – die fehleranfälligen Teile (Splitting über Mitternacht, Ganztags-Exklusivität, Zeitzonen, Überlappungs-Layout, Konflikterkennung) liegen isoliert in [`src/events.ts`](src/events.ts), abgedeckt von [`src/events.test.ts`](src/events.test.ts).
+- **Karte & Editor** – [`src/card.test.ts`](src/card.test.ts) und [`src/editor.test.ts`](src/editor.test.ts) rendern die Karte gegen ein nachgebautes Home Assistant (happy-dom) und prüfen, was am Ende wirklich auf dem Schirm steht: Tages-Check, Agenda-Gruppierung, Filter, Personen-Toggle und die Zweisprachigkeit von Karte und Editor.
+
+`npm test` führt beides aus, ohne Browser.
 
 ## Termine anlegen / bearbeiten / löschen
 
