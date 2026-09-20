@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "preview": "python3 -m http.server 8931",
+    "check:browser": "node tools/preview/check.mjs"
   },
   "dependencies": {
     "lit": "^3.1.0"
@@ -22,6 +24,7 @@
     "@rollup/plugin-typescript": "^12.3.0",
     "custom-card-helpers": "^2.0.0",
     "happy-dom": "^20.14.5",
+    "playwright-core": "^1.63.0",
     "prettier": "^3.2.5",
     "rollup": "^4.9.0",
     "tslib": "^2.6.2",

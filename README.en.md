@@ -217,6 +217,8 @@ Testing happens on two levels:
 
 `npm test` runs both, no browser required.
 
+What that can never catch is **layout**: happy-dom computes no geometry. For that, [`tools/preview/`](tools/preview/) holds a harness that puts the card into a real Chromium against a stand-in Home Assistant — `npm run check:browser` uses it to check things like "does a dialog field stick out of the dialog", "is the first hour label clipped", "does the agenda scroll to today" and "does anything bleed sideways at 400px". It needs a browser and therefore does not run in CI, but it is worth a run before a release.
+
 ## Creating / editing / deleting events
 
 In the day view, clicking an empty spot in a person's column opens the create dialog (the time is taken from the click position); clicking an event opens it for editing/deleting. Whether that is possible depends on the calendar: the card reads `supported_features` of the respective `calendar.*` entity and hides write actions when the calendar does not support them. Internally the WebSocket commands `calendar/event/create|update|delete` are used (the same ones the native HA calendar panel uses).
