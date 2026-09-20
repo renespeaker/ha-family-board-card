@@ -1,0 +1,92 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+  body { margin:0; background:#f4f6f9; font-family: Roboto, "Segoe UI", system-ui, sans-serif; }
+  #root { padding: 0; }
+  family-board-card {
+    --ha-card-background: #fff; --card-background-color: #fff;
+    --primary-text-color:#212121; --secondary-text-color:#727272;
+    --divider-color:#e0e0e0; --secondary-background-color:#f5f5f5;
+    --primary-color:#03a9f4; --error-color:#db4437; --warning-color:#ffa600;
+    --ha-card-border-radius:12px; --ha-card-box-shadow:0 2px 8px rgba(0,0,0,.09);
+    display:block;
+  }
+
+  body.dark { background:#111111; }
+  body.dark family-board-card {
+    --ha-card-background:#1c1c1c; --card-background-color:#1c1c1c;
+    --primary-text-color:#e1e1e1; --secondary-text-color:#9b9b9b;
+    --divider-color:rgba(225,225,225,.12); --secondary-background-color:#202020;
+    --primary-color:#03a9f4; --error-color:#db4437; --warning-color:#ffa600;
+    --text-primary-color:#212121; --state-icon-color:#a1a1a1;
+    --ha-card-box-shadow:0 2px 8px rgba(0,0,0,.5);
+  }
+  ha-card, family-board-card::part(card) { }
+</style></head><body>
+<div id="root"></div>
+<script type="module">
+import "../../dist/ha-family-board-card.js";
+const Q = new URLSearchParams(location.search);
+if (Q.has("dark")) document.body.classList.add("dark");
+const lang = Q.get("lang") || "de";
+const T = lang === "de"
+  ? { home:"Homeoffice", office:"Büro", school:"Schule", breakt:"Pause", sport:"Sport",
+      swim:"Schwimmen", lunch:"Mittagessen", nap:"Mittagsschlaf", free:"Freispiel",
+      bfast:"offenes Frühstück", music:"Musikschule", doc:"Kinderarzt", pickup:"Abholen",
+      care:"Betreuung", bday:"Geburtstag Oma", title:"Familienplan" }
+  : { home:"Home office", office:"Office", school:"School", breakt:"Break", sport:"Sport",
+      swim:"Swimming", lunch:"Lunch", nap:"Nap", free:"Free play",
+      bfast:"Open breakfast", music:"Music school", doc:"Pediatrician", pickup:"Pick-up",
+      care:"After-school care", bday:"Grandma's birthday", title:"Family board" };
+
+const base = new Date(); base.setHours(0,0,0,0);
+const day = i => new Date(base.getFullYear(), base.getMonth(), base.getDate() - ((base.getDay()+6)%7) + i);
+const at = (i,h,m) => { const d=day(i); return new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,m).toISOString(); };
+let n = 0;
+const E=(i,s,h1,m1,h2,m2)=>({uid:"u"+(n++),summary:s,start:{dateTime:at(i,h1,m1)},end:{dateTime:at(i,h2,m2)}});
+const todayIdx = (new Date().getDay()+6)%7;
+const t = todayIdx;
+
+const cal = {
+  "calendar.anna":[ E(t,T.home,8,0,16,0), E(t,T.pickup,16,30,17,0),
+                    E(t+1,T.office,9,0,17,0), E(t-1,T.office,9,0,17,0) ],
+  "calendar.ben":[  E(t,T.office,9,0,17,30), E(t+1,T.home,8,0,16,0), E(t-1,T.office,9,0,17,0) ],
+  "calendar.mia":[  E(t,T.school,8,0,8,45), E(t,T.school,8,45,9,30), E(t,T.breakt,9,30,9,50),
+                    E(t,T.sport,9,50,10,35), E(t,T.swim,10,45,11,30), E(t,T.lunch,12,0,12,45),
+                    E(t,T.music,15,0,16,0), E(t+1,T.school,8,0,13,0), E(t-1,T.school,8,0,13,0) ],
+  "calendar.leon":[ E(t,T.bfast,7,0,9,0), E(t,T.free,9,0,11,30), E(t,T.lunch,11,30,12,15),
+                    E(t,T.nap,12,15,14,0), E(t,T.care,14,0,16,0),
+                    E(t+1,T.care,8,0,16,0), E(t-1,T.care,8,0,16,0) ],
+};
+const person = (n,s)=>({state:s,attributes:{friendly_name:n}});
+const hass = {
+  locale:{language:lang,time_format:lang==="de"?"24":"12"},
+  states:{
+    "person.anna":person("Anna","home"), "person.ben":person("Ben","not_home"),
+    "person.mia":person("Mia","home"),   "person.leon":person("Leon","home"),
+    "calendar.anna":{state:"on",attributes:{friendly_name:"Anna",supported_features:0}},
+    "calendar.ben":{state:"on",attributes:{friendly_name:"Ben",supported_features:0}},
+    "calendar.mia":{state:"on",attributes:{friendly_name:"Mia",supported_features:0}},
+    "calendar.leon":{state:"on",attributes:{friendly_name:"Leon",supported_features:0}},
+  },
+  callApi: async(_m,path)=>cal[path.split("?")[0].replace("calendars/","")]||[],
+  callWS: async()=>({}),
+};
+const el=document.createElement("family-board-card");
+el.setConfig({
+  type:"custom:family-board-card",
+  title: T.title,
+  view: Q.get("view") || "day",
+  views:["day","timeline","week","month","agenda"],
+  show_focus:true, auto_icons:true, show_alerts: Q.has("alerts"), gap_min:60,
+  background_hours: 3, start_hour:7, end_hour:18, trim_hours:false,
+  hour_height: 64, hour_width: 110, time_grid:15,
+  persons:[
+    {name:"Anna",person:"person.anna",calendar:"calendar.anna"},
+    {name:"Ben",person:"person.ben",calendar:"calendar.ben"},
+    {name:"Mia",person:"person.mia",calendar:"calendar.mia"},
+    {name:"Leon",person:"person.leon",calendar:"calendar.leon"},
+  ],
+});
+el.hass=hass;
+document.getElementById("root").appendChild(el);
+</script></body></html>

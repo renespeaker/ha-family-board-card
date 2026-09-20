@@ -217,6 +217,8 @@ Getestet wird auf zwei Ebenen:
 
 `npm test` führt beides aus, ohne Browser.
 
+Was dabei grundsätzlich nicht auffallen kann, ist **Layout**: happy-dom rechnet keine Größen aus. Dafür liegt in [`tools/preview/`](tools/preview/) ein Harness, das die Karte in einem echten Chromium gegen ein nachgebautes Home Assistant stellt — `npm run check:browser` prüft damit Dinge wie „ragt ein Dialogfeld aus dem Dialog", „ist das erste Stundenlabel abgeschnitten", „scrollt die Agenda auf heute" und „läuft bei 400 px etwas seitlich aus". Braucht einen Browser und läuft deshalb nicht in der CI, lohnt sich aber vor einem Release.
+
 ## Termine anlegen / bearbeiten / löschen
 
 In der Tagesansicht eine freie Stelle in der Personenspalte anklicken öffnet den Dialog zum Anlegen (die Uhrzeit wird aus der Klick-Position übernommen); ein Klick auf einen Termin öffnet ihn zum Bearbeiten/Löschen. Ob das möglich ist, hängt vom Kalender ab: Die Karte liest `supported_features` der jeweiligen `calendar.*`-Entität und blendet Schreibaktionen aus, wenn der Kalender sie nicht unterstützt. Intern werden die WebSocket-Kommandos `calendar/event/create|update|delete` genutzt (dieselben wie die native HA-Kalenderoberfläche).
