@@ -3989,7 +3989,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .row {
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
+    }
+    /* Start and end sit side by side only while both actually fit. A flex item
+       defaults to min-width: auto, so without the wrap the end field used to be
+       pushed out past the dialog edge. How wide a datetime-local control is
+       depends on the BROWSER locale (a 12-hour "09:50 AM" needs noticeably more
+       room than "09:50"), so the breakpoint cannot be a fixed pixel value -
+       min-content lets the browser decide and the row stacks when it must. */
+    .row > .fld {
+      flex: 1 1 auto;
+      min-width: min-content;
     }
     .row .fld {
       flex: 1;
