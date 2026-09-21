@@ -23,6 +23,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Wochenansicht** – Wochentage als Zeilen, Personen als Spalten, kompakte Termin-Chips.
 - **Monatsansicht** – klassisches Monats-Grid mit farbigen Terminen pro Person; Klick auf einen Tag springt in die Tagesansicht.
 - **Agenda-/Listenansicht** – chronologische Terminliste, nach Tagen gruppiert; ideal fürs Handy.
+- **Fällige Aufgaben** – optional zeigt das Board offene `todo.*`-Aufgaben, die heute fällig oder überfällig sind, als Chips in der Ganztagszeile und in der Agenda. Funktioniert mit jeder To-do-Integration (Apple Erinnerungen, Todoist, Google Tasks, Bring!, lokale Listen) und **braucht keine weitere Karte**; wer keine Listen zuordnet, merkt nichts davon. Abgehakt wird weiterhin dort, wo die Aufgabe herkommt.
 - **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
 - **„Jetzt / als Nächstes"-Leiste** – optionale Glanz-Zeile über den Ansichten: pro Person auf einen Blick, was gerade läuft (mit Puls-Punkt) oder als Nächstes ansteht (inkl. Countdown) – ideal fürs Wandtablet.
 - **Auto-Symbole** – optional bekommt jeder Termin per Stichwort ein passendes Emoji (Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂, Schule → 🎒 …); eigene Regeln möglich. Titel, die schon ein Emoji haben, bleiben unberührt.
@@ -57,7 +58,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Kompakt-Modus** – ein Schalter (`compact`) für kleinere Schriften und engere Abstände, statt drei Regler einzeln zu justieren.
 - **Personen beim Start ausgeblendet** – `hidden: true` pro Person; die Spalte startet eingeklappt und ein Klick auf den Kopf holt sie zurück.
 
-> Status: **v0.26 – vollständige Familien-Tagesplanung: 5 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
+> Status: **v0.27 – vollständige Familien-Tagesplanung: 5 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
 
 ## Installation (HACS)
 
@@ -105,6 +106,7 @@ persons:
 | Option          | Typ     | Default | Beschreibung |
 |-----------------|---------|---------|--------------|
 | `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color`, `badges` (Entitäten als Chips) und `hidden` (startet eingeklappt) |
+| `persons[].tasks` | String/Liste | – | `todo.*`-Liste(n) dieser Person; heute fällige und überfällige Aufgaben erscheinen als Chips (Tagesansicht + Agenda). Ohne Angabe fragt die Karte keine Liste ab |
 | `hide_empty_persons` | boolean | `false` | Wochenansicht: Personen ohne Termine in der Woche ausblenden |
 | `show_alerts`   | boolean | `false` | Tages-Check über Tag/Zeitstrahl: Doppelbuchungen, Betreuungslücken und „niemand zuhause" als Chips |
 | `gap_min`       | number  | `60`    | Ab wie vielen Minuten eine Lücke zwischen zwei Terminen einer Person gemeldet wird (0 = aus) |
@@ -190,6 +192,12 @@ card_mod:
     }
 persons: …
 ```
+
+## Passt dazu
+
+Die [Family Task Card](https://github.com/renespeaker/ha-family-task-card) ist die Schwesterkarte für Aufgaben: Punkte, Belohnungen und ein Kindermodus auf denselben `todo.*`-Listen, in derselben Personen-Palette.
+
+**Beide Karten sind vollständig eigenständig.** Keine setzt die andere voraus, sie sprechen nicht miteinander, sondern jede für sich mit Home Assistant. Die Aufgaben-Chips oben funktionieren mit jeder To-do-Integration – auch ohne die Task Card. Wer beide nutzt, bekommt automatisch dieselben Farben pro Person, weil beide dieselbe Palette verwenden.
 
 ## Sprachen
 

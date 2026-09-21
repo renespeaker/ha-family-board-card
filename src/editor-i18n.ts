@@ -52,6 +52,7 @@ const EN: Dict = {
   l_name: "Display name",
   l_person: "Person (avatar & status)",
   l_calendar: "Calendars (multiple possible)",
+  l_tasks: "Task lists (due items appear on the board)",
   l_color: "Custom color (hex, optional)",
   l_badges: "Badges (e.g. battery, sensors)",
   l_hidden: "Hidden on start",
@@ -82,6 +83,8 @@ const EN: Dict = {
     "How long a hole between two of a person's events has to be before it is worth a warning",
   h_drag_drop: "Writable calendars only; drag to move, bottom edge changes the duration",
   h_views: "Which switchers appear at the top",
+  h_tasks:
+    "Open tasks due today - and overdue ones - show up as chips. Checking them off stays with your todo app or the Family Task Card",
   h_badges: "Small chips below the person header; click opens details",
   h_color: "Leave empty for the palette color",
   h_hidden: "Column starts collapsed; a click on the header brings it back",
@@ -184,6 +187,7 @@ const DE: Dict = {
   l_name: "Anzeigename",
   l_person: "Person (Avatar & Status)",
   l_calendar: "Kalender (mehrere möglich)",
+  l_tasks: "Aufgabenlisten (Fälliges erscheint im Board)",
   l_color: "Eigene Farbe (Hex, optional)",
   l_badges: "Badges (z. B. Akku, Sensoren)",
   l_hidden: "Beim Start ausgeblendet",
@@ -213,6 +217,8 @@ const DE: Dict = {
   h_gap_min: "Ab welcher Länge ein Loch zwischen zwei Terminen einer Person eine Warnung wert ist",
   h_drag_drop: "Nur bei schreibbaren Kalendern; Ziehen verschiebt, unterer Rand ändert die Dauer",
   h_views: "Welche Umschalter oben erscheinen",
+  h_tasks:
+    "Heute fällige und überfällige Aufgaben erscheinen als Chips. Abhaken bleibt bei deiner To-do-App bzw. der Family Task Card",
   h_badges: "Kleine Chips unter dem Personenkopf; Klick öffnet Details",
   h_color: "Leer lassen für Palettenfarbe",
   h_hidden: "Spalte startet eingeklappt; ein Klick auf den Kopf holt sie zurück",

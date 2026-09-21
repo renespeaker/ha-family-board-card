@@ -32,6 +32,8 @@ const allDay = (summary: string, from = "2026-09-11", to = "2026-09-12") => ({
 
 interface MountOpts {
   calendars?: Record<string, unknown[]>;
+  /** todo.* entity -> its items, as `todo/item/list` would return them. */
+  todos?: Record<string, unknown[]>;
   lang?: string;
   /** Local wall-clock time the test pretends it is. */
   now?: string;
@@ -44,6 +46,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   vi.useFakeTimers();
   vi.setSystemTime(new Date(opts.now ?? "2026-09-11T10:20:00"));
   const calendars = opts.calendars ?? {};
+  const todos = opts.todos ?? {};
   const states: Record<string, unknown> = {};
   for (const entity of Object.keys(calendars)) {
     states[entity] = {
@@ -51,6 +54,14 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
       attributes: { friendly_name: entity.split(".")[1], supported_features: 0 },
     };
   }
+  for (const entity of Object.keys(todos)) {
+    states[entity] = {
+      state: String(todos[entity].length),
+      last_changed: "2026-09-11T06:00:00+00:00",
+      attributes: { friendly_name: entity.split(".")[1], supported_features: 0 },
+    };
+  }
+  const wsCalls: Array<Record<string, unknown>> = [];
   const el = document.createElement("family-board-card") as HTMLElement & {
     setConfig(c: unknown): void;
     hass: unknown;
@@ -62,7 +73,13 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
     states,
     callApi: async (_method: string, path: string) =>
       calendars[path.split("?")[0].replace("calendars/", "")] ?? [],
-    callWS: async () => ({}),
+    callWS: async (msg: Record<string, unknown>) => {
+      wsCalls.push(msg);
+      if (msg.type === "todo/item/list") {
+        return { items: todos[msg.entity_id as string] ?? [] };
+      }
+      return {};
+    },
   };
   document.body.appendChild(el);
   mounted.push(el);
@@ -75,6 +92,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   return {
     el,
     root,
+    wsCalls,
     text: () => (root.textContent ?? "").replace(/\s+/g, " ").trim(),
     all: (sel: string) => [...root.querySelectorAll(sel)],
     texts: (sel: string) =>
@@ -284,6 +302,129 @@ describe("event clean-up", () => {
     const deduped = await mount({ ...base, persons, filter_duplicates: true }, { calendars });
     expect(withDupes.texts(".agenda-row")).toHaveLength(2);
     expect(deduped.texts(".agenda-row")).toHaveLength(1);
+  });
+});
+
+describe("due tasks", () => {
+  const task = (uid: string, summary: string, due?: string, status = "needs_action") => ({
+    uid,
+    summary,
+    status,
+    ...(due ? { due } : {}),
+  });
+  const dayView: Partial<FamilyBoardConfig> = {
+    view: "day",
+    views: ["day"],
+    start_hour: 7,
+    end_hour: 20,
+  };
+
+  it("says nothing about tasks and asks Home Assistant nothing when none are configured", async () => {
+    const { root, wsCalls } = await mount(
+      { ...dayView, persons: [{ name: "Anna", calendar: "calendar.anna" }] },
+      {
+        calendars: { "calendar.anna": [ev("Sport", "10:00", "11:00")] },
+        todos: { "todo.anna": [task("t1", "Müll rausbringen", "2026-09-11")] },
+      },
+    );
+    // a board without configured lists must not even ask for them
+    expect(wsCalls.filter((c) => c.type === "todo/item/list")).toHaveLength(0);
+    expect(root.querySelectorAll(".taskchip")).toHaveLength(0);
+  });
+
+  it("shows a task due today as a chip", async () => {
+    const { texts } = await mount(
+      { ...dayView, persons: [{ name: "Anna", tasks: "todo.anna" }] },
+      { todos: { "todo.anna": [task("t1", "Müll rausbringen", "2026-09-11")] } },
+    );
+    expect(texts(".taskchip").join(" ")).toContain("Müll rausbringen");
+  });
+
+  it("leaves out completed tasks and tasks without a due date", async () => {
+    const { root } = await mount(
+      { ...dayView, persons: [{ name: "Anna", tasks: "todo.anna" }] },
+      {
+        todos: {
+          "todo.anna": [
+            task("t1", "Erledigt", "2026-09-11", "completed"),
+            task("t2", "Irgendwann"),
+          ],
+        },
+      },
+    );
+    expect(root.querySelectorAll(".taskchip")).toHaveLength(0);
+  });
+
+  it("marks an overdue task and keeps it on today", async () => {
+    const { root, texts } = await mount(
+      { ...dayView, persons: [{ name: "Anna", tasks: "todo.anna" }] },
+      { todos: { "todo.anna": [task("t1", "Längst fällig", "2026-09-08")] } },
+    );
+    expect(texts(".taskchip.overdue").join(" ")).toContain("Längst fällig");
+    expect(root.querySelectorAll(".taskchip")).toHaveLength(1);
+  });
+
+  it("does not carry an overdue task onto other days of the week", async () => {
+    const { root } = await mount(
+      { ...dayView, persons: [{ name: "Anna", tasks: "todo.anna" }] },
+      {
+        todos: { "todo.anna": [task("t1", "Längst fällig", "2026-09-08")] },
+        now: "2026-09-12T09:00:00",
+      },
+    );
+    // the 12th is today now, so the overdue task moves along with today
+    expect(root.querySelectorAll(".taskchip")).toHaveLength(1);
+  });
+
+  it("hides the tasks of a person who is switched off", async () => {
+    const { el, root } = await mount(
+      { ...dayView, persons: [{ name: "Anna", tasks: "todo.anna" }] },
+      { todos: { "todo.anna": [task("t1", "Müll rausbringen", "2026-09-11")] } },
+    );
+    expect(root.querySelectorAll(".taskchip")).toHaveLength(1);
+    (root.querySelector(".phead") as HTMLElement).click();
+    await vi.advanceTimersByTimeAsync(0);
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(root.querySelectorAll(".taskchip")).toHaveLength(0);
+  });
+
+  it("lists due tasks in the agenda as well", async () => {
+    const { texts } = await mount(
+      { view: "agenda", views: ["agenda"], persons: [{ name: "Anna", tasks: "todo.anna" }] },
+      { todos: { "todo.anna": [task("t1", "Müll rausbringen", "2026-09-11")] } },
+    );
+    expect(texts(".agenda-row.task").join(" ")).toContain("Müll rausbringen");
+  });
+
+  it("survives a list that cannot be read", async () => {
+    const el = document.createElement("family-board-card") as HTMLElement & {
+      setConfig(c: unknown): void;
+      hass: unknown;
+      updateComplete: Promise<unknown>;
+    };
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-11T10:20:00"));
+    el.setConfig({
+      type: "custom:family-board-card",
+      view: "day",
+      views: ["day"],
+      persons: [{ name: "Anna", tasks: "todo.kaputt" }],
+    });
+    el.hass = {
+      locale: { language: "de" },
+      states: { "todo.kaputt": { state: "1", last_changed: "x", attributes: {} } },
+      callApi: async () => [],
+      callWS: async () => {
+        throw new Error("not supported");
+      },
+    };
+    document.body.appendChild(el);
+    mounted.push(el);
+    for (let i = 0; i < 8; i++) {
+      await vi.advanceTimersByTimeAsync(0);
+      await el.updateComplete;
+    }
+    expect((el.shadowRoot as ShadowRoot).textContent).toContain("Familienplan");
   });
 });
 

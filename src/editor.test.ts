@@ -5,6 +5,7 @@
 /*  functions as properties - which is exactly what we want to check.  */
 /* ------------------------------------------------------------------ */
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { FALLBACK_COLORS } from "./ha-family-board-card";
 
 beforeAll(async () => {
   await import("./editor");
@@ -95,6 +96,30 @@ describe("editor language", () => {
     expect(de.text()).toContain("Willkommen beim Familienplan");
     const en = await mountEditor({ persons: [] }, "en");
     expect(en.text()).toContain("Welcome to the family board");
+  });
+});
+
+describe("editor colours", () => {
+  /**
+   * The swatches must be the colours the card actually paints. They used to be
+   * a separate palette, so picking a colour in the editor gave a person a hue
+   * the card would never assign on its own - and a different one again from the
+   * Family Task Card, which shares this palette.
+   */
+  it("offers exactly the palette the card paints with", async () => {
+    const { root } = await mountEditor();
+    const swatches = [...root.querySelectorAll(".swatch:not(.none)")].map((el) =>
+      (el.getAttribute("style") ?? "").replace("background:", "").trim(),
+    );
+    expect(swatches).toEqual(FALLBACK_COLORS);
+  });
+
+  it("previews a person in the colour the card will use", async () => {
+    const { root } = await mountEditor({ persons: [{ name: "Anna" }, { name: "Ben" }] });
+    const dots = [...root.querySelectorAll(".person .pdot")].map((el) =>
+      (el.getAttribute("style") ?? "").replace("background:", "").trim(),
+    );
+    expect(dots).toEqual([FALLBACK_COLORS[0], FALLBACK_COLORS[1]]);
   });
 });
 
