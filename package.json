@@ -13,7 +13,8 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "preview": "python3 -m http.server 8931",
-    "check:browser": "node tools/preview/check.mjs"
+    "check:browser": "node tools/preview/check.mjs",
+    "check:shared": "node tools/check-shared.mjs"
   },
   "dependencies": {
     "lit": "^3.1.0"

@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, PropertyValues } from "lit";
+import { PERSON_PALETTE } from "./shared/person-palette";
 import { property, state } from "lit/decorators.js";
 import type {
   HomeAssistant,
@@ -130,21 +131,12 @@ interface DialogState {
 /* ------------------------------------------------------------------ */
 /**
  * The person palette. Exported so the editor offers exactly the colours the
- * card actually paints, and shared verbatim with the Family Task Card so the
- * same person looks the same on both cards of a dashboard.
+ * card actually paints, and mirrored in the Family Task Card so the same
+ * person looks the same on both cards of a dashboard - see the file it comes
+ * from.
  */
-export const FALLBACK_COLORS = [
-  "#8B7CF6",
-  "#34D399",
-  "#FBBF24",
-  "#FB7185",
-  "#22D3EE",
-  "#C084FC",
-  "#A3E635",
-  "#FB923C",
-  "#F472B6",
-  "#60A5FA",
-];
+export const FALLBACK_COLORS = PERSON_PALETTE;
+
 const DEFAULT_HOUR_HEIGHT = 64; // px per hour in the day view
 const HOUR_HEIGHT_MIN = 40;
 const HOUR_HEIGHT_MAX = 96;
