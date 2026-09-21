@@ -59,6 +59,8 @@ const EN: Dict = {
   alert_conflict: "two events at once",
   alert_gap: "gap between events",
   alert_empty: "nobody home",
+  task_due: "task due",
+  task_overdue: "task overdue",
 };
 
 const DE: Dict = {
@@ -115,6 +117,8 @@ const DE: Dict = {
   alert_conflict: "zwei Termine gleichzeitig",
   alert_gap: "Lücke zwischen Terminen",
   alert_empty: "niemand zuhause",
+  task_due: "Aufgabe fällig",
+  task_overdue: "Aufgabe überfällig",
 };
 
 const TABLE: Record<string, Dict> = { en: EN, de: DE };

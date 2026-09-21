@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
-import { autoDetectPersons } from "./ha-family-board-card";
+import { autoDetectPersons, FALLBACK_COLORS } from "./ha-family-board-card";
 import type { FamilyBoardConfig } from "./ha-family-board-card";
 import { langOf, localize } from "./localize";
 import { et } from "./editor-i18n";
@@ -15,22 +15,6 @@ interface PersonConfig {
   hidden?: boolean;
 }
 
-/** Curated family palette for one-click color picking. */
-const PALETTE = [
-  "#7986cb",
-  "#4fc3f7",
-  "#4db6ac",
-  "#aed581",
-  "#ffd54f",
-  "#ffb74d",
-  "#e57373",
-  "#f06292",
-  "#f48fb1",
-  "#ce93d8",
-  "#9575cd",
-  "#90a4ae",
-];
-
 const VIEW_VALUES = ["day", "timeline", "week", "month", "agenda"];
 
 // One ha-form per person row, with entity pickers filtered by domain.
@@ -42,6 +26,10 @@ const PERSON_SCHEMA = [
   { name: "color", selector: { text: {} } },
   { name: "hidden", selector: { boolean: {} } },
 ];
+const TASKS_FIELD = {
+  name: "tasks",
+  selector: { entity: { filter: { domain: "todo" }, multiple: true } },
+};
 
 /** Expandable group for ha-form (flat data, name must stay empty). */
 const group = (title: string, icon: string, schema: unknown[]) => ({
@@ -85,6 +73,16 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     const val = et(this._lang, key);
     return val === key ? undefined : val;
   };
+
+  /**
+   * The task field only appears for someone who actually keeps todo lists in
+   * Home Assistant. Without any, the board says nothing about tasks and no
+   * switch points at something that does not exist.
+   */
+  private _personSchema(): unknown[] {
+    const hasTodo = Object.keys(this.hass?.states ?? {}).some((e) => e.startsWith("todo."));
+    return hasTodo ? [...PERSON_SCHEMA, TASKS_FIELD] : PERSON_SCHEMA;
+  }
 
   /** Localized view options for the dropdown / multi-select. */
   private _viewOptions() {
@@ -436,7 +434,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
   private _swatches(current: string | undefined, pick: (c?: string) => void) {
     return html`
       <div class="swatches">
-        ${PALETTE.map(
+        ${FALLBACK_COLORS.map(
           (c) => html`
             <button
               class="swatch ${current?.toLowerCase() === c ? "on" : ""}"
@@ -495,7 +493,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
               <div class="person-head">
                 <span
                   class="pdot"
-                  style="background:${p.color || PALETTE[idx % PALETTE.length]}"
+                  style="background:${p.color || FALLBACK_COLORS[idx % FALLBACK_COLORS.length]}"
                 ></span>
                 <span class="pidx">${p.name || `${this._t("person_n")} ${idx + 1}`}</span>
                 <div class="ptools">
@@ -528,7 +526,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
               <ha-form
                 .hass=${this.hass}
                 .data=${this._personData(p)}
-                .schema=${PERSON_SCHEMA}
+                .schema=${this._personSchema()}
                 .computeLabel=${this._label}
                 .computeHelper=${this._helper}
                 @value-changed=${(e: CustomEvent) => this._personChanged(idx, e)}

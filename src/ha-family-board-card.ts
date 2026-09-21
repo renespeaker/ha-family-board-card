@@ -36,7 +36,8 @@ const ALL_VIEWS: ViewName[] = ["day", "timeline", "week", "month", "agenda"];
 interface PersonConfig {
   name?: string;
   person?: string; // person.* entity -> avatar (entity_picture) + live status
-  calendar?: string | string[]; // calendar.* entity/entities -> events
+  calendar?: string | string[];
+  tasks?: string | string[]; // todo.* list(s) whose due items show on the board // calendar.* entity/entities -> events
   color?: string; // optional override; default falls back to a palette
   badges?: string[]; // extra entities shown as chips under the person header
   hidden?: boolean; // start collapsed (person toggle can bring them back)
@@ -127,7 +128,12 @@ interface DialogState {
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
-const FALLBACK_COLORS = [
+/**
+ * The person palette. Exported so the editor offers exactly the colours the
+ * card actually paints, and shared verbatim with the Family Task Card so the
+ * same person looks the same on both cards of a dashboard.
+ */
+export const FALLBACK_COLORS = [
   "#8B7CF6",
   "#34D399",
   "#FBBF24",
@@ -203,6 +209,28 @@ const ICON_MAP: Array<[RegExp, string]> = [
 
 // Test for an emoji already present in a title (avoid adding a second one).
 const HAS_EMOJI = /\p{Extended_Pictographic}/u;
+
+/** One item of a `todo.*` list, as `todo/item/list` returns it. */
+interface TodoItem {
+  uid: string;
+  summary: string;
+  status: "needs_action" | "completed";
+  due?: string; // "YYYY-MM-DD" or an ISO datetime
+}
+
+/** An open task pinned to the person whose list it came from. */
+interface BoardTask {
+  personIdx: number;
+  entity: string;
+  uid: string;
+  summary: string;
+  due: Date;
+  allDayDue: boolean; // due is a plain date, so it belongs to the whole day
+  overdue: boolean;
+}
+
+/** End of the moment a task is still in time for. */
+const taskDeadline = (due: string): Date => new Date(due.length <= 10 ? `${due}T23:59:59` : due);
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -301,6 +329,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _suppressClick = false;
   private _raw: RawEvent[] = [];
   private _fetchedKey = "";
+  @state() private _tasks: Record<string, TodoItem[]> = {};
+  private _taskSig: Record<string, string> = {};
   private _timer?: number;
   private _tick?: number;
   @state() private _forecast: Record<string, { temp: number; condition: string }> = {};
@@ -501,10 +531,23 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if ((changed.has("hass") || changed.has("_config")) && this.hass && this._config) {
       this._maybeFetch();
       this._maybeFetchWeather();
+      this._maybeFetchTasks();
     }
     if (changed.has("_dialog")) this._manageDialogFocus(changed.get("_dialog") as DialogState);
     this._measureFit();
+    this._syncHeaderOffset();
     this._maybeScrollToNow();
+  }
+
+  /** Publish the person header's height so the all-day row can stick below it. */
+  private _syncHeaderOffset(): void {
+    const board = this.renderRoot?.querySelector(".board") as HTMLElement | null;
+    const header = board?.querySelector(".header-row") as HTMLElement | null;
+    if (!board || !header) return;
+    const want = `${header.offsetHeight}px`;
+    if (board.style.getPropertyValue("--fb-head-h") !== want) {
+      board.style.setProperty("--fb-head-h", want);
+    }
   }
 
   /**
@@ -699,6 +742,95 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private async _refetch(): Promise<void> {
     this._fetchedKey = "";
     await this._maybeFetch();
+  }
+
+  /** Every `todo.*` list assigned to a person, deduplicated. */
+  private _taskEntities(): string[] {
+    const out: string[] = [];
+    for (const p of this._persons) {
+      const lists = Array.isArray(p.tasks) ? p.tasks : p.tasks ? [p.tasks] : [];
+      for (const e of lists) if (e && !out.includes(e)) out.push(e);
+    }
+    return out;
+  }
+
+  /**
+   * Read the assigned todo lists. Nothing is configured -> not a single call
+   * goes out, so a board without tasks behaves exactly as it always did. A
+   * `todo.*` entity carries its open-item count as state, so its state plus
+   * last_changed tells us when a list actually needs re-reading.
+   */
+  private async _maybeFetchTasks(): Promise<void> {
+    const entities = this._taskEntities();
+    if (entities.length === 0) {
+      if (Object.keys(this._tasks).length) {
+        this._tasks = {};
+        this._taskSig = {};
+      }
+      return;
+    }
+    const stale = entities.filter((e) => {
+      const st = this.hass.states[e];
+      const sig = st ? `${st.state}|${st.last_changed}` : "missing";
+      if (this._taskSig[e] === sig) return false;
+      this._taskSig[e] = sig;
+      return true;
+    });
+    if (stale.length === 0) return;
+    const next = { ...this._tasks };
+    await Promise.all(
+      stale.map(async (entity_id) => {
+        try {
+          const res = await this.hass.callWS<{ items: TodoItem[] }>({
+            type: "todo/item/list",
+            entity_id,
+          });
+          next[entity_id] = res?.items ?? [];
+        } catch (_e) {
+          // A list that cannot be read must not take the calendar down with it.
+          next[entity_id] = [];
+        }
+      }),
+    );
+    this._tasks = next;
+  }
+
+  /**
+   * Open tasks of one person that are due on `date` or already overdue.
+   * Overdue ones are pulled onto today so they cannot quietly fall off the
+   * bottom of the week.
+   */
+  private _tasksFor(idx: number, date: Date): BoardTask[] {
+    if (this._isOff(idx)) return [];
+    const person = this._persons[idx];
+    const lists = Array.isArray(person?.tasks) ? person.tasks : person?.tasks ? [person.tasks] : [];
+    if (lists.length === 0) return [];
+    const dayStart = startOfDay(date);
+    const dayEnd = new Date(dayStart.getTime() + DAY_MS);
+    const now = new Date();
+    const isToday = startOfDay(now).getTime() === dayStart.getTime();
+    const out: BoardTask[] = [];
+    for (const entity of lists) {
+      for (const item of this._tasks[entity] ?? []) {
+        if (item.status !== "needs_action" || !item.due) continue;
+        const deadline = taskDeadline(item.due);
+        if (isNaN(deadline.getTime())) continue;
+        const overdue = deadline.getTime() < now.getTime();
+        const onThisDay =
+          deadline.getTime() >= dayStart.getTime() && deadline.getTime() < dayEnd.getTime();
+        if (!onThisDay && !(overdue && isToday)) continue;
+        out.push({
+          personIdx: idx,
+          entity,
+          uid: item.uid,
+          summary: item.summary,
+          due: deadline,
+          allDayDue: item.due.length <= 10,
+          overdue,
+        });
+      }
+    }
+    return out.sort((a, b) => a.due.getTime() - b.due.getTime());
   }
 
   /** Fetch the daily forecast for the configured weather entity (once/day). */
@@ -1370,6 +1502,36 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     `;
   }
 
+  /**
+   * A due task as a chip. The board shows tasks, never points or levels - those
+   * belong to the Family Task Card and would be meaningless without it.
+   * A click opens Home Assistant's own dialog for the list; checking tasks off
+   * is not this card's job.
+   */
+  private _taskChip(t: BoardTask) {
+    const time = t.allDayDue ? "" : formatTime(this.hass, t.due);
+    const label = t.overdue ? this._t("task_overdue") : this._t("task_due");
+    return html`
+      <div
+        class="taskchip ${t.overdue ? "overdue" : ""}"
+        tabindex="0"
+        role="button"
+        title="${t.summary} · ${label}${time ? ` ${time}` : ""}"
+        @click=${() => this._moreInfo(t.entity)}
+        @keydown=${(k: KeyboardEvent) => {
+          if (k.key === "Enter" || k.key === " ") {
+            k.preventDefault();
+            this._moreInfo(t.entity);
+          }
+        }}
+      >
+        <span class="taskbox">${t.overdue ? "!" : "\u2713"}</span>
+        <span class="tasktext">${t.summary}</span>
+        ${time ? html`<span class="tasktime">${time}</span>` : nothing}
+      </div>
+    `;
+  }
+
   private _renderFocus() {
     return html`
       <div class="focus">
@@ -1452,7 +1614,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const now = new Date();
     const nowMin = Math.max(startMin, Math.min(endMin, now.getHours() * 60 + now.getMinutes()));
     const showNow = this._config.show_now_line !== false && this._isRealToday(day);
-    const hasAllDay = this._persons.some((_, i) => this._allDayFor(day, i).length > 0);
+    const dayDate = this._dateForDay(day);
+    const hasAllDay = this._persons.some(
+      (_, i) => this._allDayFor(day, i).length > 0 || this._tasksFor(i, dayDate).length > 0,
+    );
 
     return html`
       <div class="dayhead">
@@ -1508,6 +1673,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   ${this._persons.map(
                     (p, i) => html`
                       <div class="allday-cell ${this._isOff(i) ? "off" : ""}">
+                        ${this._tasksFor(i, dayDate).map((t) => this._taskChip(t))}
                         ${this._allDayFor(day, i).map((e) => {
                           const c = this._eventColor(e);
                           const tent = this._isTentative(e);
@@ -2059,7 +2225,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             .sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.startMin - b.startMin),
         ),
       }))
-      .filter((g) => g.items.length > 0);
+      .filter(
+        (g) =>
+          g.items.length > 0 ||
+          this._persons.some((_p, i) => this._tasksFor(i, this._dateForDay(g.d)).length > 0),
+      );
 
     return html`
       <div class="weekhead">${this._weekNav()}</div>
@@ -2079,10 +2249,45 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                       ${this._weatherChip(this._dateForDay(g.d))}
                     </div>
                     ${g.items.map((e) => this._agendaRow(e))}
+                    ${this._persons.flatMap((_p, i) =>
+                      this._tasksFor(i, this._dateForDay(g.d)).map((t) => this._agendaTask(t)),
+                    )}
                   </div>
                 `,
               )
         }
+      </div>
+    `;
+  }
+
+  /** A due task in the agenda, in the same shape as an event row. */
+  private _agendaTask(t: BoardTask) {
+    const person = this._persons[t.personIdx];
+    const c = personColor(person, t.personIdx);
+    return html`
+      <div
+        class="agenda-row task ${t.overdue ? "overdue" : ""}"
+        tabindex="0"
+        role="button"
+        @click=${() => this._moreInfo(t.entity)}
+        @keydown=${(k: KeyboardEvent) => {
+          if (k.key === "Enter" || k.key === " ") {
+            k.preventDefault();
+            this._moreInfo(t.entity);
+          }
+        }}
+      >
+        <span class="agenda-time"
+          >${t.allDayDue ? this._t("all_day") : formatTime(this.hass, t.due)}</span
+        >
+        <span class="agenda-bar" style="background:${c}"></span>
+        <span class="agenda-main">
+          <span class="agenda-title">${t.overdue ? "! " : "\u2713 "}${t.summary}</span>
+          <span class="agenda-meta"
+            >${this._personName(person, t.personIdx)} ·
+            ${t.overdue ? this._t("task_overdue") : this._t("task_due")}</span
+          >
+        </span>
       </div>
     `;
   }
@@ -3008,8 +3213,61 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       border-left: 1px solid var(--divider-color);
       position: relative;
     }
+    .taskchip {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-bottom: 3px;
+      padding: 2px 6px;
+      border-radius: var(--fb-radius-sm, 5px);
+      font-size: var(--fb-chip-size, 10.5px);
+      line-height: 1.35;
+      cursor: pointer;
+      border: 1px dashed var(--divider-color);
+      color: var(--primary-text-color);
+      background: var(--secondary-background-color);
+    }
+    .taskchip.overdue {
+      border-style: solid;
+      border-color: color-mix(in srgb, var(--warning-color, #ffa600) 65%, transparent);
+      background: color-mix(in srgb, var(--warning-color, #ffa600) 14%, transparent);
+    }
+    .taskchip .taskbox {
+      flex: 0 0 auto;
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid var(--divider-color);
+      font-size: 9px;
+      line-height: 11px;
+      text-align: center;
+      opacity: 0.75;
+    }
+    .taskchip.overdue .taskbox {
+      border-color: var(--warning-color, #ffa600);
+      color: var(--warning-color, #ffa600);
+      font-weight: 700;
+      opacity: 1;
+    }
+    .taskchip .tasktime {
+      flex: 0 0 auto;
+      margin-left: auto;
+      opacity: 0.7;
+      font-variant-numeric: tabular-nums;
+    }
+    .taskchip .tasktext {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    /* Sticks right below the person header: the board scrolls to the current
+       time on load, and an all-day row inside the scroller would be gone
+       before anyone saw it. The offset is the measured header height. */
     .allday-row {
       display: flex;
+      position: sticky;
+      top: var(--fb-head-h, 0px);
+      z-index: 4;
       border-bottom: 1px solid var(--divider-color);
       background: var(--card-background-color, var(--ha-card-background));
     }
@@ -3341,6 +3599,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .agenda-row {
       transition: background 0.12s ease;
+    }
+    .agenda-row.task .agenda-title {
+      font-weight: 600;
+    }
+    .agenda-row.task.overdue .agenda-title {
+      color: var(--warning-color, #ffa600);
     }
     .agenda-row:hover {
       background: var(--secondary-background-color);
@@ -4123,7 +4387,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.26.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.27.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

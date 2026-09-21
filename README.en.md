@@ -23,6 +23,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Week view** – weekdays as rows, people as columns, compact event chips.
 - **Month view** – classic month grid with colored events per person; clicking a day jumps into the day view.
 - **Agenda / list view** – chronological list of events grouped by day; ideal on a phone.
+- **Due tasks** – optionally the board shows open `todo.*` tasks that are due today or overdue as chips in the all-day row and in the agenda. Works with any todo integration (Apple Reminders, Todoist, Google Tasks, Bring!, local lists) and **needs no second card**; assign no lists and you will never notice the feature. Checking tasks off stays where the task lives.
 - **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
 - **“Now / next” bar** – optional highlight row above the views: per person, what is running right now (with a pulsing dot) or what is coming next (incl. countdown) – made for the wall tablet.
 - **Auto icons** – optionally every event gets a matching emoji by keyword (doctor → 🩺, sport → 🏃, birthday → 🎂, school → 🎒 …); custom rules possible. Titles that already contain an emoji stay untouched.
@@ -57,7 +58,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Compact mode** – one switch (`compact`) for smaller fonts and tighter spacing instead of adjusting three sliders.
 - **People hidden on start** – `hidden: true` per person; the column starts collapsed and a click on the header brings it back.
 
-> Status: **v0.26 – complete family day planning: 5 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
+> Status: **v0.27 – complete family day planning: 5 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
 
 ## Installation (HACS)
 
@@ -105,6 +106,7 @@ persons:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `persons` | list | – | 1–10 people with `name`, `person`, `calendar` (string **or list**), optionally `color`, `badges` (entities as chips) and `hidden` (starts collapsed) |
+| `persons[].tasks` | string/list | – | `todo.*` list(s) of this person; tasks due today and overdue ones appear as chips (day view + agenda). Without it the card queries no list at all |
 | `hide_empty_persons` | boolean | `false` | Week view: hide people without events in that week |
 | `show_alerts` | boolean | `false` | Day check above the day/timeline views: double bookings, care gaps and “nobody home” as chips |
 | `gap_min` | number | `60` | How many minutes a gap between two of a person's events must reach to be flagged (0 = off) |
@@ -190,6 +192,12 @@ card_mod:
     }
 persons: …
 ```
+
+## Goes well with
+
+The [Family Task Card](https://github.com/renespeaker/ha-family-task-card) is the sister card for chores: points, rewards and a kid mode on the same `todo.*` lists, in the same person palette.
+
+**Both cards stand entirely on their own.** Neither requires the other, they never talk to each other — each talks to Home Assistant. The task chips above work with any todo integration, with or without the Task Card. Use both and the same person gets the same colour on each, because both share one palette.
 
 ## Languages
 
