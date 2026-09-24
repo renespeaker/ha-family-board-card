@@ -24,6 +24,8 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Month view** – classic month grid with colored events per person; clicking a day jumps into the day view.
 - **Agenda / list view** – chronological list of events grouped by day; ideal on a phone.
 - **Due tasks** – optionally the board shows open `todo.*` tasks that are due today or overdue as chips in the all-day row and in the agenda. Works with any todo integration (Apple Reminders, Todoist, Google Tasks, Bring!, local lists) and **needs no second card**; assign no lists and you will never notice the feature. Checking tasks off stays where the task lives.
+- **Slim header** – `slim_header` moves the weekday buttons onto the navigation line and puts the avatar next to the name: about 40 px less header, more room for the day.
+- **Can start on another day** – `day_offset` shifts the day and timeline views by N days (`1` = tomorrow). Meant for displays that should show the day ahead – an e-paper panel in the hallway, say.
 - **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
 - **“Now / next” bar** – optional highlight row above the views: per person, what is running right now (with a pulsing dot) or what is coming next (incl. countdown) – made for the wall tablet.
 - **Auto icons** – optionally every event gets a matching emoji by keyword (doctor → 🩺, sport → 🏃, birthday → 🎂, school → 🎒 …); custom rules possible. Titles that already contain an emoji stay untouched.
@@ -58,7 +60,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Compact mode** – one switch (`compact`) for smaller fonts and tighter spacing instead of adjusting three sliders.
 - **People hidden on start** – `hidden: true` per person; the column starts collapsed and a click on the header brings it back.
 
-> Status: **v0.27 – complete family day planning: 5 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
+> Status: **v0.28 – complete family day planning: 5 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
 
 ## Installation (HACS)
 
@@ -148,6 +150,8 @@ persons:
 | `background_hours` | number | `3` | Timed events from this length (hrs.) on are drawn as a subtle background band instead of a column; `0` = off |
 | `max_columns` | number | `3` | Max. side-by-side columns per person/day; with more overlaps a “+N” chip appears (1–8) |
 | `tentative_patterns` | list | – | Mark events with a matching title pattern as tentative (dashed / translucent) |
+| `day_offset` | number | `0` | Day/timeline view starts N days off: `1` = tomorrow, `-1` = yesterday. The shift crosses the week boundary correctly and survives `auto_return` (for e-paper and info displays) |
+| `slim_header` | boolean | `false` | Slim header: the weekday buttons move onto the navigation line and the avatar sits next to the name – saves about 40 px of height |
 | `first_day` | string | `monday` | Week starts on `monday` or `sunday` |
 | `scroll_to_now` | boolean | `true` | Scroll to “now” on load: the day view to the current time, the timeline horizontally to the now line, the agenda to today's section (or the next day with events when today has none) |
 | `refresh_interval` | number | `300` | Auto refresh of the events in seconds (0 = off); additionally when the tablet wakes up |

@@ -88,6 +88,8 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   past_opacity?: number; // opacity of past events in percent (-> --fb-past-opacity)
   hide_empty_persons?: boolean; // week view: skip persons without events that week
   auto_return?: number; // kiosk: minutes of inactivity before returning to the default view. 0=off
+  day_offset?: number; // start the day/timeline view N days from today (1 = tomorrow, -1 = yesterday)
+  slim_header?: boolean; // weekday tabs on the nav line, avatar beside the name
   trim_hours?: boolean; // day view: cut empty edge hours so events get the full height. default true
   background_hours?: number; // timed events >= this many hours become a faint band. default 3, 0=off
   max_columns?: number; // max side-by-side columns per person/day. default 3
@@ -368,7 +370,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const enabled = this._enabledViews;
     const wanted = config.view ?? "day";
     this._view = enabled.includes(wanted) ? wanted : enabled[0];
-    this._day = this._todayIndex();
+    const home = this._homePosition();
+    this._day = home.day;
+    this._weekOffset = home.week;
     // persons flagged `hidden` start collapsed (the header toggle brings them back)
     this._hiddenP = config.persons.map((p, i) => (p.hidden ? i : -1)).filter((i) => i >= 0);
     // simple size knobs -> CSS tokens (also overridable via theme/card-mod)
@@ -379,6 +383,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this.style.removeProperty("--fb-col-min");
     }
     this.toggleAttribute("compact", config.compact === true);
+    this.toggleAttribute("slim", config.slim_header === true);
     const evSize = Number(config.event_size);
     if (Number.isFinite(evSize) && evSize >= 8 && evSize <= 20) {
       this.style.setProperty("--fb-event-size", `${evSize}px`);
@@ -418,6 +423,32 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   /** Column index (0..6 from week start) of the real today. */
   private _todayIndex(): number {
     return (new Date().getDay() - this._firstDayJs + 7) % 7;
+  }
+
+  /** Start of the week (per `first_day`) that `date` falls into. */
+  private _weekStart(date: Date): Date {
+    const d = startOfDay(date);
+    d.setDate(d.getDate() - ((d.getDay() - this._firstDayJs + 7) % 7));
+    return d;
+  }
+
+  /**
+   * Where the card comes to rest: today, shifted by `day_offset` days. A
+   * kitchen display can stand on tomorrow that way. The shift has to carry
+   * across the week boundary - "Sunday + 1" is Monday of the following week,
+   * not Monday of this one - so it yields a day index and a week offset.
+   */
+  private _homePosition(): { day: number; week: number } {
+    const offset = Math.trunc(Number(this._config?.day_offset ?? 0));
+    if (!Number.isFinite(offset) || offset === 0) {
+      return { day: this._todayIndex(), week: 0 };
+    }
+    const today = startOfDay(new Date());
+    const target = new Date(today.getTime() + offset * DAY_MS);
+    const week = Math.round(
+      (this._weekStart(target).getTime() - this._weekStart(today).getTime()) / (7 * DAY_MS),
+    );
+    return { day: (target.getDay() - this._firstDayJs + 7) % 7, week };
   }
 
   public getCardSize(): number {
@@ -489,10 +520,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const wanted = this._config.view ?? "day";
     const view = this._enabledViews.includes(wanted) ? wanted : this._enabledViews[0];
     if (this._view !== view) this._view = view;
-    if (this._weekOffset !== 0) this._weekOffset = 0;
+    const home = this._homePosition();
+    if (this._weekOffset !== home.week) this._weekOffset = home.week;
     if (this._monthOffset !== 0) this._monthOffset = 0;
     if (this._hiddenP.length) this._hiddenP = [];
-    this._day = this._todayIndex();
+    this._day = home.day;
   }
 
   /** Refresh when the tab/tablet becomes visible again. */
@@ -1362,8 +1394,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this._weekOffset += 1;
   };
   private _thisWeek = () => {
-    this._weekOffset = 0;
-    this._day = this._todayIndex();
+    const home = this._homePosition();
+    this._weekOffset = home.week;
+    this._day = home.day;
   };
   private _prevMonth = () => {
     this._monthOffset -= 1;
@@ -1619,9 +1652,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             this._loading && this._raw.length === 0 ? html`<span class="spinner"></span>` : nothing
           }
         </span>
-        ${this._weekNav()}
+        ${this._config.slim_header ? this._renderDayTabs() : nothing} ${this._weekNav()}
       </div>
-      ${this._renderDayTabs()}
+      ${this._config.slim_header ? nothing : this._renderDayTabs()}
       ${this._loadError ? html`<div class="banner">${this._t("load_error")}</div>` : nothing}
       <div class="board">
         <div class="header-row">
@@ -1647,11 +1680,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 ${
                   off
                     ? nothing
-                    : html`<div class="pname">${this._personName(p, i)}</div>
+                    : html`<div class="pmeta">
+                        <div class="pname">${this._personName(p, i)}</div>
                         <div class="pstatus">
                           ${stateObj ? this._statusLabel(stateObj.state) : ""}
                         </div>
-                        ${this._badges(p)}`
+                        ${this._badges(p)}
+                      </div>`
                 }
               </div>
             `;
@@ -1922,9 +1957,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             this._loading && this._raw.length === 0 ? html`<span class="spinner"></span>` : nothing
           }
         </span>
-        ${this._weekNav()}
+        ${this._config.slim_header ? this._renderDayTabs() : nothing} ${this._weekNav()}
       </div>
-      ${this._renderDayTabs()}
+      ${this._config.slim_header ? nothing : this._renderDayTabs()}
       ${this._loadError ? html`<div class="banner">${this._t("load_error")}</div>` : nothing}
       <div class="tlwrap">
         <div class="tlgrid" style="min-width:calc(var(--fb-tl-label, 150px) + ${width}px)">
@@ -3090,6 +3125,35 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       padding: 10px 16px;
       border-bottom: 1px solid var(--divider-color);
       flex-wrap: wrap;
+    }
+    /* Wrapper only exists for the slim header; normally it must not affect
+       layout at all, which is what display: contents buys us. */
+    .pmeta {
+      display: contents;
+    }
+    :host([slim]) .pmeta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      min-width: 0;
+    }
+    :host([slim]) .phead {
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 5px 6px;
+    }
+    :host([slim]) .pname,
+    :host([slim]) .pstatus {
+      text-align: left;
+    }
+    :host([slim]) .dayhead,
+    :host([slim]) .weekhead {
+      padding: 5px 12px;
+    }
+    :host([slim]) .tabs {
+      margin: 0;
     }
     .dayname {
       font-weight: 700;
@@ -4379,7 +4443,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.27.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.28.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

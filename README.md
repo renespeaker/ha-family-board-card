@@ -24,6 +24,8 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Monatsansicht** – klassisches Monats-Grid mit farbigen Terminen pro Person; Klick auf einen Tag springt in die Tagesansicht.
 - **Agenda-/Listenansicht** – chronologische Terminliste, nach Tagen gruppiert; ideal fürs Handy.
 - **Fällige Aufgaben** – optional zeigt das Board offene `todo.*`-Aufgaben, die heute fällig oder überfällig sind, als Chips in der Ganztagszeile und in der Agenda. Funktioniert mit jeder To-do-Integration (Apple Erinnerungen, Todoist, Google Tasks, Bring!, lokale Listen) und **braucht keine weitere Karte**; wer keine Listen zuordnet, merkt nichts davon. Abgehakt wird weiterhin dort, wo die Aufgabe herkommt.
+- **Schlanker Kopfbereich** – `slim_header` schiebt die Wochentage auf die Navigationszeile und stellt den Avatar neben den Namen: rund 40 px weniger Kopf, mehr Platz für den Tag.
+- **Startet auch an einem anderen Tag** – `day_offset` verschiebt Tages- und Zeitstrahl-Ansicht um N Tage (`1` = morgen). Gedacht für Anzeigen, die den kommenden Tag zeigen sollen – etwa ein E-Paper-Display im Flur.
 - **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
 - **„Jetzt / als Nächstes"-Leiste** – optionale Glanz-Zeile über den Ansichten: pro Person auf einen Blick, was gerade läuft (mit Puls-Punkt) oder als Nächstes ansteht (inkl. Countdown) – ideal fürs Wandtablet.
 - **Auto-Symbole** – optional bekommt jeder Termin per Stichwort ein passendes Emoji (Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂, Schule → 🎒 …); eigene Regeln möglich. Titel, die schon ein Emoji haben, bleiben unberührt.
@@ -58,7 +60,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Kompakt-Modus** – ein Schalter (`compact`) für kleinere Schriften und engere Abstände, statt drei Regler einzeln zu justieren.
 - **Personen beim Start ausgeblendet** – `hidden: true` pro Person; die Spalte startet eingeklappt und ein Klick auf den Kopf holt sie zurück.
 
-> Status: **v0.27 – vollständige Familien-Tagesplanung: 5 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
+> Status: **v0.28 – vollständige Familien-Tagesplanung: 5 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
 
 ## Installation (HACS)
 
@@ -148,6 +150,8 @@ persons:
 | `background_hours` | number | `3`  | Timed-Termine ab dieser Länge (Std.) als dezentes Hintergrund-Band statt als Spalte; `0` = aus |
 | `max_columns`   | number  | `3`     | Max. nebeneinander liegende Spalten pro Person/Tag; bei mehr Überlappungen erscheint ein „+N"-Chip (1–8) |
 | `tentative_patterns` | Liste | –    | Termine mit passendem Titel-Muster als vorläufig (gestrichelt/transparent) markieren |
+| `day_offset`    | number  | `0`     | Tag-/Zeitstrahl-Ansicht startet um N Tage versetzt: `1` = morgen, `-1` = gestern. Der Versatz überspringt korrekt die Wochengrenze und bleibt auch nach `auto_return` erhalten (für E-Paper- und Info-Displays) |
+| `slim_header`   | boolean | `false` | Schlanker Kopf: Wochentage wandern auf die Navigationszeile, Avatar steht neben dem Namen – spart rund 40 px Höhe |
 | `first_day`     | string  | `monday`| Wochenstart: `monday` oder `sunday` |
 | `scroll_to_now` | boolean | `true`  | Beim Laden automatisch zu „jetzt“ scrollen: Tagesansicht zur aktuellen Uhrzeit, Zeitstrahl horizontal zur Jetzt-Linie, Agenda zum heutigen Abschnitt (hat heute keine Termine, zum nächsten Tag mit Terminen) |
 | `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen |

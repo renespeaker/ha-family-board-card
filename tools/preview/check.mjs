@@ -35,14 +35,14 @@ const check = (name, ok, detail = "") => {
 const browser = await chromium.launch({ executablePath: EXEC });
 
 /** Open the harness with the clock pinned, so "now" is reproducible. */
-async function open({ view = "day", lang = "de", dark = false, width = 1400, locale = "de-DE" }) {
+async function open({ view = "day", lang = "de", dark = false, width = 1400, locale = "de-DE", slim = false }) {
   const page = await browser.newPage({ viewport: { width, height: 900 }, locale });
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   const at = new Date();
   at.setHours(10, 20, 0, 0);
   await page.clock.install({ time: at });
-  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}`;
+  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}`;
   await page.goto(url);
   await page.waitForTimeout(1500);
   return { page, errors };
@@ -102,6 +102,24 @@ for (const locale of ["de-DE", "en-US"]) {
   });
   check("Agenda scrollt auf heute", landed.ok, landed.why);
   await page.close();
+}
+
+/* --- the slim header has to actually be slimmer --------------------- */
+{
+  const headerHeight = async (slim) => {
+    const { page } = await open({ slim });
+    const px = await page.evaluate(() => {
+      const root = document.querySelector("family-board-card").renderRoot;
+      const card = root.querySelector("ha-card") ?? root.firstElementChild;
+      const board = root.querySelector(".board");
+      return Math.round(board.getBoundingClientRect().top - card.getBoundingClientRect().top);
+    });
+    await page.close();
+    return px;
+  };
+  const wide = await headerHeight(false);
+  const slim = await headerHeight(true);
+  check("schlanker Kopf spart Hoehe", slim < wide - 20, `${wide}px -> ${slim}px`);
 }
 
 /* --- nothing may scroll sideways out of the card -------------------- */

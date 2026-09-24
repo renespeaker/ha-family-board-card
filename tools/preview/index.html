@@ -77,7 +77,7 @@ el.setConfig({
   title: T.title,
   view: Q.get("view") || "day",
   views:["day","timeline","week","month","agenda"],
-  show_focus:true, auto_icons:true, show_alerts: Q.has("alerts"), gap_min:60,
+  show_focus: !Q.has("slim"), auto_icons:true, slim_header: Q.has("slim"), show_alerts: Q.has("alerts"), gap_min:60,
   background_hours: 3, start_hour:7, end_hour:18, trim_hours:false,
   hour_height: 64, hour_width: 110, time_grid:15,
   persons:[
