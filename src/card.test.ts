@@ -305,6 +305,115 @@ describe("event clean-up", () => {
   });
 });
 
+describe("day offset", () => {
+  // 2026-09-11 is a Friday; the tests mount at 10:20 that day.
+  const evAt = (day: string, summary: string) => ({
+    uid: summary,
+    summary,
+    start: { dateTime: `${day}T09:00:00` },
+    end: { dateTime: `${day}T10:00:00` },
+  });
+  const calendars = {
+    "calendar.anna": [
+      evAt("2026-09-10", "Donnerstag"),
+      evAt("2026-09-11", "Freitag"),
+      evAt("2026-09-12", "Samstag"),
+      evAt("2026-09-14", "Montag danach"),
+    ],
+  };
+  const dayView: Partial<FamilyBoardConfig> = {
+    persons: [{ name: "Anna", calendar: "calendar.anna" }],
+    view: "day",
+    views: ["day"],
+    start_hour: 7,
+    end_hour: 20,
+    background_hours: 0,
+  };
+
+  it("stands on today without an offset", async () => {
+    const { texts } = await mount(dayView, { calendars });
+    expect(texts(".event").join(" ")).toContain("Freitag");
+  });
+
+  it("starts on tomorrow when asked to", async () => {
+    const { texts } = await mount({ ...dayView, day_offset: 1 }, { calendars });
+    expect(texts(".event").join(" ")).toContain("Samstag");
+    expect(texts(".event").join(" ")).not.toContain("Freitag");
+  });
+
+  it("takes a negative offset for yesterday", async () => {
+    const { texts } = await mount({ ...dayView, day_offset: -1 }, { calendars });
+    expect(texts(".event").join(" ")).toContain("Donnerstag");
+  });
+
+  it("carries the offset across the week boundary", async () => {
+    // Friday + 3 is Monday, which lives in the *following* week
+    const { texts } = await mount({ ...dayView, day_offset: 3 }, { calendars });
+    expect(texts(".event").join(" ")).toContain("Montag danach");
+  });
+
+  it("returns to the offset day, not to today, after kiosk inactivity", async () => {
+    const { el, root, texts } = await mount(
+      { ...dayView, day_offset: 1, auto_return: 1 },
+      { calendars },
+    );
+    const settle = async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    };
+    // wander off to another day, then let the kiosk timer bring the card back
+    (root.querySelectorAll(".tabs button")[0] as HTMLElement).click();
+    await settle();
+    await vi.advanceTimersByTimeAsync(2 * 60000);
+    await settle();
+    expect(texts(".event").join(" ")).toContain("Samstag");
+  });
+});
+
+describe("slim header", () => {
+  const base: Partial<FamilyBoardConfig> = {
+    persons: [{ name: "Anna" }],
+    view: "day",
+    views: ["day"],
+    start_hour: 7,
+    end_hour: 20,
+  };
+
+  it("keeps the weekday buttons on their own line by default", async () => {
+    const { el, root } = await mount(base);
+    expect(el.hasAttribute("slim")).toBe(false);
+    const dayhead = root.querySelector(".dayhead") as HTMLElement;
+    expect(dayhead.contains(root.querySelector(".tabs"))).toBe(false);
+  });
+
+  it("moves them up onto the navigation line", async () => {
+    const { el, root } = await mount({ ...base, slim_header: true });
+    expect(el.hasAttribute("slim")).toBe(true);
+    const dayhead = root.querySelector(".dayhead") as HTMLElement;
+    expect(dayhead.contains(root.querySelector(".tabs"))).toBe(true);
+    // exactly one row of weekday buttons, not one per place it could live
+    expect(root.querySelectorAll(".tabs")).toHaveLength(1);
+  });
+
+  it("does the same in the timeline", async () => {
+    const { root } = await mount({
+      ...base,
+      view: "timeline",
+      views: ["timeline"],
+      slim_header: true,
+    });
+    const dayhead = root.querySelector(".dayhead") as HTMLElement;
+    expect(dayhead.contains(root.querySelector(".tabs"))).toBe(true);
+  });
+
+  it("wraps name and status so they can sit beside the avatar", async () => {
+    const { root } = await mount({ ...base, slim_header: true });
+    const meta = root.querySelector(".phead .pmeta");
+    expect(meta).not.toBeNull();
+    expect(meta?.querySelector(".pname")?.textContent).toContain("Anna");
+  });
+});
+
 describe("due tasks", () => {
   const task = (uid: string, summary: string, due?: string, status = "needs_action") => ({
     uid,

@@ -25,6 +25,8 @@ const EN: Dict = {
   l_max_columns: "Max. columns per day",
   l_first_day: "Week starts on",
   l_scroll_to_now: "Auto-scroll to now",
+  l_day_offset: "Start on (days from today)",
+  l_slim_header: "Slim header",
   l_color_by: "Color by",
   l_show_weekends: "Show weekend",
   l_show_now_line: "Now line",
@@ -61,6 +63,10 @@ const EN: Dict = {
 
   /* ---- helper texts ---------------------------------------------- */
   h_scroll_to_now: "Day view to the current time, timeline to the now line, agenda to today",
+  h_day_offset:
+    "0 = today, 1 = tomorrow, -1 = yesterday. For a display that should show the day ahead",
+  h_slim_header:
+    "Weekday buttons move up onto the navigation line and the avatar sits next to the name - saves about 40 px",
   h_hide_patterns: "Text patterns, e.g. “Recess” – matches are hidden",
   h_show_patterns: "Allow list: only events whose title contains one of the patterns",
   h_replace_patterns: "e.g. “Homeroom => Lesson” (without => the text is removed)",
@@ -160,6 +166,8 @@ const DE: Dict = {
   l_max_columns: "Max. Spalten pro Tag",
   l_first_day: "Wochenstart",
   l_scroll_to_now: "Auto-Scroll zu jetzt",
+  l_day_offset: "Beginnt bei (Tage ab heute)",
+  l_slim_header: "Schlanker Kopfbereich",
   l_color_by: "Einfärben nach",
   l_show_weekends: "Wochenende anzeigen",
   l_show_now_line: "Jetzt-Linie",
@@ -195,6 +203,10 @@ const DE: Dict = {
   l_map_url: "Karten-Link (Vorlage)",
 
   h_scroll_to_now: "Tag zur aktuellen Uhrzeit, Zeitstrahl zur Jetzt-Linie, Agenda zu heute",
+  h_day_offset:
+    "0 = heute, 1 = morgen, -1 = gestern. Für Anzeigen, die den kommenden Tag zeigen sollen",
+  h_slim_header:
+    "Wochentage rutschen auf die Navigationszeile und der Avatar neben den Namen – spart rund 40 px",
   h_hide_patterns: "Textmuster, z. B. „Hofpause“ – Treffer werden ausgeblendet",
   h_show_patterns: "Allow-Liste: nur Termine, deren Titel eines der Muster enthält",
   h_replace_patterns: "z. B. „Klassenverbund => Unterricht“ (ohne => wird der Text entfernt)",

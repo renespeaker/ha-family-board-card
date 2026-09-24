@@ -146,7 +146,10 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         },
       });
     }
-    layout.push({ name: "full_height", selector: { boolean: {} } });
+    layout.push(
+      { name: "slim_header", selector: { boolean: {} } },
+      { name: "full_height", selector: { boolean: {} } },
+    );
 
     const extras: unknown[] = [
       {
@@ -202,6 +205,12 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
           },
         },
         { name: "show_weekends", selector: { boolean: {} } },
+        {
+          name: "day_offset",
+          selector: {
+            number: { min: -14, max: 14, step: 1, mode: "box", unit_of_measurement: "d" },
+          },
+        },
       ]),
       group(this._t("g_layout"), "mdi:resize", layout),
       group(this._t("g_filters"), "mdi:broom", [
