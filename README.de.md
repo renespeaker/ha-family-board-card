@@ -1,0 +1,253 @@
+# Family Board Card
+
+**Deutsch** · [English](README.md)
+
+![Family Board Card – Tagesansicht](docs/preview-day.png)
+
+<details>
+<summary><b>Weitere Ansichten ansehen</b> (Zeitstrahl, Agenda)</summary>
+
+**Zeitstrahl** – Personen als Zeilen, die Zeit läuft horizontal:
+
+![Family Board Card – Zeitstrahl](docs/preview-timeline.png)
+
+**Agenda** – chronologisch, nach Tagen gruppiert, springt beim Laden auf heute:
+
+<img src="docs/preview-agenda.png" alt="Family Board Card – Agenda" width="380">
+
+</details>
+
+Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https://www.home-assistant.io/). Personen stehen als Spalten oben (mit Avatar aus der `person.*`-Entität), links läuft die Zeitleiste. Die Karte zeigt auf einen Blick, welche Aktivitäten gleichzeitig an unterschiedlichen Orten stattfinden — für bis zu 10 Personen.
+
+- **Tagesansicht** – Personen als Spalten, geteilte Zeitachse, Jetzt-Linie; **überlappende Termine** werden nebeneinander dargestellt.
+- **Wochenansicht** – Wochentage als Zeilen, Personen als Spalten, kompakte Termin-Chips.
+- **Monatsansicht** – klassisches Monats-Grid mit farbigen Terminen pro Person; Klick auf einen Tag springt in die Tagesansicht.
+- **Agenda-/Listenansicht** – chronologische Terminliste, nach Tagen gruppiert; ideal fürs Handy.
+- **Fällige Aufgaben** – optional zeigt das Board offene `todo.*`-Aufgaben, die heute fällig oder überfällig sind, als Chips in der Ganztagszeile und in der Agenda. Funktioniert mit jeder To-do-Integration (Apple Erinnerungen, Todoist, Google Tasks, Bring!, lokale Listen) und **braucht keine weitere Karte**; wer keine Listen zuordnet, merkt nichts davon. Abgehakt wird weiterhin dort, wo die Aufgabe herkommt.
+- **Schlanker Kopfbereich** – `slim_header` schiebt die Wochentage auf die Navigationszeile und stellt den Avatar neben den Namen: rund 40 px weniger Kopf, mehr Platz für den Tag.
+- **Startet auch an einem anderen Tag** – `day_offset` verschiebt Tages- und Zeitstrahl-Ansicht um N Tage (`1` = morgen). Gedacht für Anzeigen, die den kommenden Tag zeigen sollen – etwa ein E-Paper-Display im Flur.
+- **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
+- **„Jetzt / als Nächstes"-Leiste** – optionale Glanz-Zeile über den Ansichten: pro Person auf einen Blick, was gerade läuft (mit Puls-Punkt) oder als Nächstes ansteht (inkl. Countdown) – ideal fürs Wandtablet.
+- **Auto-Symbole** – optional bekommt jeder Termin per Stichwort ein passendes Emoji (Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂, Schule → 🎒 …); eigene Regeln möglich. Titel, die schon ein Emoji haben, bleiben unberührt.
+- **Zeitstrahl-Ansicht** – Personen als Zeilen links, die Zeit läuft horizontal: Termine als Balken auf einem Zeitstrahl (Gantt-Stil); überlappende Termine stapeln sich in Unterzeilen.
+- **Ansichten wählbar** – im Editor festlegen, welche Umschalter (Tag/Zeitstrahl/Woche/Monat/Agenda) erscheinen.
+- **Wochen-Navigation** – vor/zurück blättern, ein Klick auf den Datumsbereich springt zurück zu „heute".
+- **Theme-aware** – übernimmt Farben und Schrift des aktiven Dashboard-Themes (nutzt durchgehend HA-CSS-Variablen).
+- **Konfigurierbar** – Zeitraster 15/30/60 min, Tagesfenster, Wochenende ein/aus, Einfärben nach Person oder Ort, Auto-Aktualisierung.
+- **Drag & Drop** – in der Tagesansicht Termine per Ziehen verschieben (Uhrzeit) und am unteren Rand die Dauer ändern; rastet aufs Zeitraster und schreibt direkt in den Kalender zurück – **nur** bei schreibbaren Kalendern, Einzeltermine (keine Serien).
+- **Termine verwalten** – anlegen/bearbeiten/löschen direkt in der Karte, **aber nur** bei Kalendern, die das unterstützen (Local Calendar, CalDAV …). Schreibgeschützte Kalender (z. B. ICS-Abos) werden automatisch erkannt und nur angezeigt. Wiederkehrende Termine: Wahl **„nur dieser / dieser und folgende"**.
+- **Mehrere Kalender pro Person** – z. B. Arbeit + privat in einer Spalte (im Editor auswählbar).
+- **Robuste Termin-Logik** – Ganztags-Events (Ende exklusiv), über Mitternacht laufende und mehrtägige Termine werden korrekt auf die Tage aufgeteilt; Zeitzonen werden berücksichtigt.
+- **Mehrsprachig & lokalisiert** – Texte in Deutsch/Englisch, Wochentage und Uhrzeiten (12/24 h) aus der HA-Locale; relative Tage („Heute/Morgen").
+- **Alltags-Politur** – vergangene Termine ausgegraut, Einfärben auch nach Kalender, Ort direkt in der Karten-App öffnen, störende Termine per Muster ausblenden.
+- **Live-Fortschritt & Countdown** – laufende Termine zeigen einen Fortschrittsbalken (abschaltbar), kommende in der Agenda ein „in 20 Min."; aktualisiert minütlich.
+- **Wetter** – Symbol + Temperatur pro Tag aus einer `weather.*`-Entität im Tages-/Agenda-Header (HA-Standort, nicht die Termin-Adresse).
+- **Dichte Tage bleiben lesbar** – überlappen mehr Termine als `max_columns` erlaubt, werden die zusätzlichen Spalten zu einem „+N"-Chip zusammengefasst (Klick öffnet die Agenda) statt zu unlesbar schmalen Streifen zu schrumpfen.
+- **Lange Termine als Hintergrund-Band** – Dauertermine (z. B. OGS/Betreuung, „Freispiel") ab einer einstellbaren Länge laufen als dezentes Vollbreiten-Band hinter der Spalte, statt die kurzen Stunden nebeneinander zu quetschen. So bekommen die eigentlichen Termine die volle Breite.
+- **Auto-Fit-Höhe** – optional passt sich die Tagesansicht automatisch an die verfügbare Kartenhöhe an, sodass Start–Endstunde ohne Scrollen komplett sichtbar sind (ideal für Wandtablets/Kiosk).
+- **Füllt den Bildschirm** – Personenspalten wachsen mit der Kartenbreite mit (Panel-Ansicht/breite Karten); mit `full_height` reicht das Board bis zum unteren Bildschirmrand. Spaltenbreite, Achsenbreite und Abstände sind einstellbar.
+- **Vorläufige Termine** – Termine, deren Titel ein `tentative_patterns`-Muster enthält, werden gestrichelt und leicht transparent dargestellt (opt-in; der Kalender-Status wird bewusst nicht ausgewertet).
+- **Entitäts-Badges pro Person** – beliebige Entitäten (Handy-Akku, Sensoren …) als kleine Chips unter dem Personenkopf; Klick öffnet den More-Info-Dialog.
+- **Kiosk-Modus** – optional nach X Minuten Inaktivität automatisch zurück zur Startansicht und zu „heute"; größere Touch-Ziele auf Touch-Geräten.
+- **Visueller Editor 2.0** – komplett ohne YAML: Erststart-Assistent, Ein-Klick-Profile (🖥️ Wandtablet / 📱 Handy / 🧩 Standard), aufklappbare Themen-Gruppen mit Hilfetexten, Farbpaletten-Wähler pro Person **und pro Kalender** (inkl. Label), Feintuning-Regler (Schriftgröße, Ecken-Radius, Deckkraft) – Felder erscheinen nur, wenn die zugehörige Ansicht aktiv ist.
+- **⚡ Zero-Config-Start** – beim Hinzufügen erkennt die Karte automatisch alle `person.*`-Entitäten und verknüpft passende Kalender per Namensabgleich; im Editor jederzeit per „✨ Automatisch erkennen" nachholbar.
+- **Personen-Toggle** – Klick auf einen Personenkopf blendet die Person temporär aus (Spalte kollabiert zum Avatar); zweiter Klick holt sie zurück. Wirkt in allen Ansichten.
+- **Termin-Aufräumer** – Allow-Liste (`show_patterns`), Titel-Ersetzung (`replace_patterns`, „Suchtext => Ersatz") und Duplikat-Filter (`filter_duplicates`, gleicher Termin in mehreren Kalendern nur 1×).
+- **Mehrtägige Termine** – Segmente zeigen „(2/5)", damit klar ist, der wievielte Tag es ist.
+- **Kalender-Mapping** – über `calendars:` bekommt jeder Kalender eine feste Farbe, ein eigenes Label, ein **mdi-Symbol** vor dem Titel und optional ein anderes **Titel-Feld**.
+- **Titel aus einem anderen Feld** – Schul-/Stundenplan-Feeds schreiben das Fach oft in `description`, während `summary` nur „Klassenverbund" sagt: `title_field: description` zeigt endlich „Mathematik" statt dreimal dasselbe.
+- **Karten-Link frei wählbar** – `map_url` mit Platzhalter `{location}` (Google Maps, Apple Maps, OpenStreetMap …), Default bleibt Google Maps.
+- **Kompakt-Modus** – ein Schalter (`compact`) für kleinere Schriften und engere Abstände, statt drei Regler einzeln zu justieren.
+- **Personen beim Start ausgeblendet** – `hidden: true` pro Person; die Spalte startet eingeklappt und ein Klick auf den Kopf holt sie zurück.
+
+> Status: **v0.28 – vollständige Familien-Tagesplanung: 5 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
+
+## Installation (HACS)
+
+Die Karte ist Teil des offiziellen HACS-Stores:
+
+1. HACS öffnen → nach **Family Board Card** suchen → installieren.
+2. Die Lovelace-Resource wird im Storage-Mode automatisch als `/hacsfiles/ha-family-board-card/ha-family-board-card.js` registriert (im YAML-Mode manuell eintragen).
+3. Karte aufs Dashboard setzen: `type: custom:family-board-card` – oder einfach „Family Board Card“ im Karten-Picker auswählen.
+
+### Manuell (schneller Test ohne HACS)
+
+`dist/ha-family-board-card.js` nach `config/www/` kopieren und als Resource hinzufügen:
+
+```yaml
+url: /local/ha-family-board-card.js
+type: module
+```
+
+## Konfiguration
+
+```yaml
+type: custom:family-board-card
+title: Familienplan  # optional, eigener Kartentitel
+view: day            # day | week
+time_grid: 30        # 15 | 30 | 60
+start_hour: 6
+end_hour: 22
+show_weekends: true
+show_now_line: true
+color_by: person     # person | location
+hour_height: 64      # Pixel pro Stunde (40–96), Tagesansicht
+refresh_interval: 300 # Sekunden; 0 = aus
+persons:
+  - name: Anna
+    person: person.anna       # Avatar (entity_picture) + Live-Status
+    calendar: calendar.anna   # Quelle der Termine
+    color: '#8B7CF6'          # optional, sonst Default-Palette
+  - name: Ben
+    person: person.ben
+    calendar:                   # mehrere Kalender pro Person möglich
+      - calendar.ben_arbeit
+      - calendar.ben_privat
+```
+
+| Option          | Typ     | Default | Beschreibung |
+|-----------------|---------|---------|--------------|
+| `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color`, `badges` (Entitäten als Chips) und `hidden` (startet eingeklappt) |
+| `persons[].tasks` | String/Liste | – | `todo.*`-Liste(n) dieser Person; heute fällige und überfällige Aufgaben erscheinen als Chips (Tagesansicht + Agenda). Ohne Angabe fragt die Karte keine Liste ab |
+| `hide_empty_persons` | boolean | `false` | Wochenansicht: Personen ohne Termine in der Woche ausblenden |
+| `show_alerts`   | boolean | `false` | Tages-Check über Tag/Zeitstrahl: Doppelbuchungen, Betreuungslücken und „niemand zuhause" als Chips |
+| `gap_min`       | number  | `60`    | Ab wie vielen Minuten eine Lücke zwischen zwei Terminen einer Person gemeldet wird (0 = aus) |
+| `show_focus`    | boolean | `false` | „Jetzt / als Nächstes"-Leiste pro Person über den Ansichten |
+| `drag_drop`     | boolean | `true`  | Termine in der Tagesansicht per Ziehen verschieben / in der Dauer ändern (nur schreibbare Einzeltermine) |
+| `auto_icons`    | boolean | `false` | Emoji je Termin nach Stichwort automatisch voranstellen |
+| `icon_patterns` | Liste   | –       | Eigene Symbol-Regeln, z. B. `["Oma => 👵"]` |
+| `auto_return`   | number  | `0`     | Kiosk: nach X Minuten ohne Berührung zurück zur Startansicht/heute (0 = aus) |
+| `title`          | string  | –       | Eigener Kartentitel (Default: lokalisiert „Familienplan") |
+| `view`          | string  | `day`   | Startansicht: `day`, `timeline`, `week`, `month` oder `agenda` |
+| `views`         | Liste   | alle    | Welche Ansichten im Umschalter erscheinen, z. B. `[day, agenda]` |
+| `time_grid`     | number  | `30`    | Raster der Zeitleiste in Minuten |
+| `start_hour`    | number  | `6`     | Erste sichtbare Stunde |
+| `end_hour`      | number  | `22`    | Letzte sichtbare Stunde |
+| `show_weekends` | boolean | `true`  | Sa/So anzeigen |
+| `show_now_line` | boolean | `true`  | Aktuelle Uhrzeit als Linie |
+| `color_by`      | string  | `person`| Einfärben nach `person`, `location` oder `calendar` |
+| `dim_past`      | boolean | `true`  | Bereits vergangene Termine ausgrauen |
+| `hide_patterns` | Liste   | –       | Termine ausblenden, deren Titel eines der Textmuster enthält (z. B. `["Frei", "Privat"]`) |
+| `show_patterns` | Liste   | –       | Allow-Liste: nur Termine zeigen, deren Titel eines der Muster enthält |
+| `replace_patterns` | Liste | –      | Titel aufräumen: `"Suchtext => Ersatz"` (ohne `=>` wird der Text entfernt) |
+| `hide_past`     | boolean | `false` | Agenda: Tage vor heute überspringen, die Liste beginnt bei heute (in zurückgeblätterten Wochen weiterhin vollständig) |
+| `filter_duplicates` | boolean | `false` | Identische Termine (Titel+Zeit) pro Person und in der Agenda nur einmal zeigen |
+| `calendars`     | Map     | –       | Pro Kalender `color`, `label`, `icon` (mdi) und `title_field` (im Editor pflegbar) |
+| `compact`       | boolean | `false` | Kompakte Darstellung: kleinere Schriften und engere Abstände |
+| `map_url`       | string  | Google  | Vorlage für den Orts-Link, `{location}` wird eingesetzt, z. B. `https://maps.apple.com/?q={location}` |
+| `event_size`    | number  | –       | Schriftgröße der Termin-Titel in px (Editor-Slider, setzt `--fb-event-size`) |
+| `radius`        | number  | –       | Ecken-Radius der Termin-Blöcke in px (setzt `--fb-radius`) |
+| `past_opacity`  | number  | –       | Deckkraft vergangener Termine in % (setzt `--fb-past-opacity`) |
+| `show_progress` | boolean | `true`  | Fortschrittsbalken am laufenden Termin |
+| `weather_entity`| string  | –       | `weather.*`-Entität für die Tages-Vorhersage (HA-Standort) |
+| `show_weather`  | boolean | `true`* | Wetter im Header anzeigen (*wirkt nur, wenn `weather_entity` gesetzt) |
+| `hour_height`   | number  | `64`    | Höhe einer Stunde in px (40–96) – Tagesansicht skalieren (Wandtablet); bei `fit_height` die Obergrenze |
+| `hour_width`    | number  | `96`    | Zeitstrahl-Ansicht: Breite einer Stunde in px (48–240) |
+| `fit_height`    | boolean | `false` | Tagesansicht automatisch so verkleinern, dass Start–Endstunde ohne Scrollen komplett sichtbar sind (Wandtablet/Kiosk) |
+| `full_height`   | boolean | `false` | Board bis zum unteren Bildschirmrand strecken (Panel-/Wandtablet-Ansicht); Standard ist eine 58 %-Deckelung |
+| `trim_hours`    | boolean | `true`  | Tagesansicht: leere Randstunden automatisch abschneiden, damit der belegte Teil des Tages die volle Höhe bekommt (min. 6-h-Fenster; `start_hour`/`end_hour` bleiben die Außengrenzen) |
+| `col_min_width` | number  | `120`   | Mindestbreite (px) pro Personenspalte, darunter wird horizontal gescrollt; Spalten wachsen darüber hinaus mit der Kartenbreite |
+| `background_hours` | number | `3`  | Timed-Termine ab dieser Länge (Std.) als dezentes Hintergrund-Band statt als Spalte; `0` = aus |
+| `max_columns`   | number  | `3`     | Max. nebeneinander liegende Spalten pro Person/Tag; bei mehr Überlappungen erscheint ein „+N"-Chip (1–8) |
+| `tentative_patterns` | Liste | –    | Termine mit passendem Titel-Muster als vorläufig (gestrichelt/transparent) markieren |
+| `day_offset`    | number  | `0`     | Tag-/Zeitstrahl-Ansicht startet um N Tage versetzt: `1` = morgen, `-1` = gestern. Der Versatz überspringt korrekt die Wochengrenze und bleibt auch nach `auto_return` erhalten (für E-Paper- und Info-Displays) |
+| `slim_header`   | boolean | `false` | Schlanker Kopf: Wochentage wandern auf die Navigationszeile, Avatar steht neben dem Namen – spart rund 40 px Höhe |
+| `first_day`     | string  | `monday`| Wochenstart: `monday` oder `sunday` |
+| `scroll_to_now` | boolean | `true`  | Beim Laden automatisch zu „jetzt“ scrollen: Tagesansicht zur aktuellen Uhrzeit, Zeitstrahl horizontal zur Jetzt-Linie, Agenda zum heutigen Abschnitt (hat heute keine Termine, zum nächsten Tag mit Terminen) |
+| `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen |
+
+Jede `calendar.*`-Entität funktioniert – egal ob `local_calendar` (lokal, ohne Cloud), Google oder CalDAV. Home Assistant liefert alle einheitlich.
+
+## Aussehen anpassen (Theme / card-mod)
+
+Die Karte übernimmt automatisch Farben & Schrift des Themes. Für Feintuning gibt es zusätzlich eigene CSS-Variablen, die du im **Theme** oder per **card-mod** überschreiben kannst:
+
+| Token | Default | Wirkung |
+|-------|---------|---------|
+| `--fb-accent` | `--primary-color` | „Heute"-/Akzentfarbe |
+| `--fb-now-color` | `--error-color` | Jetzt-Linie & Fortschritt |
+| `--fb-radius` | `7px` | Ecken der Termin-Blöcke |
+| `--fb-radius-sm` | `5px` | Ecken der Chips |
+| `--fb-avatar-size` | `34px` | Avatar-Größe |
+| `--fb-past-opacity` | `0.5` | Deckkraft vergangener Termine |
+| `--fb-title-size` | `16px` | Kartentitel |
+| `--fb-name-size` | `13px` | Personennamen |
+| `--fb-event-size` | `11.5px` | Termin-Titel |
+| `--fb-time-size` | `9.5px` | Uhrzeiten im Block |
+| `--fb-chip-size` | `10.5px` | Chip-Schriftgröße |
+| `--fb-hourline` / `--fb-halfhour` / `--fb-row-shade` | – | Rasterlinien / Zeilenschattierung |
+| `--fb-col-min` | `120px` | Mindestbreite einer Personenspalte |
+| `--fb-axis-width` | `56px` | Breite der Zeitachse links |
+| `--fb-board-max-height` | `58vh` | Höhen-Deckel des Tages-Boards (ohne `full_height`) |
+| `--fb-event-pad` | `4px 7px` | Innenabstand der Termin-Blöcke |
+| `--fb-head-pad` | `10px 6px` | Innenabstand der Personen-Köpfe |
+
+Beispiel (card-mod):
+
+```yaml
+type: custom:family-board-card
+card_mod:
+  style: |
+    :host {
+      --fb-accent: #e91e63;
+      --fb-event-size: 13px;
+      --fb-radius: 12px;
+      --fb-avatar-size: 40px;
+    }
+persons: …
+```
+
+## Passt dazu
+
+Die [Family Task Card](https://github.com/renespeaker/ha-family-task-card) ist die Schwesterkarte für Aufgaben: Punkte, Belohnungen und ein Kindermodus auf denselben `todo.*`-Listen, in derselben Personen-Palette.
+
+**Beide Karten sind vollständig eigenständig.** Keine setzt die andere voraus, sie sprechen nicht miteinander, sondern jede für sich mit Home Assistant. Die Aufgaben-Chips oben funktionieren mit jeder To-do-Integration – auch ohne die Task Card. Wer beide nutzt, bekommt automatisch dieselben Farben pro Person, weil beide dieselbe Palette verwenden.
+
+## Sprachen
+
+Karte **und** visueller Editor sprechen **Deutsch und Englisch**. Die Sprache folgt deinem Home-Assistant-Benutzerprofil; alles, was eine Übersetzung nicht abdeckt, fällt auf Englisch zurück. Datum, Wochentage und das Zeitformat (12/24 h) kommen über `Intl` aus der HA-Locale.
+
+Noch eine Sprache? Ein Dictionary in [`src/localize.ts`](src/localize.ts) (Karte) und [`src/editor-i18n.ts`](src/editor-i18n.ts) (Editor) ergänzen – beides sind einfache Key/Value-Objekte, Pull Requests willkommen.
+
+## Entwicklung
+
+```bash
+npm install
+npm run build        # baut dist/ha-family-board-card.js
+npm run watch        # Rebuild bei Änderungen
+npm run lint         # tsc --noEmit (Typecheck)
+npm test             # Vitest (Event-Logik)
+npm run format       # Prettier
+```
+
+Schneller Loop gegen die laufende HA-Instanz: `dist/ha-family-board-card.js` nach `config/www/` kopieren und die Seite hart neu laden.
+
+Getestet wird auf zwei Ebenen:
+
+- **Logik** – die fehleranfälligen Teile (Splitting über Mitternacht, Ganztags-Exklusivität, Zeitzonen, Überlappungs-Layout, Konflikterkennung) liegen isoliert in [`src/events.ts`](src/events.ts), abgedeckt von [`src/events.test.ts`](src/events.test.ts).
+- **Karte & Editor** – [`src/card.test.ts`](src/card.test.ts) und [`src/editor.test.ts`](src/editor.test.ts) rendern die Karte gegen ein nachgebautes Home Assistant (happy-dom) und prüfen, was am Ende wirklich auf dem Schirm steht: Tages-Check, Agenda-Gruppierung, Filter, Personen-Toggle und die Zweisprachigkeit von Karte und Editor.
+
+`npm test` führt beides aus, ohne Browser.
+
+Was dabei grundsätzlich nicht auffallen kann, ist **Layout**: happy-dom rechnet keine Größen aus. Dafür liegt in [`tools/preview/`](tools/preview/) ein Harness, das die Karte in einem echten Chromium gegen ein nachgebautes Home Assistant stellt — `npm run check:browser` prüft damit Dinge wie „ragt ein Dialogfeld aus dem Dialog", „ist das erste Stundenlabel abgeschnitten", „scrollt die Agenda auf heute" und „läuft bei 400 px etwas seitlich aus". Braucht einen Browser und läuft deshalb nicht in der CI, lohnt sich aber vor einem Release.
+
+## Termine anlegen / bearbeiten / löschen
+
+In der Tagesansicht eine freie Stelle in der Personenspalte anklicken öffnet den Dialog zum Anlegen (die Uhrzeit wird aus der Klick-Position übernommen); ein Klick auf einen Termin öffnet ihn zum Bearbeiten/Löschen. Ob das möglich ist, hängt vom Kalender ab: Die Karte liest `supported_features` der jeweiligen `calendar.*`-Entität und blendet Schreibaktionen aus, wenn der Kalender sie nicht unterstützt. Intern werden die WebSocket-Kommandos `calendar/event/create|update|delete` genutzt (dieselben wie die native HA-Kalenderoberfläche).
+
+## Roadmap
+
+- [x] Termine anlegen/bearbeiten/löschen, nur bei schreibbaren Kalendern
+- [x] Personen-Editor im visuellen Config-Editor
+- [x] Wochen-Navigation & Nebeneinander-Layout überlappender Termine
+- [x] Mehrsprachigkeit (i18n, DE/EN) + Locale-Zeitformat
+- [x] Kiosk-/Wandtablet-Modus (`full_height`, `fit_height`, `auto_return`, Touch-Ziele)
+- [x] Mobile-Layout (kompakte Spalten, wischbar)
+- [x] Drag & Drop zum Verschieben von Terminen (Tag **und** Zeitstrahl)
+- [x] Aufnahme in den offiziellen HACS-Store
+- [x] Lokalisierter visueller Editor (DE/EN)
+- [x] Konflikterkennung (Doppelbuchungen, Abhol-Lücken, „niemand zuhause")
+
+## Lizenz
+
+MIT
