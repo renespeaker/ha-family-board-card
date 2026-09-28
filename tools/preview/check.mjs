@@ -35,12 +35,21 @@ const check = (name, ok, detail = "") => {
 const browser = await chromium.launch({ executablePath: EXEC });
 
 /** Open the harness with the clock pinned, so "now" is reproducible. */
-async function open({ view = "day", lang = "de", dark = false, width = 1400, locale = "de-DE", slim = false }) {
-  const page = await browser.newPage({ viewport: { width, height: 900 }, locale });
+async function open({
+  view = "day",
+  lang = "de",
+  dark = false,
+  width = 1400,
+  locale = "de-DE",
+  slim = false,
+  timezoneId,
+  time,
+}) {
+  const page = await browser.newPage({ viewport: { width, height: 900 }, locale, timezoneId });
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
-  const at = new Date();
-  at.setHours(10, 20, 0, 0);
+  const at = time ?? new Date();
+  if (!time) at.setHours(10, 20, 0, 0);
   await page.clock.install({ time: at });
   const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}`;
   await page.goto(url);
@@ -120,6 +129,33 @@ for (const locale of ["de-DE", "en-US"]) {
   const wide = await headerHeight(false);
   const slim = await headerHeight(true);
   check("schlanker Kopf spart Hoehe", slim < wide - 20, `${wide}px -> ${slim}px`);
+}
+
+/* --- the month grid across a daylight-saving change (#62) ----------- */
+{
+  // 2026-10-25 is the day the clocks go back in Europe: 25 hours long. Stepping
+  // days by a flat 24 hours used to render that day twice and shift the rest of
+  // the grid off its weekday column.
+  const { page, errors } = await open({
+    view: "month",
+    timezoneId: "Europe/Paris",
+    locale: "fr-FR",
+    time: new Date("2026-10-15T10:00:00+02:00"),
+  });
+  const grid = await page.evaluate(() => {
+    const root = document.querySelector("family-board-card").renderRoot;
+    return [...root.querySelectorAll(".monthgrid > *")].map((cell) =>
+      parseInt((cell.textContent ?? "").trim(), 10),
+    );
+  });
+  const repeated = grid.filter((n, i) => i > 0 && n === grid[i - 1]);
+  check(
+    "Monatsraster ohne doppelten Tag (Zeitumstellung)",
+    grid.length > 0 && repeated.length === 0,
+    repeated.length ? `doppelt: ${repeated.join(", ")}` : `${grid.length} Zellen`,
+  );
+  check("keine Konsolenfehler (Monat, Zeitumstellung)", errors.length === 0, errors.join(" | "));
+  await page.close();
 }
 
 /* --- nothing may scroll sideways out of the card -------------------- */

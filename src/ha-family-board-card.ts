@@ -11,7 +11,8 @@ import {
   RawEvent,
   BoardEvent,
   LaidOutEvent,
-  DAY_MS,
+  addDays,
+  daysBetween,
   parseRawEvent,
   splitIntoSegments,
   splitAcrossDays,
@@ -444,10 +445,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       return { day: this._todayIndex(), week: 0 };
     }
     const today = startOfDay(new Date());
-    const target = new Date(today.getTime() + offset * DAY_MS);
-    const week = Math.round(
-      (this._weekStart(target).getTime() - this._weekStart(today).getTime()) / (7 * DAY_MS),
-    );
+    const target = addDays(today, offset);
+    const week = daysBetween(this._weekStart(today), this._weekStart(target)) / 7;
     return { day: (target.getDay() - this._firstDayJs + 7) % 7, week };
   }
 
@@ -747,7 +746,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _fetchRange(): { start: Date; end: Date } {
     if (this._view === "month") {
       const { gridStart, weeks } = this._monthGrid();
-      return { start: gridStart, end: new Date(gridStart.getTime() + weeks * 7 * DAY_MS) };
+      return { start: gridStart, end: addDays(gridStart, weeks * 7) };
     }
     const { monday, nextMonday } = this._weekBounds();
     return { start: monday, end: nextMonday };
@@ -830,7 +829,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const lists = Array.isArray(person?.tasks) ? person.tasks : person?.tasks ? [person.tasks] : [];
     if (lists.length === 0) return [];
     const dayStart = startOfDay(date);
-    const dayEnd = new Date(dayStart.getTime() + DAY_MS);
+    const dayEnd = addDays(dayStart, 1);
     const now = new Date();
     const isToday = startOfDay(now).getTime() === dayStart.getTime();
     const out: BoardTask[] = [];
@@ -1165,9 +1164,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
   /** Localized "Today"/"Tomorrow"/"Yesterday" for a date, else null. */
   private _relativeDay(date: Date): string | null {
-    const diff = Math.round(
-      (startOfDay(date).getTime() - startOfDay(new Date()).getTime()) / DAY_MS,
-    );
+    const diff = daysBetween(new Date(), date);
     if (diff === 0) return this._t("today");
     if (diff === 1) return this._t("tomorrow");
     if (diff === -1) return this._t("yesterday");
@@ -1312,7 +1309,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   /** Week-start-based column index -> absolute Date in the shown week. */
   private _dateForDay(day: number): Date {
     const { monday } = this._weekBounds();
-    return new Date(monday.getTime() + day * DAY_MS);
+    return addDays(monday, day);
   }
   private _isRealToday(day: number): boolean {
     return this._weekOffset === 0 && day === this._todayIndex();
@@ -1415,9 +1412,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       s.setDate(s.getDate() - ((s.getDay() - this._firstDayJs + 7) % 7));
       return s;
     };
-    const weeks = Math.round(
-      (toWeekStart(date).getTime() - toWeekStart(today).getTime()) / (7 * DAY_MS),
-    );
+    const weeks = daysBetween(toWeekStart(today), toWeekStart(date)) / 7;
     this._weekOffset = weeks;
     this._day = (date.getDay() - this._firstDayJs + 7) % 7;
     this._view = this._enabledViews.includes("day") ? "day" : this._view;
@@ -2397,7 +2392,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         <div class="monthhead">${short.map((s) => html`<div class="mhcell">${s}</div>`)}</div>
         <div class="monthgrid">
           ${Array.from({ length: numDays }, (_, d) => {
-            const date = new Date(gridStart.getTime() + d * DAY_MS);
+            const date = addDays(gridStart, d);
             const inMonth = date.getMonth() === month;
             const isToday = date.getTime() === today;
             const items = (byDay.get(d) || []).sort(
@@ -2524,7 +2519,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       allDay: raw.allDay,
       start: raw.allDay ? toLocalDate(raw.start) : toLocalInput(raw.start),
       // all-day end is exclusive in HA; show the inclusive last day to the user
-      end: raw.allDay ? toLocalDate(new Date(raw.end.getTime() - DAY_MS)) : toLocalInput(raw.end),
+      end: raw.allDay ? toLocalDate(addDays(raw.end, -1)) : toLocalInput(raw.end),
     };
   }
 
@@ -4443,7 +4438,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.28.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.28.1 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

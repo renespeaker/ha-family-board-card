@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  addDays,
+  daysBetween,
   detectDayAlerts,
   parseRawEvent,
   splitIntoSegments,
@@ -357,5 +359,74 @@ describe("detectDayAlerts", () => {
   it("ignores all-day events", () => {
     const allDay = { ...(seg(0, 0, 1440, "Ferien") as object), allDay: true } as never;
     expect(detectDayAlerts([allDay, seg(0, 600, 660)], { persons: [0], gapMin: 60 })).toEqual([]);
+  });
+});
+
+describe("daylight saving time", () => {
+  // The suite runs in Europe/Berlin. 2026-10-25 is the day the clocks go back:
+  // that calendar day is 25 hours long, 2026-03-29 is 23 hours long.
+  const DST_BACK = new Date(2026, 9, 25);
+  const DST_FORWARD = new Date(2026, 2, 29);
+
+  it("steps a whole calendar day even when that day is 25 hours", () => {
+    expect(addDays(new Date(2026, 9, 24), 1).getDate()).toBe(25);
+    expect(addDays(DST_BACK, 1).getDate()).toBe(26);
+    expect(addDays(DST_BACK, 1).getHours()).toBe(0);
+  });
+
+  it("steps a whole calendar day even when that day is 23 hours", () => {
+    expect(addDays(DST_FORWARD, 1).getDate()).toBe(30);
+    expect(addDays(DST_FORWARD, 1).getHours()).toBe(0);
+  });
+
+  it("counts calendar days across a switch, not 24-hour blocks", () => {
+    expect(daysBetween(new Date(2026, 9, 24), new Date(2026, 9, 26))).toBe(2);
+    expect(daysBetween(new Date(2026, 2, 28), new Date(2026, 2, 30))).toBe(2);
+    expect(daysBetween(DST_BACK, DST_BACK)).toBe(0);
+  });
+
+  it("builds a month grid without a repeated day (#62)", () => {
+    // the October 2026 grid starts Monday 28 September
+    const gridStart = new Date(2026, 8, 28);
+    const days = Array.from({ length: 35 }, (_, d) => addDays(gridStart, d).getDate());
+    // the switch falls on the 25th; the day after it must be the 26th
+    const i = days.indexOf(25);
+    expect(days[i + 1]).toBe(26);
+    // and every column keeps its weekday
+    Array.from({ length: 35 }, (_, d) => addDays(gridStart, d)).forEach((date, d) => {
+      expect(date.getDay()).toBe((1 + d) % 7); // grid starts on a Monday
+    });
+  });
+
+  it("puts an event on the switch day into the right bucket", () => {
+    const raw = {
+      personIdx: 0,
+      calendar: "calendar.a",
+      summary: "Brunch",
+      allDay: false,
+      start: new Date(2026, 9, 25, 11, 0),
+      end: new Date(2026, 9, 25, 13, 0),
+      color: "#000",
+    } as never;
+    // grid of the week containing the switch, starting Monday 19 October
+    const segs = splitAcrossDays(raw, new Date(2026, 9, 19), 7);
+    expect(segs).toHaveLength(1);
+    expect(segs[0].day).toBe(6); // Sunday the 25th
+    expect(segs[0].startMin).toBe(660);
+  });
+
+  it("does not turn a single 25-hour day into a two-day event", () => {
+    const raw = {
+      personIdx: 0,
+      calendar: "calendar.a",
+      summary: "Ferientag",
+      allDay: true,
+      start: new Date(2026, 9, 25),
+      end: new Date(2026, 9, 26), // all-day ends exclusive
+      color: "#000",
+    } as never;
+    const segs = splitAcrossDays(raw, new Date(2026, 9, 19), 7);
+    expect(segs).toHaveLength(1);
+    expect(segs[0].parts).toBeUndefined(); // one day, so no "(1/2)"
   });
 });

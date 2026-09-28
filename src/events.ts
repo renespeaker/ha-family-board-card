@@ -5,6 +5,33 @@
 export const DAY_MS = 86400000;
 
 /**
+ * Same clock time, `days` calendar days later. Deliberately not
+ * `+ days * DAY_MS`: on the day a daylight-saving change falls, a calendar day
+ * is 23 or 25 hours long, and adding a flat 24 hours lands on the wrong date.
+ * That is what produced two "25"s in the October 2026 month grid.
+ */
+export function addDays(date: Date, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/** Wall-clock minutes since midnight - not elapsed time. */
+function minutesOfDay(d: Date): number {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** Whole calendar days from `from` to `to`, DST-proof (both are floored). */
+export function daysBetween(from: Date, to: Date): number {
+  const a = new Date(from);
+  a.setHours(0, 0, 0, 0);
+  const b = new Date(to);
+  b.setHours(0, 0, 0, 0);
+  // rounding absorbs the 23/25-hour days a plain division would trip over
+  return Math.round((b.getTime() - a.getTime()) / DAY_MS);
+}
+
+/**
  * Compute new start/end for a drag (move) or resize gesture.
  * `deltaMin` is the raw dragged offset in minutes; the result snaps to the
  * `gridMin` raster (absolute, from midnight of the event's day) and keeps a
@@ -134,19 +161,23 @@ export function splitAcrossDays(raw: RawEvent, gridStart: Date, numDays: number)
   // "day X of Y" for events that span multiple calendar days
   const firstDay = new Date(raw.start);
   firstDay.setHours(0, 0, 0, 0);
-  const totalParts = Math.max(1, Math.ceil((raw.end.getTime() - firstDay.getTime()) / DAY_MS));
+  // an all-day event ends at midnight, so its last day is the day before
+  const lastDay = new Date(raw.end.getTime() - 1);
+  const totalParts = Math.max(1, daysBetween(firstDay, lastDay) + 1);
   for (let d = 0; d < numDays; d++) {
-    const dayStart = new Date(gridStart.getTime() + d * DAY_MS);
-    const dayEnd = new Date(dayStart.getTime() + DAY_MS);
+    const dayStart = addDays(gridStart, d);
+    const dayEnd = addDays(dayStart, 1);
     const segStartMs = Math.max(raw.start.getTime(), dayStart.getTime());
     const segEndMs = Math.min(raw.end.getTime(), dayEnd.getTime());
     if (segEndMs <= segStartMs) continue;
-    const startMin = raw.allDay ? 0 : Math.round((segStartMs - dayStart.getTime()) / 60000);
-    const endMin = raw.allDay ? 1440 : Math.round((segEndMs - dayStart.getTime()) / 60000);
-    const part =
-      totalParts > 1
-        ? Math.round((dayStart.getTime() - firstDay.getTime()) / DAY_MS) + 1
-        : undefined;
+    // Position by the wall clock, not by elapsed time: on the day the clocks go
+    // back, midnight to 11:00 is twelve hours, and an 11:00 event would
+    // otherwise be drawn on the 12:00 line.
+    const startMin =
+      raw.allDay || segStartMs <= dayStart.getTime() ? 0 : minutesOfDay(new Date(segStartMs));
+    const endMin =
+      raw.allDay || segEndMs >= dayEnd.getTime() ? 1440 : minutesOfDay(new Date(segEndMs));
+    const part = totalParts > 1 ? daysBetween(firstDay, dayStart) + 1 : undefined;
     segs.push({
       part,
       parts: totalParts > 1 ? totalParts : undefined,
