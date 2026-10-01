@@ -35,6 +35,8 @@ interface MountOpts {
   /** todo.* entity -> its items, as `todo/item/list` would return them. */
   todos?: Record<string, unknown[]>;
   lang?: string;
+  /** weather.forecast_home daily forecast, as weather.get_forecasts returns it. */
+  forecast?: unknown[];
   /** Local wall-clock time the test pretends it is. */
   now?: string;
 }
@@ -61,6 +63,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
       attributes: { friendly_name: entity.split(".")[1], supported_features: 0 },
     };
   }
+  if (opts.forecast) states["weather.forecast_home"] = { state: "sunny", attributes: {} };
   const wsCalls: Array<Record<string, unknown>> = [];
   const el = document.createElement("family-board-card") as HTMLElement & {
     setConfig(c: unknown): void;
@@ -77,6 +80,9 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
       wsCalls.push(msg);
       if (msg.type === "todo/item/list") {
         return { items: todos[msg.entity_id as string] ?? [] };
+      }
+      if (msg.type === "call_service" && msg.service === "get_forecasts") {
+        return { response: { "weather.forecast_home": { forecast: opts.forecast ?? [] } } };
       }
       return {};
     },
@@ -595,5 +601,58 @@ describe("all-day events", () => {
     );
     expect(root.querySelector(".allday-row")?.textContent ?? "").toContain("Ferien");
     expect(texts(".event").join(" ")).not.toContain("Ferien");
+  });
+});
+
+describe("weather", () => {
+  const forecast = [
+    { datetime: "2026-09-11T10:00:00+00:00", condition: "rainy", temperature: 17.6, templow: 9.2 },
+    { datetime: "2026-09-12T10:00:00+00:00", condition: "sunny", temperature: 21, templow: 11 },
+  ];
+  const base = {
+    persons: [{ name: "Anna", calendar: "calendar.anna" }],
+    weather_entity: "weather.forecast_home",
+    start_hour: 7,
+    end_hour: 20,
+  };
+
+  it("shows high and low in the day header", async () => {
+    const { texts } = await mount({ ...base, view: "day" }, { forecast });
+    expect(texts(".dayhead .wx")).toEqual(["18° / 9°"]);
+  });
+
+  it("shows the high next to each weekday in the week view", async () => {
+    const { all } = await mount({ ...base, view: "week" }, { forecast });
+    const chips = all(".wday .wx.short");
+    expect(chips.map((c) => (c.textContent ?? "").trim())).toEqual(["18°", "21°"]);
+    // the tooltip still carries the full forecast
+    expect(chips[0].getAttribute("title")).toBe("rainy · 18° / 9°");
+  });
+
+  it("shows only the symbol in month cells", async () => {
+    const { all } = await mount({ ...base, view: "month" }, { forecast });
+    const chips = all(".mcell .wx.icon");
+    expect(chips).toHaveLength(2);
+    expect((chips[0].textContent ?? "").trim()).toBe("");
+    expect(chips[0].querySelector("ha-icon")?.getAttribute("icon")).toBe("mdi:weather-rainy");
+  });
+
+  it("leaves out the low when the provider does not send one", async () => {
+    const { texts } = await mount(
+      { ...base, view: "day" },
+      {
+        forecast: [{ datetime: "2026-09-11T10:00:00+00:00", condition: "sunny", temperature: 20 }],
+      },
+    );
+    expect(texts(".dayhead .wx")).toEqual(["20°"]);
+  });
+
+  it("shows no weather when show_weather is off", async () => {
+    const { all, wsCalls } = await mount(
+      { ...base, view: "week", show_weather: false },
+      { forecast },
+    );
+    expect(all(".wx")).toHaveLength(0);
+    expect(wsCalls.some((m) => m.service === "get_forecasts")).toBe(false);
   });
 });

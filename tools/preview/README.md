@@ -21,7 +21,12 @@ npm run check:browser  # Layout-Prüfungen, schreibt Screenshots nach /tmp
 ## Parameter
 
 `index.html` versteht `?view=day|timeline|week|month|agenda`, `?lang=de|en`,
-`?dark=1` (Home-Assistant-Dark-Theme) und `?alerts=1` (Tages-Check).
+`?dark=1` (Home-Assistant-Dark-Theme), `?alerts=1` (Tages-Check) und
+`?noweather=1` (ohne Wetter-Entität; sonst liefert das Harness eine
+10-Tage-Vorhersage ab heute).
+
+`<ha-icon>` wird durch einen grauen Kreis in Icon-Größe ersetzt, damit Icons
+im Layout so viel Platz einnehmen wie in Home Assistant.
 
 Die Daten sind erfunden und die Namen generisch — die Screenshots im README
 entstehen hier, es sollen keine echten Familiennamen hineingeraten.

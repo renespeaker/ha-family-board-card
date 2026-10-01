@@ -25,6 +25,15 @@
 <div id="root"></div>
 <script type="module">
 import "../../dist/ha-family-board-card.js";
+// Stand-in for HA's <ha-icon>: takes the space a real icon takes, so layout
+// checks see what users see (without it every icon would be 0px wide).
+customElements.define("ha-icon", class extends HTMLElement {
+  connectedCallback() {
+    Object.assign(this.style, { display: "inline-block", flex: "none",
+      width: "var(--mdc-icon-size, 24px)", height: "var(--mdc-icon-size, 24px)",
+      borderRadius: "50%", background: "currentColor", opacity: ".35" });
+  }
+});
 const Q = new URLSearchParams(location.search);
 if (Q.has("dark")) document.body.classList.add("dark");
 const lang = Q.get("lang") || "de";
@@ -67,9 +76,17 @@ const hass = {
     "calendar.ben":{state:"on",attributes:{friendly_name:"Ben",supported_features:0}},
     "calendar.mia":{state:"on",attributes:{friendly_name:"Mia",supported_features:0}},
     "calendar.leon":{state:"on",attributes:{friendly_name:"Leon",supported_features:0}},
+    "weather.home":{state:"rainy",attributes:{friendly_name:"Home"}},
   },
   callApi: async(_m,path)=>cal[path.split("?")[0].replace("calendars/","")]||[],
-  callWS: async()=>({}),
+  callWS: async(msg)=>{
+    if (msg.service !== "get_forecasts") return {};
+    const conds = ["rainy","sunny","partlycloudy","cloudy","lightning-rainy","snowy","sunny"];
+    const forecast = Array.from({length:10},(_,i)=>({
+      datetime: new Date(base.getFullYear(),base.getMonth(),base.getDate()+i,12).toISOString(),
+      condition: conds[i%conds.length], temperature: 24-i, templow: 13-i }));
+    return { response: { "weather.home": { forecast } } };
+  },
 };
 const el=document.createElement("family-board-card");
 el.setConfig({
@@ -77,6 +94,7 @@ el.setConfig({
   title: T.title,
   view: Q.get("view") || "day",
   views:["day","timeline","week","month","agenda"],
+  weather_entity: Q.has("noweather") ? undefined : "weather.home",
   show_focus: !Q.has("slim"), auto_icons:true, slim_header: Q.has("slim"), show_alerts: Q.has("alerts"), gap_min:60,
   background_hours: 3, start_hour:7, end_hour:18, trim_hours:false,
   hour_height: 64, hour_width: 110, time_grid:15,

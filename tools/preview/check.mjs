@@ -158,6 +158,32 @@ for (const locale of ["de-DE", "en-US"]) {
   await page.close();
 }
 
+/* --- weather chips must fit their weekday / month cell -------------- */
+for (const [view, sel, width] of [
+  ["week", ".wday", 1400],
+  ["week", ".wday", 400],
+  ["month", ".mcell", 1400],
+  ["month", ".mcell", 400],
+]) {
+  const { page } = await open({ view, width });
+  const fit = await page.evaluate((sel) => {
+    const root = document.querySelector("family-board-card").renderRoot;
+    const cells = [...root.querySelectorAll(sel)].filter((c) => c.querySelector(".wx"));
+    const bad = cells.filter((c) => {
+      const box = c.getBoundingClientRect();
+      const wx = c.querySelector(".wx").getBoundingClientRect();
+      return wx.right > box.right + 0.5 || wx.left < box.left - 0.5;
+    });
+    return { n: cells.length, bad: bad.length };
+  }, sel);
+  check(
+    `Wetter passt in ${sel} (${view}, ${width}px)`,
+    fit.n > 0 && fit.bad === 0,
+    `${fit.n} Zellen mit Wetter, ${fit.bad} zu schmal`,
+  );
+  await page.close();
+}
+
 /* --- nothing may scroll sideways out of the card -------------------- */
 for (const [view, width] of [["day", 400], ["agenda", 400], ["week", 400], ["month", 400]]) {
   const { page } = await open({ view, width });

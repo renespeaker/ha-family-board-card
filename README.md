@@ -41,7 +41,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Multilingual & localized** – texts in English/German, weekday names and clock format (12/24 h) from the HA locale; relative days (“Today/Tomorrow”).
 - **Everyday polish** – past events dimmed, coloring by calendar, open a location straight in the maps app, hide noisy events by pattern.
 - **Live progress & countdown** – running events show a progress bar (can be turned off), upcoming ones show “in 20 min” in the agenda; updates every minute.
-- **Weather** – icon + temperature per day from a `weather.*` entity in the day/agenda header (HA location, not the event address).
+- **Weather** – daily forecast from a `weather.*` entity (HA location, not the event address): icon with high/low in the day, timeline and agenda headers, icon + high next to each weekday in the week view, icon in the month cells.
 - **Busy days stay readable** – if more events overlap than `max_columns` allows, the extra columns are collapsed into a “+N” chip (click opens the agenda) instead of shrinking into unreadable slivers.
 - **Long events as a background band** – long-running events (after-school care, “free play”) beyond a configurable length run as a subtle full-width band behind the column instead of squeezing the short events sideways. The real appointments get the full width.
 - **Auto-fit height** – optionally the day view adapts to the available card height so that start–end hour are fully visible without scrolling (ideal for wall tablets / kiosk).
@@ -140,7 +140,7 @@ persons:
 | `past_opacity` | number | – | Opacity of past events in % (sets `--fb-past-opacity`) |
 | `show_progress` | boolean | `true` | Progress bar on the running event |
 | `weather_entity` | string | – | `weather.*` entity for the daily forecast (HA location) |
-| `show_weather` | boolean | `true`* | Show weather in the header (*only takes effect when `weather_entity` is set) |
+| `show_weather` | boolean | `true`* | Show the weather in the views (*only takes effect when `weather_entity` is set) |
 | `hour_height` | number | `64` | Height of one hour in px (40–96) – scales the day view (wall tablet); with `fit_height` this is the upper bound |
 | `hour_width` | number | `96` | Timeline view: width of one hour in px (48–240) |
 | `fit_height` | boolean | `false` | Shrink the day view automatically so that start–end hour are fully visible without scrolling (wall tablet / kiosk) |

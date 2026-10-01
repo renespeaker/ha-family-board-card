@@ -328,7 +328,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _taskSig: Record<string, string> = {};
   private _timer?: number;
   private _tick?: number;
-  @state() private _forecast: Record<string, { temp: number; condition: string }> = {};
+  @state() private _forecast: Record<string, { temp: number; low?: number; condition: string }> =
+    {};
   private _weatherKey = "";
   private _scrolledKey = "";
   private _restoreFocus?: HTMLElement;
@@ -877,11 +878,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         return_response: true,
       });
       const list: any[] = res?.response?.[ent]?.forecast ?? [];
-      const map: Record<string, { temp: number; condition: string }> = {};
+      const map: Record<string, { temp: number; low?: number; condition: string }> = {};
       for (const f of list) {
         if (!f?.datetime) continue;
         map[toLocalDate(new Date(f.datetime))] = {
           temp: Math.round(f.temperature),
+          low: typeof f.templow === "number" ? Math.round(f.templow) : undefined,
           condition: f.condition,
         };
       }
@@ -891,14 +893,20 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
   }
 
-  /** Small weather chip (icon + temperature) for a given date, or nothing. */
-  private _weatherChip(date: Date) {
+  /**
+   * Weather chip for a given date, or nothing. "full" shows high/low, "short"
+   * only the high (week rows), "icon" just the symbol (month cells); the
+   * tooltip always carries the complete forecast.
+   */
+  private _weatherChip(date: Date, size: "full" | "short" | "icon" = "full") {
     const f = this._forecast[toLocalDate(date)];
     if (!f) return nothing;
     const icon = WEATHER_ICON[f.condition] || "weather-cloudy";
     const unit = (this.hass.config as any)?.unit_system?.temperature ?? "°";
-    return html`<span class="wx" title=${f.condition}>
-      <ha-icon icon="mdi:${icon}"></ha-icon>${f.temp}${unit}
+    const temps = f.low === undefined ? `${f.temp}${unit}` : `${f.temp}${unit} / ${f.low}${unit}`;
+    const text = size === "icon" ? "" : size === "short" ? `${f.temp}${unit}` : temps;
+    return html`<span class="wx ${size}" title="${f.condition} · ${temps}">
+      <ha-icon icon="mdi:${icon}"></ha-icon>${text}
     </span>`;
   }
 
@@ -2162,7 +2170,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   }
                 }}
               >
-                <b>${short[d]}</b>
+                <b>${short[d]}</b>${this._weatherChip(this._dateForDay(d), "short")}
               </div>
               ${shown.map(({ p, i }) => {
                 const canCreate = this._personCanCreate(p);
@@ -2413,7 +2421,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   }
                 }}
               >
-                <div class="mdate ${isToday ? "today" : ""}">${date.getDate()}</div>
+                <div class="mtop">
+                  <div class="mdate ${isToday ? "today" : ""}">${date.getDate()}</div>
+                  ${this._weatherChip(date, "icon")}
+                </div>
                 <div class="mchips">
                   ${items.slice(0, maxChips).map((e) => {
                     const col = this._eventColor(e);
@@ -4106,6 +4117,38 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .agenda-date .wx {
       margin-left: 4px;
     }
+    .wx.short {
+      font-size: 11px;
+      padding: 1px 6px 1px 3px;
+      margin-left: 4px;
+    }
+    .wx.short ha-icon {
+      --mdc-icon-size: 15px;
+    }
+    /* the week's day column is narrow: weather goes under the weekday */
+    .wday:has(.wx) {
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 3px;
+    }
+    .wday .wx.short {
+      margin-left: 0;
+    }
+    .wx.icon {
+      background: none;
+      padding: 0;
+      margin: 0;
+    }
+    .wx.icon ha-icon {
+      --mdc-icon-size: 15px;
+      color: var(--secondary-text-color);
+    }
+    .mtop {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
     /* faded past events + map link */
     .past {
       opacity: var(--fb-past-opacity);
@@ -4438,7 +4481,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.28.1 ",
+  "%c FAMILY-BOARD-CARD %c v0.29.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
