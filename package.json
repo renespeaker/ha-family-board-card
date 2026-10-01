@@ -1,6 +1,6 @@
 {
   "name": "ha-family-board-card",
-  "version": "0.29.0",
+  "version": "0.30.0",
   "description": "Family calendar / who-is-where board for Home Assistant",
   "type": "module",
   "license": "MIT",
@@ -23,6 +23,7 @@
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^12.3.0",
+    "axe-core": "^4.13.0",
     "custom-card-helpers": "^2.0.0",
     "happy-dom": "^20.14.5",
     "playwright-core": "^1.63.0",

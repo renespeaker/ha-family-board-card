@@ -14,6 +14,9 @@ npm run preview        # http://127.0.0.1:8931/tools/preview/
 npm run check:browser  # Layout-Prüfungen, schreibt Screenshots nach /tmp
 ```
 
+Dazu gehören Barrierefreiheits-Prüfungen mit axe-core (Struktur/ARIA in jeder
+Ansicht, Kontrast der eigenen Texte, Tastatur-Bedienung).
+
 `check:browser` läuft **nicht** in der CI: es braucht einen Browser (Chromium
 über `playwright-core`, Pfad via `CHROMIUM_PATH`, Vorgabe
 `/opt/pw-browsers/chromium`). Vor einer Release-Kandidatin lohnt ein Durchlauf.

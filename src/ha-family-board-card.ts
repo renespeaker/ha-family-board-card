@@ -32,8 +32,11 @@ import {
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
-type ViewName = "day" | "week" | "month" | "agenda" | "timeline";
-const ALL_VIEWS: ViewName[] = ["day", "timeline", "week", "month", "agenda"];
+type ViewName = "now" | "day" | "week" | "month" | "agenda" | "timeline";
+/** Canonical toggle order. */
+const ALL_VIEWS: ViewName[] = ["now", "day", "timeline", "week", "month", "agenda"];
+/** Views shown when `views` is not configured. "now" is opt-in, so existing boards stay as they are. */
+const DEFAULT_VIEWS: ViewName[] = ["day", "timeline", "week", "month", "agenda"];
 
 interface PersonConfig {
   name?: string;
@@ -415,7 +418,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private get _enabledViews(): ViewName[] {
     const v = this._config?.views;
     const chosen = Array.isArray(v) ? ALL_VIEWS.filter((x) => v.includes(x)) : [];
-    return chosen.length ? chosen : [...ALL_VIEWS];
+    if (chosen.length) return chosen;
+    // asking for the now view as default is enough to switch it on
+    return this._config?.view === "now" ? ["now", ...DEFAULT_VIEWS] : [...DEFAULT_VIEWS];
   }
 
   /** JS weekday (0=Sun..6=Sat) of the configured week start. */
@@ -455,6 +460,20 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return 12;
   }
 
+  /**
+   * Minute tick so countdowns, progress bars and the clock stay live when idle.
+   * Aligned to the start of each minute - otherwise the clock in the now view
+   * could lag up to 59 seconds behind.
+   */
+  private _scheduleTick(): void {
+    const wait = 60000 - (Date.now() % 60000) + 50;
+    this._tick = window.setTimeout(() => {
+      this._kioskReturn();
+      this.requestUpdate();
+      this._scheduleTick();
+    }, wait);
+  }
+
   public connectedCallback(): void {
     super.connectedCallback();
     document.addEventListener("keydown", this._onKeyDown);
@@ -462,11 +481,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     window.addEventListener("focus", this._onVisible);
     this._startTimer();
     this.addEventListener("pointerdown", this._onInteract);
-    // minute tick so countdowns and progress bars stay live when idle
-    this._tick = window.setInterval(() => {
-      this._kioskReturn();
-      this.requestUpdate();
-    }, 60000);
+    this._scheduleTick();
     // recompute the fit-to-height scaling whenever the card is resized
     if (typeof ResizeObserver !== "undefined") {
       this._ro = new ResizeObserver(() => requestAnimationFrame(() => this._measureFit()));
@@ -482,7 +497,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this.removeEventListener("pointerdown", this._onInteract);
     this._stopTimer();
     if (this._tick) {
-      clearInterval(this._tick);
+      clearTimeout(this._tick);
       this._tick = undefined;
     }
     this._ro?.disconnect();
@@ -536,8 +551,34 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (e.key === "Escape" && this._dialog) {
       e.stopPropagation();
       this._closeDialog();
+    } else if (e.key === "Tab" && this._dialog) {
+      this._trapTab(e);
     }
   };
+
+  /** Keep Tab inside the open dialog (it is modal). */
+  private _trapTab(e: KeyboardEvent): void {
+    const root = this.renderRoot as ShadowRoot;
+    const dlg = root.querySelector(".dialog") as HTMLElement | null;
+    if (!dlg) return;
+    const items = [
+      ...dlg.querySelectorAll<HTMLElement>(
+        'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter((el) => !(el as HTMLButtonElement).disabled && el.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = root.activeElement as HTMLElement | null;
+    const inside = !!active && dlg.contains(active);
+    if (e.shiftKey && (!inside || active === first || active === dlg)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (!inside || active === last)) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   private _startTimer(): void {
     this._stopTimer();
@@ -556,6 +597,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._maybeFetch();
       this._maybeFetchWeather();
       this._maybeFetchTasks();
+    } else if (
+      (changed.has("_view") || changed.has("_weekOffset") || changed.has("_monthOffset")) &&
+      this.hass &&
+      this._config
+    ) {
+      // navigating needs other data - don't wait for the next hass update
+      this._maybeFetch();
     }
     if (changed.has("_dialog")) this._manageDialogFocus(changed.get("_dialog") as DialogState);
     this._measureFit();
@@ -710,8 +758,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (this._dialog && !prev) {
       this._restoreFocus = (this.renderRoot as ShadowRoot)?.activeElement as HTMLElement;
       requestAnimationFrame(() => {
-        const input = this.renderRoot?.querySelector(".dialog input") as HTMLElement | null;
-        input?.focus();
+        // first field; a read-only event has none - then the dialog itself, so
+        // keyboard and screen reader users still land inside it
+        const dlg = this.renderRoot?.querySelector(".dialog") as HTMLElement | null;
+        const input = dlg?.querySelector("input:not([disabled])") as HTMLElement | null;
+        (input ?? dlg)?.focus();
       });
     } else if (!this._dialog && prev) {
       this._restoreFocus?.focus?.();
@@ -745,6 +796,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   /** Fetch window for the current view. */
   private _fetchRange(): { start: Date; end: Date } {
+    if (this._view === "now") {
+      // from today on, so "next" still finds Monday's first event on a Sunday night
+      const start = startOfDay(new Date());
+      return { start, end: addDays(start, 8) };
+    }
     if (this._view === "month") {
       const { gridStart, weeks } = this._monthGrid();
       return { start: gridStart, end: addDays(gridStart, weeks * 7) };
@@ -755,7 +811,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   private async _maybeFetch(): Promise<void> {
     const cals = this._config.persons.map((p) => this._calsOf(p).join("+")).join(",");
-    const scope = this._view === "month" ? `m${this._monthOffset}` : `w${this._weekOffset}`;
+    const scope =
+      this._view === "now"
+        ? `n${toLocalDate(new Date())}`
+        : this._view === "month"
+          ? `m${this._monthOffset}`
+          : `w${this._weekOffset}`;
     const key = `${scope}|${cals}`;
     if (key === this._fetchedKey) return;
     this._fetchedKey = key;
@@ -1323,6 +1384,26 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return this._weekOffset === 0 && day === this._todayIndex();
   }
   /** Open an item on Enter/Space for keyboard users. */
+  /** "Wednesday, 30 September" - for screen readers, where "30" alone says little. */
+  private _dateLabel(date: Date): string {
+    return new Intl.DateTimeFormat(this.hass.locale?.language || undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(date);
+  }
+
+  /** What a screen reader announces for an event: title, time, person. */
+  private _evLabel(e: BoardEvent): string {
+    const when = e.allDay
+      ? this._t("all_day")
+      : `${formatTime(this.hass, e.ref.start)}–${formatTime(this.hass, e.ref.end)}`;
+    const p = this._persons[e.personIdx];
+    return [this._evTitle(e), when, p ? this._personName(p, e.personIdx) : ""]
+      .filter(Boolean)
+      .join(", ");
+  }
+
   private _onItemKey(e: KeyboardEvent, ev: BoardEvent): void {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -1347,9 +1428,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return pic
       ? html`<div
           class="avatar"
+          aria-hidden="true"
           style="background-image:url('${pic}');box-shadow:0 0 0 2px ${color}55"
         ></div>`
-      : html`<div class="avatar initials" style="background:${color}">${initials}</div>`;
+      : html`<div class="avatar initials" aria-hidden="true" style="background:${color}">
+          ${initials}
+        </div>`;
   }
 
   /** Small entity chips (battery, sensors …) under a person header. */
@@ -1436,12 +1520,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           <div class="title">${title}</div>
           ${
             this._enabledViews.length > 1
-              ? html`<div class="switch" role="tablist">
+              ? html`<div
+                  class="switch"
+                  role="tablist"
+                  @keydown=${(k: KeyboardEvent) =>
+                    this._onTabKey(k, this._enabledViews, this._view, (v) => (this._view = v))}
+                >
                   ${this._enabledViews.map(
                     (v) =>
                       html`<button
                         role="tab"
                         aria-selected=${this._view === v}
+                        tabindex=${this._view === v ? 0 : -1}
                         class=${this._view === v ? "on" : ""}
                         @click=${() => (this._view = v)}
                       >
@@ -1452,22 +1542,24 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               : nothing
           }
         </div>
-        ${this._config.show_focus ? this._renderFocus() : nothing}
+        ${this._config.show_focus && this._view !== "now" ? this._renderFocus() : nothing}
         ${
           this._config.show_alerts && (this._view === "day" || this._view === "timeline")
             ? this._renderAlerts()
             : nothing
         }
         ${
-          this._view === "day"
-            ? this._renderDay()
-            : this._view === "timeline"
-              ? this._renderTimeline()
-              : this._view === "week"
-                ? this._renderWeek()
-                : this._view === "month"
-                  ? this._renderMonth()
-                  : this._renderAgenda()
+          this._view === "now"
+            ? this._renderNow()
+            : this._view === "day"
+              ? this._renderDay()
+              : this._view === "timeline"
+                ? this._renderTimeline()
+                : this._view === "week"
+                  ? this._renderWeek()
+                  : this._view === "month"
+                    ? this._renderMonth()
+                    : this._renderAgenda()
         }
       </ha-card>
       ${this._dialog ? this._renderDialog() : nothing}
@@ -1595,6 +1687,114 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     `;
   }
 
+  /** All-day events of a person that cover today (holiday, school trip …). */
+  private _allDayToday(idx: number): RawEvent[] {
+    const now = Date.now();
+    return this._raw.filter(
+      (r) => r.personIdx === idx && r.allDay && r.start.getTime() <= now && now < r.end.getTime(),
+    );
+  }
+
+  /**
+   * When the next event starts: "in 25 min" within the hour, the time later
+   * today ("16:30" reads better on the wall than "in 6 h"), otherwise day +
+   * time ("Tomorrow 08:00", "Mon 08:00").
+   */
+  private _nextLabel(start: Date): string {
+    if (toLocalDate(start) === toLocalDate(new Date())) {
+      return start.getTime() - Date.now() < 3600000
+        ? formatCountdown(this.hass, start)
+        : formatTime(this.hass, start);
+    }
+    const day = this._relativeDay(start) ?? weekdayNames(this.hass, "short", 0)[start.getDay()];
+    return `${day} ${formatTime(this.hass, start)}`;
+  }
+
+  /**
+   * The "now" view: a calm glance for a wall tablet or a small display - who
+   * is doing what right now and what comes next, in large type.
+   */
+  private _renderNow() {
+    const now = new Date();
+    const date = new Intl.DateTimeFormat(this.hass.locale?.language || undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(now);
+    const icon = (r: RawEvent) => (this._config.auto_icons ? this._autoIcon(r.summary) : "");
+    return html`
+      <div class="now">
+        <div class="nowhead">
+          <span class="nowclock">${formatTime(this.hass, now)}</span>
+          <span class="nowdate">${date}</span>
+          ${this._weatherChip(now)}
+          ${this._loading && this._raw.length === 0 ? html`<span class="spinner"></span>` : nothing}
+        </div>
+        <ul class="nowlist">
+          ${this._persons.map((p, i) => {
+            if (this._isOff(i)) return nothing;
+            const { current, next } = this._focusFor(i);
+            const c = personColor(p, i);
+            const name = this._personName(p, i);
+            const st = p.person ? this.hass.states[p.person] : undefined;
+            const allDay = this._allDayToday(i);
+            const pct = current
+              ? Math.min(
+                  100,
+                  Math.max(
+                    0,
+                    ((now.getTime() - current.start.getTime()) /
+                      Math.max(1, current.end.getTime() - current.start.getTime())) *
+                      100,
+                  ),
+                )
+              : 0;
+            return html`
+              <li class="nrow" style="--pc:${c}">
+                ${this._avatar(p, i)}
+                <div class="nbody">
+                  <div class="nname">
+                    ${name}${st ? html`<span class="nstat">${this._statusLabel(st.state)}</span>` : nothing}
+                  </div>
+                  ${allDay.map((r) => html`<span class="nallday">${icon(r)} ${r.summary}</span>`)}
+                  ${
+                    current
+                      ? html`<div class="ncur">
+                          <span class="ndot" aria-hidden="true"></span>
+                          <span class="ntitle">${icon(current)} ${current.summary}</span>
+                          <span class="nuntil"
+                            >${this._t("until")} ${formatTime(this.hass, current.end)}</span
+                          >
+                          <div
+                            class="nprog"
+                            role="progressbar"
+                            aria-label=${current.summary}
+                            aria-valuenow=${Math.round(pct)}
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                          >
+                            <i style="width:${pct}%"></i>
+                          </div>
+                        </div>`
+                      : html`<div class="ncur nfree">${this._t("focus_free")}</div>`
+                  }
+                  ${
+                    next
+                      ? html`<div class="nnext">
+                          ${this._t("focus_next")}: ${icon(next)} ${next.summary}
+                          <b>${this._nextLabel(next.start)}</b>
+                        </div>`
+                      : nothing
+                  }
+                </div>
+              </li>
+            `;
+          })}
+        </ul>
+      </div>
+    `;
+  }
+
   private _weekNav() {
     const { monday } = this._weekBounds();
     return html`
@@ -1608,15 +1808,45 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     `;
   }
 
+  /**
+   * Arrow keys / Home / End inside a tab list (WAI-ARIA tabs pattern): one Tab
+   * stop for the whole list, arrows move and activate.
+   */
+  private _onTabKey<T>(e: KeyboardEvent, items: T[], current: T, select: (v: T) => void): void {
+    const n = items.length;
+    const i = items.indexOf(current);
+    const to =
+      e.key === "ArrowRight"
+        ? (i + 1) % n
+        : e.key === "ArrowLeft"
+          ? (i - 1 + n) % n
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? n - 1
+              : -1;
+    if (to < 0 || n === 0) return;
+    e.preventDefault();
+    select(items[to]);
+    const list = e.currentTarget as HTMLElement;
+    this.updateComplete.then(() => list.querySelectorAll<HTMLElement>('[role="tab"]')[to]?.focus());
+  }
+
   private _renderDayTabs() {
     const short = weekdayNames(this.hass, "short", this._firstDayJs);
     return html`
-      <div class="tabs" role="tablist">
+      <div
+        class="tabs"
+        role="tablist"
+        @keydown=${(k: KeyboardEvent) =>
+          this._onTabKey(k, this._visibleDays, this._day, (d) => (this._day = d))}
+      >
         ${this._visibleDays.map(
           (d) => html`
             <button
               role="tab"
               aria-selected=${d === this._day}
+              tabindex=${d === this._day ? 0 : -1}
               class="${d === this._day ? "on" : ""} ${this._isRealToday(d) ? "today" : ""}"
               @click=${() => (this._day = d)}
             >
@@ -1671,6 +1901,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 role="button"
                 tabindex="0"
                 title=${this._personName(p, i)}
+                aria-pressed=${this._isOff(i) ? "false" : "true"}
                 @click=${() => this._togglePerson(i)}
                 @keydown=${(k: KeyboardEvent) => {
                   if (k.key === "Enter" || k.key === " ") {
@@ -1717,6 +1948,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                               tabindex="0"
                               role="button"
                               @click=${() => this._openEvent(e)}
+                              aria-label=${this._evLabel(e)}
                               @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                             >
                               ${e.continuesBefore ? "« " : ""}${this._evTitle(e)}${
@@ -1773,6 +2005,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           ev.stopPropagation();
                           this._openEvent(e);
                         }}
+                        aria-label=${this._evLabel(e)}
                         @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                         style="top:${top + 1.5}px;height:${h}px;
                                border:1.5px dashed ${c}55;
@@ -1837,6 +2070,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                             }
                             this._openEvent(e);
                           }}
+                          aria-label=${this._evLabel(e)}
                           @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                           style="top:${top + 1.5}px;height:${h}px;
                                left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);
@@ -1990,6 +2224,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   class="tlperson"
                   role="button"
                   tabindex="0"
+                  aria-pressed=${this._isOff(i) ? "false" : "true"}
                   @click=${() => this._togglePerson(i)}
                   @keydown=${(k: KeyboardEvent) => {
                     if (k.key === "Enter" || k.key === " ") {
@@ -2042,6 +2277,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                             }
                             this._openEvent(e);
                           }}
+                          aria-label=${this._evLabel(e)}
                           @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                           style="left:${(s - startMin) * px + 1.5}px;width:${w}px;
                                  top:${e.col * LANE + 4}px;height:${LANE - 6}px;
@@ -2144,6 +2380,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 class="wphead ${this._isOff(i) ? "off" : ""}"
                 role="button"
                 tabindex="0"
+                aria-pressed=${this._isOff(i) ? "false" : "true"}
                 @click=${() => this._togglePerson(i)}
                 @keydown=${(k: KeyboardEvent) => {
                   if (k.key === "Enter" || k.key === " ") {
@@ -2161,6 +2398,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 class="wday ${this._isRealToday(d) ? "today" : ""}"
                 role="button"
                 tabindex="0"
+                aria-label=${this._dateLabel(this._dateForDay(d))}
                 title=${this._t("day")}
                 @click=${() => this._openDayView(d)}
                 @keydown=${(k: KeyboardEvent) => {
@@ -2197,6 +2435,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                             ev.stopPropagation();
                             this._openEvent(e);
                           }}
+                          aria-label=${this._evLabel(e)}
                           @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
                         >
                           <span
@@ -2340,6 +2579,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         tabindex="0"
         role="button"
         @click=${() => this._openEvent(e)}
+        aria-label=${this._evLabel(e)}
         @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
       >
         <span class="agenda-time">${time}</span>
@@ -2413,6 +2653,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 }"
                 role="button"
                 tabindex="0"
+                aria-label=${
+                  this._dateLabel(date) +
+                  (items.length ? `: ${items.map((e) => this._evTitle(e)).join(", ")}` : "")
+                }
                 @click=${() => this._goToDate(date)}
                 @keydown=${(k: KeyboardEvent) => {
                   if (k.key === "Enter" || k.key === " ") {
@@ -2761,7 +3005,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           if (e.target === e.currentTarget) this._closeDialog();
         }}
       >
-        <div class="dialog" role="dialog" aria-modal="true" aria-label=${heading}>
+        <div class="dialog" role="dialog" aria-modal="true" aria-label=${heading} tabindex="-1">
           <div class="dlg-head">
             <span>${heading}</span>
             <button class="icon" aria-label=${this._t("close")} @click=${this._closeDialog}>
@@ -2929,6 +3173,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       --fb-hourline: var(--divider-color, #8884);
       --fb-halfhour: color-mix(in srgb, var(--divider-color, #8884) 45%, transparent);
       --fb-row-shade: color-mix(in srgb, var(--secondary-text-color, #888) 5%, transparent);
+      /* secondary text on tinted event backgrounds: the theme's secondary grey
+         drops below a readable contrast there (2.8:1 in dark mode), so derive
+         it from the primary text colour instead */
+      --fb-soft-text: color-mix(in srgb, var(--primary-text-color, #212121) 85%, transparent);
       /* customization tokens — override via theme or card-mod */
       --fb-accent: var(--primary-color);
       --fb-now-color: var(--error-color, #ff5252);
@@ -3088,6 +3336,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       background: var(--secondary-background-color);
       border-radius: 9px;
       padding: 2px;
+    }
+    /* with many views the toggle may not fit a phone: scroll it, never the card */
+    .switch {
+      max-width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .switch::-webkit-scrollbar {
+      display: none;
+    }
+    .switch button {
+      flex: none;
     }
     .switch button,
     .tabs button {
@@ -3629,6 +3889,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         flex-wrap: wrap;
         gap: 6px;
       }
+      .switch button {
+        padding: 5px 9px;
+      }
       .phead {
         padding: 6px 4px;
         gap: 2px;
@@ -3693,7 +3956,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .etime {
       font-size: var(--fb-time-size);
-      color: var(--secondary-text-color);
+      color: var(--fb-soft-text);
       font-variant-numeric: tabular-nums;
     }
     .nowline {
@@ -4095,6 +4358,135 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--secondary-text-color);
       padding-left: 4px;
     }
+    /* "now" view: large, calm glance for wall tablets and small displays */
+    .now {
+      padding: 12px 16px 16px;
+    }
+    .nowhead {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 4px 14px;
+      margin-bottom: 12px;
+    }
+    .nowclock {
+      font-size: clamp(32px, 7vw, 56px);
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .nowdate {
+      font-size: clamp(14px, 2.4vw, 18px);
+      color: var(--secondary-text-color);
+    }
+    .nowhead .wx {
+      align-self: center;
+      margin-left: 0;
+    }
+    .nowlist {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+      gap: 10px;
+    }
+    .nrow {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      border-radius: var(--fb-radius);
+      background: color-mix(in srgb, var(--pc) 9%, var(--card-background-color, #fff));
+      border-left: 4px solid var(--pc);
+      min-width: 0;
+    }
+    .nrow .avatar {
+      width: 44px;
+      height: 44px;
+      flex: none;
+      font-size: 15px;
+    }
+    .nbody {
+      min-width: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .nname {
+      font-weight: 700;
+      font-size: 15px;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .nstat {
+      font-weight: 400;
+      font-size: 12px;
+      color: var(--fb-soft-text);
+    }
+    .nallday {
+      align-self: flex-start;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--pc) 22%, transparent);
+    }
+    .ncur {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 2px 8px;
+      font-size: clamp(17px, 2.6vw, 22px);
+      font-weight: 700;
+      line-height: 1.25;
+    }
+    .ncur .ntitle {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .ndot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--pc);
+      align-self: center;
+      flex: none;
+    }
+    .nuntil {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--fb-soft-text);
+    }
+    .nfree {
+      color: var(--secondary-text-color);
+      font-weight: 500;
+    }
+    .nprog {
+      flex-basis: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: color-mix(in srgb, var(--pc) 20%, transparent);
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .nprog i {
+      display: block;
+      height: 100%;
+      background: var(--pc);
+    }
+    .nnext {
+      font-size: 14px;
+      color: var(--fb-soft-text);
+      overflow-wrap: anywhere;
+    }
+    .nnext b {
+      color: var(--primary-text-color);
+      font-weight: 600;
+      white-space: nowrap;
+    }
     /* weather chip */
     .wx {
       display: inline-flex;
@@ -4282,7 +4674,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .wchip small {
       margin-left: auto;
       font-size: 8.5px;
-      color: var(--secondary-text-color);
+      color: var(--fb-soft-text);
       font-variant-numeric: tabular-nums;
     }
     /* focus visibility for a11y */
@@ -4481,7 +4873,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.29.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.30.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

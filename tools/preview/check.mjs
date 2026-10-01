@@ -184,6 +184,116 @@ for (const [view, sel, width] of [
   await page.close();
 }
 
+/* --- accessibility: axe-core over every view ------------------------ */
+// Structure, roles, names and ARIA must be clean everywhere. Colour contrast
+// is checked separately below: most of it comes from the user's HA theme and
+// from past events that are faded on purpose (past_opacity).
+const AXE = await readFile(join(ROOT, "node_modules/axe-core/axe.min.js"), "utf8");
+const axe = (page, context, options) =>
+  page.addScriptTag({ content: AXE }).then(() =>
+    page.evaluate(
+      async ([context, options]) => {
+        const res = await window.axe.run(context ?? document.querySelector("family-board-card"), {
+          resultTypes: ["violations"],
+          ...options,
+        });
+        return res.violations.map((v) => `${v.id} ×${v.nodes.length}`);
+      },
+      [context, options],
+    ),
+  );
+for (const [view, dark, dialog] of [
+  ["now"],
+  ["day"],
+  ["timeline"],
+  ["week"],
+  ["month"],
+  ["agenda"],
+  ["day", true],
+  ["day", false, true],
+]) {
+  const { page } = await open({ view, dark });
+  if (dialog) {
+    await page.evaluate(() =>
+      document.querySelector("family-board-card").renderRoot.querySelector(".event").click(),
+    );
+    await page.waitForTimeout(300);
+  }
+  const found = await axe(page, null, { rules: { "color-contrast": { enabled: false } } });
+  const name = `${view}${dark ? " dunkel" : ""}${dialog ? " + Dialog" : ""}`;
+  check(`axe: keine Barrierefreiheits-Fehler (${name})`, found.length === 0, found.join(", "));
+  await page.close();
+}
+
+/* --- contrast of the card's own small texts on tinted event blocks --- */
+for (const dark of [false, true]) {
+  for (const [view, sel] of [
+    ["day", ".event:not(.past) .etime"],
+    ["week", ".wchip:not(.past) small"],
+    ["now", ".nrow .nnext, .nrow .nuntil, .nrow .nstat"],
+  ]) {
+    const { page } = await open({ view, dark });
+    const found = await axe(
+      page,
+      { include: [{ fromShadowDom: ["family-board-card", sel] }] },
+      { runOnly: ["color-contrast"] },
+    );
+    check(
+      `Kontrast ausreichend: ${sel} (${view}${dark ? ", dunkel" : ""})`,
+      found.length === 0,
+      found.join(", "),
+    );
+    await page.close();
+  }
+}
+
+/* --- keyboard: tab lists, dialog focus and focus trap ---------------- */
+{
+  const { page } = await open({ view: "day" });
+  const active = () =>
+    page.evaluate(() => {
+      const a = document.querySelector("family-board-card").renderRoot.activeElement;
+      return a ? { tag: a.tagName, text: a.textContent.trim(), inDialog: !!a.closest(".dialog") } : {};
+    });
+  await page.keyboard.press("Tab");
+  const first = await active();
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(200);
+  const moved = await active();
+  check(
+    "Pfeiltaste wechselt die Ansicht",
+    first.text === "Tag" && moved.text === "Zeitstrahl",
+    `${first.text} → ${moved.text}`,
+  );
+  // the whole tab list is a single Tab stop
+  await page.keyboard.press("Tab");
+  const after = await active();
+  check("Ansichts-Tabs sind ein einziger Tab-Stopp", after.text !== "Woche", after.text);
+  await page.keyboard.press("ArrowLeft"); // harmless outside a tab list
+  await page.evaluate(() => {
+    const el = document.querySelector("family-board-card");
+    el._view = "day";
+  });
+  await page.waitForTimeout(800);
+  await page.evaluate(() =>
+    document.querySelector("family-board-card").renderRoot.querySelector(".event").focus(),
+  );
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(300);
+  check("Dialog bekommt den Fokus", (await active()).inDialog === true);
+  let stayed = true;
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press(i < 8 ? "Tab" : "Shift+Tab");
+    if (!(await active()).inDialog) stayed = false;
+  }
+  check("Tab bleibt im Dialog", stayed);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  const back = await active();
+  check("Fokus kehrt nach Escape zum Termin zurück", back.tag === "DIV" && !back.inDialog, back.text);
+  await page.close();
+}
+
 /* --- nothing may scroll sideways out of the card -------------------- */
 for (const [view, width] of [["day", 400], ["agenda", 400], ["week", 400], ["month", 400]]) {
   const { page } = await open({ view, width });

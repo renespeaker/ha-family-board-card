@@ -28,9 +28,11 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Can start on another day** – `day_offset` shifts the day and timeline views by N days (`1` = tomorrow). Meant for displays that should show the day ahead – an e-paper panel in the hallway, say.
 - **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
 - **“Now / next” bar** – optional highlight row above the views: per person, what is running right now (with a pulsing dot) or what is coming next (incl. countdown) – made for the wall tablet.
+- **Now view** – a calm full-card glance for a wall tablet or a small display: large clock and date, and per person what is running right now (with progress), today's all-day events and what comes next (“in 25 min”, “16:30”, “Tomorrow 08:00”). Opt-in: add `now` to `views`, or set `view: now`. Combined with `auto_return` the tablet always falls back to it.
+- **Accessible** – fully usable by keyboard (arrow keys in the tab lists, focus moves into the dialog and stays there until Esc), and screen readers announce events with title, time and person. Checked with axe-core in every view.
 - **Auto icons** – optionally every event gets a matching emoji by keyword (doctor → 🩺, sport → 🏃, birthday → 🎂, school → 🎒 …); custom rules possible. Titles that already contain an emoji stay untouched.
 - **Timeline view** – people as rows on the left, time running horizontally: events as bars on a timeline (Gantt style); overlapping events stack into sub-rows.
-- **Pick your views** – choose in the editor which switchers (day/timeline/week/month/agenda) appear.
+- **Pick your views** – choose in the editor which switchers (now/day/timeline/week/month/agenda) appear.
 - **Week navigation** – page back and forth, a click on the date range jumps back to “today”.
 - **Theme-aware** – picks up the colors and fonts of the active dashboard theme (uses HA CSS variables throughout).
 - **Configurable** – 15/30/60 min grid, day window, weekend on/off, color by person or location, auto refresh.
@@ -60,7 +62,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Compact mode** – one switch (`compact`) for smaller fonts and tighter spacing instead of adjusting three sliders.
 - **People hidden on start** – `hidden: true` per person; the column starts collapsed and a click on the header brings it back.
 
-> Status: **v0.28 – complete family day planning: 5 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
+> Status: **v0.30 – complete family day planning: 6 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
 
 ## Installation (HACS)
 
@@ -118,8 +120,8 @@ persons:
 | `icon_patterns` | list | – | Custom icon rules, e.g. `["Grandma => 👵"]` |
 | `auto_return` | number | `0` | Kiosk: return to the start view / today after X minutes without a touch (0 = off) |
 | `title` | string | – | Custom card title (default: localized “Family board”) |
-| `view` | string | `day` | Start view: `day`, `timeline`, `week`, `month` or `agenda` |
-| `views` | list | all | Which views appear in the switcher, e.g. `[day, agenda]` |
+| `view` | string | `day` | Start view: `now`, `day`, `timeline`, `week`, `month` or `agenda` |
+| `views` | list | all except `now` | Which views appear in the switcher, e.g. `[now, day, agenda]` |
 | `time_grid` | number | `30` | Time axis grid in minutes |
 | `start_hour` | number | `6` | First visible hour |
 | `end_hour` | number | `22` | Last visible hour |

@@ -28,9 +28,11 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Startet auch an einem anderen Tag** – `day_offset` verschiebt Tages- und Zeitstrahl-Ansicht um N Tage (`1` = morgen). Gedacht für Anzeigen, die den kommenden Tag zeigen sollen – etwa ein E-Paper-Display im Flur.
 - **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
 - **„Jetzt / als Nächstes"-Leiste** – optionale Glanz-Zeile über den Ansichten: pro Person auf einen Blick, was gerade läuft (mit Puls-Punkt) oder als Nächstes ansteht (inkl. Countdown) – ideal fürs Wandtablet.
+- **Jetzt-Ansicht** – ein ruhiger Überblick über die ganze Karte fürs Wandtablet oder ein kleines Display: große Uhr und Datum, pro Person was gerade läuft (mit Fortschritt), ganztägige Termine von heute und was als Nächstes kommt („in 25 Min.", „16:30", „Morgen 08:00"). Opt-in: `now` in `views` aufnehmen oder `view: now` setzen. Zusammen mit `auto_return` kehrt das Tablet immer dorthin zurück.
+- **Barrierearm** – komplett per Tastatur bedienbar (Pfeiltasten in den Tab-Leisten, der Fokus springt in den Dialog und bleibt dort bis Esc), Screenreader lesen Termine mit Titel, Uhrzeit und Person vor. In jeder Ansicht mit axe-core geprüft.
 - **Auto-Symbole** – optional bekommt jeder Termin per Stichwort ein passendes Emoji (Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂, Schule → 🎒 …); eigene Regeln möglich. Titel, die schon ein Emoji haben, bleiben unberührt.
 - **Zeitstrahl-Ansicht** – Personen als Zeilen links, die Zeit läuft horizontal: Termine als Balken auf einem Zeitstrahl (Gantt-Stil); überlappende Termine stapeln sich in Unterzeilen.
-- **Ansichten wählbar** – im Editor festlegen, welche Umschalter (Tag/Zeitstrahl/Woche/Monat/Agenda) erscheinen.
+- **Ansichten wählbar** – im Editor festlegen, welche Umschalter (Jetzt/Tag/Zeitstrahl/Woche/Monat/Agenda) erscheinen.
 - **Wochen-Navigation** – vor/zurück blättern, ein Klick auf den Datumsbereich springt zurück zu „heute".
 - **Theme-aware** – übernimmt Farben und Schrift des aktiven Dashboard-Themes (nutzt durchgehend HA-CSS-Variablen).
 - **Konfigurierbar** – Zeitraster 15/30/60 min, Tagesfenster, Wochenende ein/aus, Einfärben nach Person oder Ort, Auto-Aktualisierung.
@@ -60,7 +62,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Kompakt-Modus** – ein Schalter (`compact`) für kleinere Schriften und engere Abstände, statt drei Regler einzeln zu justieren.
 - **Personen beim Start ausgeblendet** – `hidden: true` pro Person; die Spalte startet eingeklappt und ein Klick auf den Kopf holt sie zurück.
 
-> Status: **v0.28 – vollständige Familien-Tagesplanung: 5 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
+> Status: **v0.30 – vollständige Familien-Tagesplanung: 6 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
 
 ## Installation (HACS)
 
@@ -118,8 +120,8 @@ persons:
 | `icon_patterns` | Liste   | –       | Eigene Symbol-Regeln, z. B. `["Oma => 👵"]` |
 | `auto_return`   | number  | `0`     | Kiosk: nach X Minuten ohne Berührung zurück zur Startansicht/heute (0 = aus) |
 | `title`          | string  | –       | Eigener Kartentitel (Default: lokalisiert „Familienplan") |
-| `view`          | string  | `day`   | Startansicht: `day`, `timeline`, `week`, `month` oder `agenda` |
-| `views`         | Liste   | alle    | Welche Ansichten im Umschalter erscheinen, z. B. `[day, agenda]` |
+| `view`          | string  | `day`   | Startansicht: `now`, `day`, `timeline`, `week`, `month` oder `agenda` |
+| `views`         | Liste   | alle außer `now` | Welche Ansichten im Umschalter erscheinen, z. B. `[now, day, agenda]` |
 | `time_grid`     | number  | `30`    | Raster der Zeitleiste in Minuten |
 | `start_hour`    | number  | `6`     | Erste sichtbare Stunde |
 | `end_hour`      | number  | `22`    | Letzte sichtbare Stunde |

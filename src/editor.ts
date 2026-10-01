@@ -15,7 +15,9 @@ interface PersonConfig {
   hidden?: boolean;
 }
 
-const VIEW_VALUES = ["day", "timeline", "week", "month", "agenda"];
+const VIEW_VALUES = ["now", "day", "timeline", "week", "month", "agenda"];
+/** What the card shows when `views` is unset ("now" is opt-in). */
+const DEFAULT_VIEWS = ["day", "timeline", "week", "month", "agenda"];
 
 // One ha-form per person row, with entity pickers filtered by domain.
 const PERSON_SCHEMA = [
@@ -101,7 +103,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
   /** Grouped settings schema; irrelevant fields are hidden contextually. */
   private _schema(): unknown[] {
     const cfg = this._config;
-    const views = Array.isArray(cfg.views) && cfg.views.length ? cfg.views : VIEW_VALUES;
+    const views = Array.isArray(cfg.views) && cfg.views.length ? cfg.views : DEFAULT_VIEWS;
     const hasDay = views.includes("day");
     const hasTimeline = views.includes("timeline");
     const hasWeek = views.includes("week");

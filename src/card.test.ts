@@ -65,6 +65,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   }
   if (opts.forecast) states["weather.forecast_home"] = { state: "sunny", attributes: {} };
   const wsCalls: Array<Record<string, unknown>> = [];
+  const apiPaths: string[] = [];
   const el = document.createElement("family-board-card") as HTMLElement & {
     setConfig(c: unknown): void;
     hass: unknown;
@@ -74,8 +75,10 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   el.hass = {
     locale: { language: opts.lang ?? "de", time_format: "24" },
     states,
-    callApi: async (_method: string, path: string) =>
-      calendars[path.split("?")[0].replace("calendars/", "")] ?? [],
+    callApi: async (_method: string, path: string) => {
+      apiPaths.push(path);
+      return calendars[path.split("?")[0].replace("calendars/", "")] ?? [];
+    },
     callWS: async (msg: Record<string, unknown>) => {
       wsCalls.push(msg);
       if (msg.type === "todo/item/list") {
@@ -99,6 +102,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
     el,
     root,
     wsCalls,
+    apiPaths,
     text: () => (root.textContent ?? "").replace(/\s+/g, " ").trim(),
     all: (sel: string) => [...root.querySelectorAll(sel)],
     texts: (sel: string) =>
@@ -210,9 +214,15 @@ describe("agenda", () => {
     view: "agenda",
     views: ["agenda"],
   };
-  // Mon 7th through Sun 13th of the week under test
+  // Mon 7th through Sun 13th of the week under test, plus one in the week before
   const calendars = {
     "calendar.anna": [
+      {
+        uid: "vw",
+        summary: "Vorwoche",
+        start: { dateTime: "2026-09-02T09:00:00" },
+        end: { dateTime: "2026-09-02T10:00:00" },
+      },
       {
         uid: "mo",
         summary: "Montag",
@@ -258,8 +268,10 @@ describe("agenda", () => {
     (root.querySelector("button.nav") as HTMLButtonElement).click();
     await vi.advanceTimersByTimeAsync(0);
     await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
-    // a past week is shown in full; nothing is filtered away
-    expect(texts(".agenda-date").length).toBeGreaterThan(0);
+    // a past week is shown in full; nothing is filtered away - and it is
+    // really that week's data, not the current week's left on screen
+    expect(texts(".agenda-row").join(" ")).toContain("Vorwoche");
+    expect(texts(".agenda-row").join(" ")).not.toContain("Heute");
   });
 });
 
@@ -654,5 +666,129 @@ describe("weather", () => {
     );
     expect(all(".wx")).toHaveLength(0);
     expect(wsCalls.some((m) => m.service === "get_forecasts")).toBe(false);
+  });
+});
+
+describe("now view", () => {
+  const persons = [
+    { name: "Anna", calendar: "calendar.anna" },
+    { name: "Mia", calendar: "calendar.mia" },
+    { name: "Leon", calendar: "calendar.leon" },
+  ];
+  const calendars = {
+    "calendar.anna": [ev("Büro", "09:00", "17:00"), ev("Abholen", "17:30", "18:00")],
+    "calendar.mia": [
+      allDay("Projektwoche"),
+      ev("Schule", "08:00", "10:00"),
+      ev("Schwimmen", "10:45", "11:30"),
+    ],
+    "calendar.leon": [
+      {
+        uid: "kita",
+        summary: "Kita",
+        start: { dateTime: "2026-09-12T08:00:00" },
+        end: { dateTime: "2026-09-12T12:00:00" },
+      },
+    ],
+  };
+
+  it("is opt-in: boards without a views list do not get a new tab", async () => {
+    const { texts } = await mount({ persons, view: "day" }, { calendars });
+    expect(texts(".switch button")).not.toContain("Jetzt");
+  });
+
+  it("is switched on by choosing it as the default view", async () => {
+    const { root, texts } = await mount({ persons, view: "now" }, { calendars });
+    expect(texts(".switch button")[0]).toBe("Jetzt");
+    expect(root.querySelector(".now")).not.toBeNull();
+  });
+
+  it("shows what everyone is doing now and what comes next", async () => {
+    const { texts } = await mount({ persons, view: "now", views: ["now"] }, { calendars });
+    const rows = texts(".nrow");
+    // Anna: running event with its end time
+    expect(rows[0]).toContain("Büro");
+    expect(rows[0]).toContain("bis 17:00");
+    // more than an hour away: the clock time, not "in 7 h"
+    expect(rows[0]).toContain("als Nächstes: Abholen 17:30");
+    // Mia: school has ended (10:00), swimming starts in 25 minutes at 10:45
+    expect(rows[1]).toContain("frei");
+    expect(rows[1]).toMatch(/als Nächstes: Schwimmen in 25 Min/);
+    // the all-day event of today is shown as a chip
+    expect(texts(".nrow:nth-child(2) .nallday")).toEqual(["Projektwoche"]);
+    // Leon: free today, next event tomorrow is named by day and time
+    expect(rows[2]).toContain("frei");
+    expect(rows[2]).toContain("Morgen 08:00");
+  });
+
+  it("shows how far the running event has got", async () => {
+    const { root } = await mount({ persons, view: "now", views: ["now"] }, { calendars });
+    // 09:00-17:00 at 10:20 -> 80 of 480 minutes
+    const bar = root.querySelector(".nrow .nprog");
+    expect(bar?.getAttribute("aria-valuenow")).toBe("17");
+  });
+
+  it("fetches from today on, so a Sunday night still sees Monday", async () => {
+    const { apiPaths } = await mount(
+      { persons, view: "now", views: ["now"] },
+      { calendars, now: "2026-09-13T21:00:00" },
+    );
+    // Sunday 13 Sep: the week view would stop at midnight; the now view looks ahead
+    const q = new URLSearchParams(apiPaths[0].split("?")[1]);
+    expect(new Date(q.get("start") as string).getDate()).toBe(13);
+    expect(new Date(q.get("end") as string).getDate()).toBe(21);
+  });
+
+  it("hides the focus bar there - the view already is one", async () => {
+    const { root } = await mount(
+      { persons, view: "now", views: ["now", "day"], show_focus: true },
+      { calendars },
+    );
+    expect(root.querySelector(".focus")).toBeNull();
+  });
+});
+
+describe("accessibility", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = { "calendar.anna": [ev("Abholen", "16:30", "17:00")] };
+
+  it("announces events with title, time and person", async () => {
+    const { root } = await mount(
+      { persons, view: "day", views: ["day"], start_hour: 7, end_hour: 20 },
+      { calendars },
+    );
+    expect(root.querySelector(".event")?.getAttribute("aria-label")).toBe(
+      "Abholen, 16:30–17:00, Anna",
+    );
+  });
+
+  it("tells whether a person column is shown", async () => {
+    const { el, root } = await mount(
+      { persons, view: "day", views: ["day"], start_hour: 7, end_hour: 20 },
+      { calendars },
+    );
+    const head = () => root.querySelector(".phead") as HTMLElement;
+    expect(head().getAttribute("aria-pressed")).toBe("true");
+    head().click();
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(head().getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("makes each tab list a single Tab stop, arrows move through it", async () => {
+    const { el, root } = await mount({ persons, view: "day" }, { calendars });
+    const tabs = () => [...root.querySelectorAll(".switch [role=tab]")] as HTMLElement[];
+    expect(tabs().map((t) => t.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+    root
+      .querySelector(".switch")
+      ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(tabs().map((t) => t.tabIndex)).toEqual([-1, 0, -1, -1, -1]);
+    expect(tabs()[1].getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("reads month cells as a date with their events, not a bare number", async () => {
+    const { root } = await mount({ persons, view: "month", views: ["month"] }, { calendars });
+    const labels = [...root.querySelectorAll(".mcell")].map((c) => c.getAttribute("aria-label"));
+    expect(labels).toContain("Freitag, 11. September: Abholen");
   });
 });
