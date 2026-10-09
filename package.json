@@ -28,7 +28,7 @@
     "happy-dom": "^20.14.5",
     "playwright-core": "^1.63.0",
     "prettier": "^3.2.5",
-    "rollup": "^4.9.0",
+    "rollup": "^4.64.0",
     "tslib": "^2.6.2",
     "typescript": "^6.0.3",
     "vitest": "^5.0.2"
