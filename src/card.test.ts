@@ -792,3 +792,95 @@ describe("accessibility", () => {
     expect(labels).toContain("Freitag, 11. September: Abholen");
   });
 });
+
+describe("family calendars", () => {
+  const persons = [
+    { name: "Anna", calendar: "calendar.anna" },
+    { name: "Mia", calendar: "calendar.mia" },
+  ];
+  const calendars = {
+    "calendar.anna": [ev("Büro", "09:00", "17:00")],
+    "calendar.mia": [ev("Schule", "08:00", "13:00")],
+    "calendar.muell": [allDay("Gelbe Tonne")],
+    "calendar.ferien": [allDay("Herbstferien", "2026-09-10", "2026-09-15")],
+    "calendar.familie": [ev("Elternabend", "09:30", "10:30")],
+  };
+  const base = {
+    persons,
+    family_calendars: ["calendar.muell", "calendar.ferien", "calendar.familie"],
+    start_hour: 7,
+    end_hour: 20,
+  };
+
+  it("shows family events as a band above the people, with the time for timed ones", async () => {
+    const { texts, root } = await mount({ ...base, view: "day", views: ["day"] }, { calendars });
+    // chronological: the holidays started the day before
+    expect(texts(".famband .famchip")).toEqual([
+      "Herbstferien",
+      "Gelbe Tonne",
+      "09:30 Elternabend",
+    ]);
+    // they belong to nobody: no person column shows them
+    const columns = [...root.querySelectorAll(".board .event, .board .band")].map(
+      (n) => n.textContent ?? "",
+    );
+    expect(columns.join(" ")).not.toMatch(/Tonne|Elternabend/);
+  });
+
+  it("never counts them as a double booking or for the focus bar", async () => {
+    // Anna is free at 10:20 - a leaked family event would be "now" for her
+    const { root, texts } = await mount(
+      { ...base, view: "day", views: ["day"], show_alerts: true, show_focus: true },
+      { calendars: { ...calendars, "calendar.anna": [] } },
+    );
+    const alerts = [...root.querySelectorAll(".alert")].map((n) => n.textContent ?? "").join(" ");
+    expect(alerts).not.toContain("Elternabend");
+    expect(texts(".focus").join(" ")).not.toContain("Elternabend");
+  });
+
+  it("puts them under each weekday in the week, multi-day ones on every day", async () => {
+    const { all } = await mount({ ...base, view: "week", views: ["week"] }, { calendars });
+    const perDay = all(".wday").map((d) =>
+      [...d.querySelectorAll(".famchip .famtext")].map((c) => c.textContent),
+    );
+    // Mon 7 .. Sun 13: holidays from Thu 10 on, bin and parents' evening on Fri 11
+    expect(perDay[2]).toEqual([]);
+    expect(perDay[3]).toEqual(["Herbstferien"]);
+    expect(perDay[4]).toEqual(["Herbstferien", "Gelbe Tonne", "Elternabend"]);
+    expect(perDay[6]).toEqual(["Herbstferien"]);
+  });
+
+  it("shows them in month cells and reads them out", async () => {
+    const { root } = await mount({ ...base, view: "month", views: ["month"] }, { calendars });
+    const cell = [...root.querySelectorAll(".mcell")].find((c) =>
+      c.getAttribute("aria-label")?.startsWith("Freitag, 11. September"),
+    );
+    expect(cell?.getAttribute("aria-label")).toBe(
+      "Freitag, 11. September: Herbstferien, Gelbe Tonne, Elternabend, Schule, Büro",
+    );
+    expect(cell?.querySelectorAll(".famchip")).toHaveLength(3);
+  });
+
+  it("lists a day in the agenda even when only the family has something", async () => {
+    const { texts } = await mount(
+      { ...base, view: "agenda", views: ["agenda"] },
+      { calendars: { ...calendars, "calendar.anna": [], "calendar.mia": [] } },
+    );
+    // Thu 10 has nothing but the start of the holidays
+    expect(texts(".agenda-date").some((t) => t.startsWith("Gestern"))).toBe(true);
+  });
+
+  it("shows today's family events in the now view", async () => {
+    const { texts } = await mount({ ...base, view: "now", views: ["now"] }, { calendars });
+    expect(texts(".now .famband .famtext")).toEqual(["Herbstferien", "Gelbe Tonne", "Elternabend"]);
+  });
+
+  it("stays out of the way when not configured", async () => {
+    const { root, apiPaths } = await mount(
+      { persons, view: "day", views: ["day"], start_hour: 7, end_hour: 20 },
+      { calendars },
+    );
+    expect(root.querySelector(".famband")).toBeNull();
+    expect(apiPaths.some((p) => p.includes("calendar.muell"))).toBe(false);
+  });
+});

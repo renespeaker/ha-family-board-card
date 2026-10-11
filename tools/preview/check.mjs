@@ -184,6 +184,41 @@ for (const [view, sel, width] of [
   await page.close();
 }
 
+/* --- family calendar chips must fit their day / month cell ---------- */
+for (const [view, sel, width] of [
+  ["week", ".wday", 1400],
+  ["week", ".wday", 400],
+  ["month", ".mcell", 1400],
+  ["month", ".mcell", 400],
+  ["day", ".famband", 400],
+]) {
+  const { page } = await open({ view, width });
+  const fit = await page.evaluate((sel) => {
+    const root = document.querySelector("family-board-card").renderRoot;
+    const cells = [...root.querySelectorAll(sel)].filter((c) => c.querySelector(".famchip"));
+    const bad = cells.filter((c) => {
+      const box = c.getBoundingClientRect();
+      return [...c.querySelectorAll(".famchip")].some((chip) => {
+        const r = chip.getBoundingClientRect();
+        // the chip box leaves the cell, or its text spills out of the chip
+        // (an ellipsis clips inside the chip and is fine)
+        return (
+          r.right > box.right + 0.5 ||
+          r.left < box.left - 0.5 ||
+          chip.scrollWidth > chip.clientWidth + 1
+        );
+      });
+    });
+    return { n: cells.length, bad: bad.length };
+  }, sel);
+  check(
+    `Familien-Chips passen in ${sel} (${view}, ${width}px)`,
+    fit.n > 0 && fit.bad === 0,
+    `${fit.n} Zellen mit Familien-Terminen, ${fit.bad} zu schmal`,
+  );
+  await page.close();
+}
+
 /* --- accessibility: axe-core over every view ------------------------ */
 // Structure, roles, names and ARIA must be clean everywhere. Colour contrast
 // is checked separately below: most of it comes from the user's HA theme and

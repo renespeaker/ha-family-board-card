@@ -41,11 +41,13 @@ const T = lang === "de"
   ? { home:"Homeoffice", office:"Büro", school:"Schule", breakt:"Pause", sport:"Sport",
       swim:"Schwimmen", lunch:"Mittagessen", nap:"Mittagsschlaf", free:"Freispiel",
       bfast:"offenes Frühstück", music:"Musikschule", doc:"Kinderarzt", pickup:"Abholen",
-      care:"Betreuung", bday:"Geburtstag Oma", title:"Familienplan" }
+      care:"Betreuung", bday:"Geburtstag Oma", title:"Familienplan",
+      bin:"Gelbe Tonne", hol:"Herbstferien", parents:"Elternabend" }
   : { home:"Home office", office:"Office", school:"School", breakt:"Break", sport:"Sport",
       swim:"Swimming", lunch:"Lunch", nap:"Nap", free:"Free play",
       bfast:"Open breakfast", music:"Music school", doc:"Pediatrician", pickup:"Pick-up",
-      care:"After-school care", bday:"Grandma's birthday", title:"Family board" };
+      care:"After-school care", bday:"Grandma's birthday", title:"Family board",
+      bin:"Recycling bin", hol:"Autumn break", parents:"Parents' evening" };
 
 const base = new Date(); base.setHours(0,0,0,0);
 const day = i => new Date(base.getFullYear(), base.getMonth(), base.getDate() - ((base.getDay()+6)%7) + i);
@@ -66,6 +68,11 @@ const cal = {
                     E(t,T.nap,12,15,14,0), E(t,T.care,14,0,16,0),
                     E(t+1,T.care,8,0,16,0), E(t-1,T.care,8,0,16,0) ],
 };
+const D = (i) => { const d = day(i); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+const A = (i,j,s) => ({uid:"a"+(n++),summary:s,start:{date:D(i)},end:{date:D(j)}});
+cal["calendar.muell"] = [A(t,t+1,T.bin), A(t+7,t+8,T.bin)];
+cal["calendar.ferien"] = [A(t+1,t+6,T.hol)];
+cal["calendar.familie"] = [E(t,T.parents,19,0,20,30)];
 const person = (n,s)=>({state:s,attributes:{friendly_name:n}});
 const hass = {
   locale:{language:lang,time_format:lang==="de"?"24":"12"},
@@ -77,6 +84,9 @@ const hass = {
     "calendar.mia":{state:"on",attributes:{friendly_name:"Mia",supported_features:0}},
     "calendar.leon":{state:"on",attributes:{friendly_name:"Leon",supported_features:0}},
     "weather.home":{state:"rainy",attributes:{friendly_name:"Home"}},
+    "calendar.muell":{state:"off",attributes:{friendly_name:"Abfall",supported_features:0}},
+    "calendar.ferien":{state:"off",attributes:{friendly_name:"Schulferien",supported_features:0}},
+    "calendar.familie":{state:"off",attributes:{friendly_name:"Familie",supported_features:0}},
   },
   callApi: async(_m,path)=>cal[path.split("?")[0].replace("calendars/","")]||[],
   callWS: async(msg)=>{
@@ -95,6 +105,9 @@ el.setConfig({
   view: Q.get("view") || "day",
   views:["now","day","timeline","week","month","agenda"],
   weather_entity: Q.has("noweather") ? undefined : "weather.home",
+  family_calendars: Q.has("nofamily") ? undefined : ["calendar.muell","calendar.ferien","calendar.familie"],
+  calendars: { "calendar.muell": { icon: "mdi:trash-can", color: "#EAB308" },
+               "calendar.ferien": { icon: "mdi:beach", color: "#22C55E" } },
   show_focus: !Q.has("slim"), auto_icons:true, slim_header: Q.has("slim"), show_alerts: Q.has("alerts"), gap_min:60,
   background_hours: 3, start_hour:7, end_hour:18, trim_hours:false,
   hour_height: 64, hour_width: 110, time_grid:15,

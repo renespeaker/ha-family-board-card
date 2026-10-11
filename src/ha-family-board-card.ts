@@ -79,6 +79,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   compact?: boolean; // denser spacing + smaller fonts in one switch
   map_url?: string; // location link template, {location} is replaced (URL-encoded)
   show_progress?: boolean; // progress bar on running events. default true
+  family_calendars?: string | string[]; // calendar.* for everyone (holidays, bin collection …), shown above the people
   weather_entity?: string; // weather.* entity for the daily forecast
   show_weather?: boolean; // show weather in headers. default true when entity set
   refresh_interval?: number; // seconds; 0 disables. default 300
@@ -326,6 +327,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _dragGrid = 30;
   private _suppressClick = false;
   private _raw: RawEvent[] = [];
+  /** Events of the shared family calendars (personIdx -1); never part of _raw. */
+  @state() private _family: RawEvent[] = [];
   private _fetchedKey = "";
   @state() private _tasks: Record<string, TodoItem[]> = {};
   private _taskSig: Record<string, string> = {};
@@ -810,7 +813,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private async _maybeFetch(): Promise<void> {
-    const cals = this._config.persons.map((p) => this._calsOf(p).join("+")).join(",");
+    const cals =
+      this._config.persons.map((p) => this._calsOf(p).join("+")).join(",") +
+      `|${this._familyCals().join("+")}`;
     const scope =
       this._view === "now"
         ? `n${toLocalDate(new Date())}`
@@ -1028,6 +1033,29 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     let anyError = false;
     this._loading = true;
 
+    const family: RawEvent[] = [];
+    const famJob = Promise.all(
+      this._familyCals()
+        .filter((cal) => this.hass.states[cal])
+        .map(async (cal) => {
+          try {
+            const events = await this.hass.callApi<any[]>(
+              "GET",
+              `calendars/${cal}?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`,
+            );
+            for (const ev of events) {
+              const raw = parseRawEvent(ev, -1, cal, this._calMeta(cal).color ?? "");
+              if (raw && !this._hidden(raw.summary) && this._allowed(raw.summary)) {
+                raw.summary = this._cleanTitle(raw.summary);
+                family.push(raw);
+              }
+            }
+          } catch (err) {
+            anyError = true;
+          }
+        }),
+    );
+
     await Promise.all(
       this._config.persons.flatMap((p, idx) => {
         const color = personColor(p, idx);
@@ -1073,6 +1101,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         return true;
       });
     }
+    await famJob;
+    this._family = family.sort(
+      (a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime(),
+    );
     this._raw = cleaned;
     // Week views index events by weekday; month builds its own grid from _raw.
     const { monday } = this._weekBounds();
@@ -1084,6 +1116,43 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   /* ---- capabilities -------------------------------------------- */
   /** A person's calendars, normalized to a (possibly empty) array. */
+  /** Shared family calendars (holidays, bin collection …), not tied to a person. */
+  private _familyCals(): string[] {
+    const f = this._config.family_calendars;
+    return (Array.isArray(f) ? f : f ? [f] : []).filter(Boolean);
+  }
+
+  /** Family events touching the given local day. */
+  private _familyOn(date: Date): RawEvent[] {
+    const from = startOfDay(date).getTime();
+    const to = addDays(startOfDay(date), 1).getTime();
+    return this._family.filter((r) => r.start.getTime() < to && r.end.getTime() > from);
+  }
+
+  /** One family event as a chip: icon, time (if it starts that day), title. */
+  private _familyChip(r: RawEvent, date: Date) {
+    const color = this._calMeta(r.calendar).color || "var(--secondary-text-color)";
+    const icon = this._calIcon(r.calendar);
+    const emoji = !icon && this._config.auto_icons ? this._autoIcon(r.summary) : "";
+    const starts = toLocalDate(r.start) === toLocalDate(date);
+    const time = !r.allDay && starts ? formatTime(this.hass, r.start) : "";
+    const label = `${r.summary}${time ? `, ${time}` : ""} (${this._calLabel(r.calendar)})`;
+    return html`<span class="famchip" style="--fc:${color}" title=${label}>
+      ${icon ? html`<ha-icon .icon=${icon}></ha-icon>` : nothing}${emoji}${
+        time ? html`<b>${time}</b> ` : nothing
+      }<span class="famtext">${r.summary}</span>
+    </span>`;
+  }
+
+  /** Band of family events for a day (day/timeline/now view), or nothing. */
+  private _familyBand(date: Date) {
+    const items = this._familyOn(date);
+    if (!items.length) return nothing;
+    return html`<div class="famband" role="list" aria-label=${this._t("family")}>
+      ${items.map((r) => html`<span role="listitem">${this._familyChip(r, date)}</span>`)}
+    </div>`;
+  }
+
   private _calsOf(p: PersonConfig): string[] {
     if (Array.isArray(p.calendar)) return p.calendar.filter(Boolean);
     return p.calendar ? [p.calendar] : [];
@@ -1730,6 +1799,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           ${this._weatherChip(now)}
           ${this._loading && this._raw.length === 0 ? html`<span class="spinner"></span>` : nothing}
         </div>
+        ${this._familyBand(now)}
         <ul class="nowlist">
           ${this._persons.map((p, i) => {
             if (this._isOff(i)) return nothing;
@@ -1889,6 +1959,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       </div>
       ${this._config.slim_header ? nothing : this._renderDayTabs()}
       ${this._loadError ? html`<div class="banner">${this._t("load_error")}</div>` : nothing}
+      ${this._familyBand(this._dateForDay(day))}
       <div class="board">
         <div class="header-row">
           <div class="axis-spacer"></div>
@@ -2198,6 +2269,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       </div>
       ${this._config.slim_header ? nothing : this._renderDayTabs()}
       ${this._loadError ? html`<div class="banner">${this._t("load_error")}</div>` : nothing}
+      ${this._familyBand(this._dateForDay(day))}
       <div class="tlwrap">
         <div class="tlgrid" style="min-width:calc(var(--fb-tl-label, 150px) + ${width}px)">
           <div class="tlhead">
@@ -2368,7 +2440,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           this._config.hide_empty_persons !== true || this._events.some((e) => e.personIdx === i),
       );
     const shown = people.length > 0 ? people : this._persons.map((p, i) => ({ p, i }));
-    const cols = `70px repeat(${shown.length}, minmax(110px, 1fr))`;
+    const dayCol = this._familyCals().length ? 118 : 70;
+    const cols = `${dayCol}px repeat(${shown.length}, minmax(110px, 1fr))`;
     return html`
       <div class="weekhead">${this._weekNav()}</div>
       <div class="weekwrap">
@@ -2409,6 +2482,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 }}
               >
                 <b>${short[d]}</b>${this._weatherChip(this._dateForDay(d), "short")}
+                ${this._familyOn(this._dateForDay(d)).map((r) =>
+                  this._familyChip(r, this._dateForDay(d)),
+                )}
               </div>
               ${shown.map(({ p, i }) => {
                 const canCreate = this._personCanCreate(p);
@@ -2497,6 +2573,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       .filter(
         (g) =>
           g.items.length > 0 ||
+          this._familyOn(this._dateForDay(g.d)).length > 0 ||
           this._persons.some((_p, i) => this._tasksFor(i, this._dateForDay(g.d)).length > 0),
       );
 
@@ -2517,6 +2594,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                       ${dateFmt.format(this._dateForDay(g.d))}
                       ${this._weatherChip(this._dateForDay(g.d))}
                     </div>
+                    ${this._familyBand(this._dateForDay(g.d))}
                     ${g.items.map((e) => this._agendaRow(e))}
                     ${this._persons.flatMap((_p, i) =>
                       this._tasksFor(i, this._dateForDay(g.d)).map((t) => this._agendaTask(t)),
@@ -2653,10 +2731,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 }"
                 role="button"
                 tabindex="0"
-                aria-label=${
-                  this._dateLabel(date) +
-                  (items.length ? `: ${items.map((e) => this._evTitle(e)).join(", ")}` : "")
-                }
+                aria-label=${(() => {
+                  const titles = [
+                    ...this._familyOn(date).map((r) => r.summary),
+                    ...items.map((e) => this._evTitle(e)),
+                  ];
+                  return this._dateLabel(date) + (titles.length ? `: ${titles.join(", ")}` : "");
+                })()}
                 @click=${() => this._goToDate(date)}
                 @keydown=${(k: KeyboardEvent) => {
                   if (k.key === "Enter" || k.key === " ") {
@@ -2670,6 +2751,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   ${this._weatherChip(date, "icon")}
                 </div>
                 <div class="mchips">
+                  ${this._familyOn(date).map((r) => this._familyChip(r, date))}
                   ${items.slice(0, maxChips).map((e) => {
                     const col = this._eventColor(e);
                     const tent = this._isTentative(e);
@@ -4358,6 +4440,79 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--secondary-text-color);
       padding-left: 4px;
     }
+    /* shared family calendars: holidays, bin collection … above the people */
+    .famband {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 6px;
+      padding: 6px 16px;
+      border-bottom: 1px solid var(--divider-color);
+    }
+    .now .famband,
+    .agenda .famband {
+      padding: 0 0 8px;
+      border-bottom: none;
+    }
+    .agenda .famband {
+      padding-top: 6px;
+    }
+    .famchip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      max-width: 100%;
+      min-width: 0;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px dashed var(--fc);
+      background: color-mix(in srgb, var(--fc) 10%, var(--card-background-color, #fff));
+      color: var(--primary-text-color);
+    }
+    .famchip ha-icon {
+      --mdc-icon-size: 14px;
+      color: var(--fc);
+      flex: none;
+    }
+    .famchip b {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .famtext {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    .wday .famchip,
+    .mchips .famchip {
+      font-size: 10px;
+      padding: 1px 6px;
+      align-self: stretch;
+    }
+    /* the week's day column is narrow: let a title take two lines there */
+    .wday .famchip {
+      border-radius: 8px;
+      flex-wrap: wrap;
+      row-gap: 0;
+    }
+    .wday .famtext {
+      white-space: normal;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow-wrap: break-word;
+      hyphens: auto;
+    }
+    .wday:has(.famchip) {
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 3px;
+    }
+
     /* "now" view: large, calm glance for wall tablets and small displays */
     .now {
       padding: 12px 16px 16px;
@@ -4873,7 +5028,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.30.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.31.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

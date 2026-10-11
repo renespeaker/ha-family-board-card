@@ -44,6 +44,7 @@ const EN: Dict = {
   l_show_alerts: "Day check (double bookings, gaps, nobody home)",
   l_gap_min: "Flag a gap from (min., 0 = off)",
   l_drag_drop: "Move events by dragging (day view)",
+  l_family_calendars: "Family calendars",
   l_weather_entity: "Weather entity",
   l_show_weather: "Show weather",
   l_hide_empty_persons: "Week: hide persons without events",
@@ -79,6 +80,8 @@ const EN: Dict = {
   h_full_height: "For panel view / wall tablet",
   h_trim_hours: "Shows only the hours that actually contain events",
   h_col_min_width: "Below this the board scrolls horizontally",
+  h_family_calendars:
+    "Calendars for everyone – holidays, bin collection, school holidays. Shown above the people, never counted as a double booking",
   h_weather_entity: "Daily forecast in the header (HA location)",
   h_auto_icons: "e.g. doctor → 🩺, sport → 🏃, birthday → 🎂 (titles with emoji stay untouched)",
   h_icon_patterns: "Own rules, e.g. “Grandma => 👵”",
@@ -185,6 +188,7 @@ const DE: Dict = {
   l_show_alerts: "Tages-Check (Doppelbuchung, Lücken, niemand zuhause)",
   l_gap_min: "Lücke melden ab (Min., 0 = aus)",
   l_drag_drop: "Termine per Ziehen verschieben (Tagesansicht)",
+  l_family_calendars: "Familien-Kalender",
   l_weather_entity: "Wetter-Entität",
   l_show_weather: "Wetter anzeigen",
   l_hide_empty_persons: "Woche: Personen ohne Termine ausblenden",
@@ -220,6 +224,8 @@ const DE: Dict = {
   h_full_height: "Für Panel-Ansicht / Wandtablet",
   h_trim_hours: "Zeigt nur die Stunden, in denen wirklich Termine liegen",
   h_col_min_width: "Darunter wird horizontal gescrollt",
+  h_family_calendars:
+    "Kalender für alle – Feiertage, Müllabfuhr, Schulferien. Erscheinen über den Personen und zählen nie als Doppelbuchung",
   h_weather_entity: "Tages-Vorhersage im Kopf (HA-Standort)",
   h_auto_icons: "z. B. Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂 (Titel mit Emoji bleiben unberührt)",
   h_icon_patterns: "eigene Regeln, z. B. „Oma => 👵“",

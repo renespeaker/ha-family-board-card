@@ -39,6 +39,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Drag & drop** – in the day view, drag events to move them (time) and drag the bottom edge to change the duration; snaps to the time grid and writes straight back to the calendar – **only** for writable calendars and single events (no series).
 - **Manage events** – create/edit/delete right in the card, **but only** for calendars that support it (Local Calendar, CalDAV …). Read-only calendars (e.g. ICS subscriptions) are detected automatically and shown read-only. Recurring events: choose **“this event only / this and following”**.
 - **Several calendars per person** – e.g. work + private in one column (selectable in the editor).
+- **Family calendars** – calendars that belong to everyone (public holidays, school holidays, bin collection) go into `family_calendars`. Their events appear as a band above the people in the day, timeline and now views, under the weekday in the week view, in the month cells and in the agenda – and never count as a double booking. Icon and color come from the `calendars:` mapping (e.g. `mdi:trash-can`).
 - **Robust event logic** – all-day events (exclusive end), events across midnight and multi-day events are split onto the correct days; time zones are respected.
 - **Multilingual & localized** – texts in English/German, weekday names and clock format (12/24 h) from the HA locale; relative days (“Today/Tomorrow”).
 - **Everyday polish** – past events dimmed, coloring by calendar, open a location straight in the maps app, hide noisy events by pattern.
@@ -62,7 +63,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Compact mode** – one switch (`compact`) for smaller fonts and tighter spacing instead of adjusting three sliders.
 - **People hidden on start** – `hidden: true` per person; the column starts collapsed and a click on the header brings it back.
 
-> Status: **v0.30 – complete family day planning: 6 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
+> Status: **v0.31 – complete family day planning: 6 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
 
 ## Installation (HACS)
 
@@ -141,6 +142,7 @@ persons:
 | `radius` | number | – | Corner radius of the event blocks in px (sets `--fb-radius`) |
 | `past_opacity` | number | – | Opacity of past events in % (sets `--fb-past-opacity`) |
 | `show_progress` | boolean | `true` | Progress bar on the running event |
+| `family_calendars` | list | – | `calendar.*` entities for everyone (holidays, bin collection …), shown above the people |
 | `weather_entity` | string | – | `weather.*` entity for the daily forecast (HA location) |
 | `show_weather` | boolean | `true`* | Show the weather in the views (*only takes effect when `weather_entity` is set) |
 | `hour_height` | number | `64` | Height of one hour in px (40–96) – scales the day view (wall tablet); with `fit_height` this is the upper bound |
