@@ -9,7 +9,8 @@ columns. Maintainer: renespeaker. Sister project: Family Task Card
 - Show drafts of anything posted on GitHub (issue replies, comments) **before**
   posting. Open PRs, merge and release only when asked.
 - The maintainer publishes releases. Claude prepares notes and verifies the
-  result afterwards; see the `release` skill.
+  result afterwards; see the `release` skill. Hand over link, title and notes
+  as separate code blocks, ready to copy.
 - If you suggest an idea, check the code first – several "new" ideas already
   existed (`show_focus`, `weather_entity`).
 

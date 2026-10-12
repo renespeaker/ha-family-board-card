@@ -58,8 +58,17 @@ Write them in **English**, Markdown, ready to paste. Template:
 All green: build, lint, format, <N> tests, <M> browser checks, HACS validate.
 ```
 
-Tell the user: tag `vX.Y.Z` on `main`, release title `vX.Y.Z`, paste notes,
-Publish.
+Hand it over **ready to copy**, as three separate code blocks the maintainer
+can copy one by one (they often work from the phone app):
+
+1. the link, as a plain URL in a code block:
+   `https://github.com/renespeaker/ha-family-board-card/releases/new?tag=vX.Y.Z&target=main&title=vX.Y.Z`
+2. the title: `vX.Y.Z`
+3. the notes. If they contain a code block themselves, fence the outer block
+   with four backticks (````markdown) so it stays intact.
+
+Do not put the notes into the link (`&body=…`): such long links did not open
+in the app. Claude cannot create or edit releases, not even drafts (HTTP 403).
 
 ## 4. Verify after the user publishes
 
