@@ -161,6 +161,10 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       { name: "scroll_to_now", selector: { boolean: {} } },
       { name: "show_now_line", selector: { boolean: {} } },
       { name: "show_progress", selector: { boolean: {} } },
+      {
+        name: "family_calendars",
+        selector: { entity: { filter: { domain: "calendar" }, multiple: true } },
+      },
       { name: "weather_entity", selector: { entity: { filter: { domain: "weather" } } } },
       { name: "map_url", selector: { text: {} } },
     ];
