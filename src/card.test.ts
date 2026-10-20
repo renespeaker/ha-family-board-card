@@ -788,8 +788,33 @@ describe("accessibility", () => {
 
   it("reads month cells as a date with their events, not a bare number", async () => {
     const { root } = await mount({ persons, view: "month", views: ["month"] }, { calendars });
-    const labels = [...root.querySelectorAll(".mcell")].map((c) => c.getAttribute("aria-label"));
-    expect(labels).toContain("Freitag, 11. September: Abholen");
+    // no aria-label: it would hide the visible text from voice control
+    // ("label in name"); the full date is added as screen-reader-only text
+    const cells = [...root.querySelectorAll(".mcell")];
+    expect(cells.every((c) => !c.hasAttribute("aria-label"))).toBe(true);
+    const name = (c: Element) => (c.textContent ?? "").replace(/\s+/g, " ").trim();
+    expect(cells.map(name)).toContain("Freitag, 11. September: 11 Abholen");
+  });
+
+  it("keeps the visible weekday in its name and adds the date", async () => {
+    const { root } = await mount({ persons, view: "week", views: ["week"] }, { calendars });
+    const day = root.querySelectorAll(".wday")[4];
+    expect(day.hasAttribute("aria-label")).toBe(false);
+    expect((day.textContent ?? "").replace(/\s+/g, " ").trim()).toBe("Freitag, 11. September: Fr");
+  });
+
+  it("reads month events hidden behind +N at the end", async () => {
+    const many = {
+      "calendar.anna": ["A", "B", "C", "D", "E"].map((t, i) =>
+        ev(t, `0${i + 1}:00`, `0${i + 1}:30`),
+      ),
+    };
+    const { root } = await mount({ persons, view: "month", views: ["month"] }, { calendars: many });
+    const cell = [...root.querySelectorAll(".mcell")].find((c) =>
+      c.textContent?.includes("Freitag, 11. September"),
+    );
+    expect(cell?.querySelector(".mmore")?.textContent).toBe("+2");
+    expect(cell?.querySelector(".mmore + .sr")?.textContent).toBe("D, E");
   });
 });
 
@@ -853,10 +878,10 @@ describe("family calendars", () => {
   it("shows them in month cells and reads them out", async () => {
     const { root } = await mount({ ...base, view: "month", views: ["month"] }, { calendars });
     const cell = [...root.querySelectorAll(".mcell")].find((c) =>
-      c.getAttribute("aria-label")?.startsWith("Freitag, 11. September"),
+      c.textContent?.includes("Freitag, 11. September"),
     );
-    expect(cell?.getAttribute("aria-label")).toBe(
-      "Freitag, 11. September: Herbstferien, Gelbe Tonne, Elternabend, Schule, Büro",
+    expect((cell?.textContent ?? "").replace(/\s+/g, " ").trim()).toBe(
+      "Freitag, 11. September: 11 Herbstferien Gelbe Tonne 09:30 Elternabend Schule Büro",
     );
     expect(cell?.querySelectorAll(".famchip")).toHaveLength(3);
   });

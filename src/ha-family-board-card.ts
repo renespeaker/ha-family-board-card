@@ -2471,7 +2471,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 class="wday ${this._isRealToday(d) ? "today" : ""}"
                 role="button"
                 tabindex="0"
-                aria-label=${this._dateLabel(this._dateForDay(d))}
                 title=${this._t("day")}
                 @click=${() => this._openDayView(d)}
                 @keydown=${(k: KeyboardEvent) => {
@@ -2481,6 +2480,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   }
                 }}
               >
+                <span class="sr">${this._dateLabel(this._dateForDay(d))}:</span>
                 <b>${short[d]}</b>${this._weatherChip(this._dateForDay(d), "short")}
                 ${this._familyOn(this._dateForDay(d)).map((r) =>
                   this._familyChip(r, this._dateForDay(d)),
@@ -2657,7 +2657,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         tabindex="0"
         role="button"
         @click=${() => this._openEvent(e)}
-        aria-label=${this._evLabel(e)}
         @keydown=${(k: KeyboardEvent) => this._onItemKey(k, e)}
       >
         <span class="agenda-time">${time}</span>
@@ -2731,13 +2730,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 }"
                 role="button"
                 tabindex="0"
-                aria-label=${(() => {
-                  const titles = [
-                    ...this._familyOn(date).map((r) => r.summary),
-                    ...items.map((e) => this._evTitle(e)),
-                  ];
-                  return this._dateLabel(date) + (titles.length ? `: ${titles.join(", ")}` : "");
-                })()}
                 @click=${() => this._goToDate(date)}
                 @keydown=${(k: KeyboardEvent) => {
                   if (k.key === "Enter" || k.key === " ") {
@@ -2746,6 +2738,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   }
                 }}
               >
+                <span class="sr">${this._dateLabel(date)}:</span>
                 <div class="mtop">
                   <div class="mdate ${isToday ? "today" : ""}">${date.getDate()}</div>
                   ${this._weatherChip(date, "icon")}
@@ -2771,7 +2764,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   })}
                   ${
                     items.length > maxChips
-                      ? html`<div class="mmore">+${items.length - maxChips}</div>`
+                      ? html`<div class="mmore">+${items.length - maxChips}</div>
+                          <span class="sr"
+                            >${items
+                              .slice(maxChips)
+                              .map((e) => this._evTitle(e))
+                              .join(", ")}</span
+                          >`
                       : nothing
                   }
                 </div>
@@ -4440,6 +4439,21 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       color: var(--secondary-text-color);
       padding-left: 4px;
     }
+    /* text only for screen readers (the visible text stays part of the name) */
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    /* containing block for .sr (the week's .wday already is one: sticky) */
+    .mcell {
+      position: relative;
+    }
+
     /* shared family calendars: holidays, bin collection … above the people */
     .famband {
       display: flex;
@@ -5028,7 +5042,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.31.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.31.1 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
