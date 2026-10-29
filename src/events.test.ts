@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { formatWeekRange } from "./localize";
 import {
   addDays,
   daysBetween,
@@ -428,5 +429,32 @@ describe("daylight saving time", () => {
     const segs = splitAcrossDays(raw, new Date(2026, 9, 19), 7);
     expect(segs).toHaveLength(1);
     expect(segs[0].parts).toBeUndefined(); // one day, so no "(1/2)"
+  });
+
+  it("ends an all-day event without an end date at the next midnight, also on a 25-hour day", () => {
+    const raw = parseRawEvent({ summary: "Ferien", start: { date: "2026-10-25" } }, 0, "c", "#000");
+    expect(raw?.end).toEqual(new Date(2026, 9, 26));
+  });
+
+  it("does the same when the end date is not after the start", () => {
+    const raw = parseRawEvent(
+      { summary: "Ferien", start: { date: "2026-10-25" }, end: { date: "2026-10-25" } },
+      0,
+      "c",
+      "#000",
+    );
+    expect(raw?.end).toEqual(new Date(2026, 9, 26));
+  });
+
+  it("labels a week starting on the Sunday of the change with its real last day", () => {
+    const hass = { locale: { language: "de" } };
+    // Sunday 25 Oct + 6 days is Saturday 31 Oct (6 × 24 h would end on Friday 30 Oct, 23:00)
+    expect(formatWeekRange(hass, DST_BACK)).toBe(
+      new Intl.DateTimeFormat("de", { day: "numeric", month: "short" }).format(DST_BACK) +
+        " – " +
+        new Intl.DateTimeFormat("de", { day: "numeric", month: "short" }).format(
+          new Date(2026, 9, 31),
+        ),
+    );
   });
 });

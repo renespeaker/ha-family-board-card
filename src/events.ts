@@ -117,14 +117,14 @@ export function parseRawEvent(
     // All-day: dates are timezone-naive; end is EXCLUSIVE.
     if (!ev?.start?.date) return null;
     start = new Date(`${ev.start.date}T00:00:00`);
-    end = ev.end?.date ? new Date(`${ev.end.date}T00:00:00`) : new Date(start.getTime() + DAY_MS);
+    end = ev.end?.date ? new Date(`${ev.end.date}T00:00:00`) : addDays(start, 1);
   } else {
     start = new Date(ev.start.dateTime);
     end = new Date(ev.end?.dateTime ?? ev.start.dateTime);
   }
   if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
   if (end.getTime() <= start.getTime()) {
-    end = new Date(start.getTime() + (allDay ? DAY_MS : 60000));
+    end = allDay ? addDays(start, 1) : new Date(start.getTime() + 60000);
   }
   return {
     personIdx,
