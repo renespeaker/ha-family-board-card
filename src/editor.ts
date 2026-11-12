@@ -243,6 +243,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         { name: "filter_duplicates", selector: { boolean: {} } },
         ...(views.includes("agenda") ? [{ name: "hide_past", selector: { boolean: {} } }] : []),
         { name: "tentative_patterns", selector: { text: { multiple: true } } },
+        { name: "private_patterns", selector: { text: { multiple: true } } },
         { name: "ride_patterns", selector: { text: { multiple: true } } },
         ...(hasWeek ? [{ name: "hide_empty_persons", selector: { boolean: {} } }] : []),
       ]),
@@ -449,10 +450,15 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       label?: string | null;
       icon?: string | null;
       title_field?: string | null;
+      private?: boolean;
     },
   ): void {
     const map = { ...(this._config.calendars ?? {}) };
-    const entry = { ...(map[entity] ?? {}) } as Record<string, string>;
+    const entry = { ...(map[entity] ?? {}) } as Record<string, string | boolean>;
+    if (patch.private !== undefined) {
+      if (patch.private) entry.private = true;
+      else delete entry.private;
+    }
     for (const key of ["color", "label", "icon", "title_field"] as const) {
       const val = patch[key];
       if (val === undefined) continue;
@@ -630,6 +636,17 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
                             })}
                         />
                       </div>
+                      <label class="cal-private">
+                        <input
+                          type="checkbox"
+                          .checked=${meta.private === true}
+                          @change=${(e: Event) =>
+                            this._setCalMeta(c, {
+                              private: (e.target as HTMLInputElement).checked,
+                            })}
+                        />
+                        ${this._t("cal_private")}
+                      </label>
                     </div>
                   `;
                 })}
@@ -759,6 +776,13 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .cal-private {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      font-size: 13px;
     }
     .cal-extra {
       display: flex;

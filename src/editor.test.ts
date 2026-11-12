@@ -174,3 +174,28 @@ describe("editor presets", () => {
     expect(cfg.full_height).toBeUndefined();
   });
 });
+
+describe("private calendar switch", () => {
+  it("writes private: true for a calendar and removes it again", async () => {
+    const { el, root } = await mountEditor({
+      persons: [{ name: "Anna", calendar: ["calendar.anna", "calendar.work"] }],
+    });
+    const seen: Array<Record<string, unknown>> = [];
+    el.addEventListener("config-changed", (e) =>
+      seen.push((e as CustomEvent).detail.config as Record<string, unknown>),
+    );
+    const boxes = root.querySelectorAll<HTMLInputElement>(".cal-private input");
+    expect(boxes).toHaveLength(2);
+    expect(root.querySelector(".cal-private")?.textContent).toContain("nur „Privat“");
+    boxes[1].checked = true;
+    boxes[1].dispatchEvent(new Event("change"));
+    expect(seen[seen.length - 1]?.calendars).toEqual({ "calendar.work": { private: true } });
+    el.setConfig(seen[seen.length - 1]!);
+    await el.updateComplete;
+    const again = root.querySelectorAll<HTMLInputElement>(".cal-private input");
+    expect(again[1].checked).toBe(true);
+    again[1].checked = false;
+    again[1].dispatchEvent(new Event("change"));
+    expect(seen[seen.length - 1]?.calendars).toBeUndefined();
+  });
+});

@@ -118,6 +118,7 @@ export interface RawEvent {
   end: Date; // absolute end (exclusive)
   color: string;
   tentative?: boolean; // provisional event (dashed styling)
+  private?: boolean; // details withheld: title "Private", no place, no dialog
 }
 
 /** A per-day display segment derived from a RawEvent. */

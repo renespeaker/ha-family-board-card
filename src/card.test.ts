@@ -1499,3 +1499,69 @@ describe("rides (driver)", () => {
     expect(root.querySelector(".a-ride")).toBeNull();
   });
 });
+
+describe("private events", () => {
+  const persons = [
+    { name: "Anna", calendar: "calendar.anna" },
+    { name: "Ben", calendar: "calendar.ben" },
+  ];
+  const calendars = {
+    "calendar.anna": [
+      ev("Therapie", "10:00", "11:00", { location: "Praxis Dr. Meier", description: "#privat" }),
+      ev("Büro", "12:00", "17:00"),
+    ],
+    "calendar.ben": [ev("Bewerbungsgespräch", "14:00", "15:00", { location: "Firma X" })],
+  };
+  const base = {
+    persons,
+    private_patterns: ["#privat"],
+    calendars: { "calendar.ben": { private: true } },
+    start_hour: 7,
+    end_hour: 20,
+  };
+
+  it("shows only “Private” and the time, never title or place", async () => {
+    const { text, texts } = await mount(
+      { ...base, view: "agenda", views: ["agenda"] },
+      { calendars },
+    );
+    expect(text()).not.toContain("Therapie");
+    expect(text()).not.toContain("Praxis");
+    expect(text()).not.toContain("Bewerbung");
+    expect(text()).not.toContain("Firma X");
+    expect(texts(".agenda-title")).toEqual(["🔒 Privat", "Büro", "🔒 Privat"]);
+    expect(text()).toContain("10:00–11:00");
+  });
+
+  it("opens no dialog and cannot be dragged", async () => {
+    const { root, el } = await mount(
+      { ...base, view: "day", views: ["day"] },
+      { calendars, writable: ["calendar.anna"] },
+    );
+    const priv = root.querySelector<HTMLElement>(".event[aria-label^='🔒']")!;
+    expect(priv.classList.contains("draggable")).toBe(false);
+    priv.click();
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(root.querySelector(".dialog")).toBeNull();
+    root.querySelector<HTMLElement>("[aria-label*='Büro']")!.click();
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(root.querySelector(".dialog")).not.toBeNull();
+  });
+
+  it("keeps the details out of the browser cache, and stays private when started from it", async () => {
+    await mount({ ...base, view: "agenda", views: ["agenda"] }, { calendars });
+    const stored = Object.keys(localStorage)
+      .map((k) => localStorage.getItem(k))
+      .join(" ");
+    expect(stored).toContain("Büro");
+    expect(stored).not.toContain("Therapie");
+    expect(stored).not.toContain("Praxis");
+    expect(stored).not.toContain("Bewerbung");
+    mounted.splice(0).forEach((n) => n.remove());
+    const { texts } = await mount(
+      { ...base, view: "agenda", views: ["agenda"] },
+      { calendars, slowApi: true },
+    );
+    expect(texts(".agenda-title")).toEqual(["🔒 Privat", "Büro", "🔒 Privat"]);
+  });
+});

@@ -77,9 +77,10 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   hide_past?: boolean; // agenda: skip days before today in the current week. default false
   calendars?: Record<
     string,
-    { color?: string; label?: string; icon?: string; title_field?: string }
+    { color?: string; label?: string; icon?: string; title_field?: string; private?: boolean }
   >; // per-calendar color/label/icon and which field supplies the title
   tentative_patterns?: string[]; // mark events tentative when title matches
+  private_patterns?: string[]; // events whose title/description matches show only "Private" and the time
   auto_icons?: boolean; // prefix events with a matching emoji by keyword. default false
   icon_patterns?: string[]; // custom icon rules: "keyword => 🎂"
   show_focus?: boolean; // show a "now / next" focus bar per person above the views
@@ -1057,6 +1058,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           for (const ev of events) {
             const raw = parseRawEvent(ev, idx, cal, "");
             if (!raw || this._hidden(raw.summary) || !this._allowed(raw.summary)) continue;
+            if (this._isPrivate(cal, ev)) continue; // a countdown would give the title away
             raw.summary = this._cleanTitle(raw.summary);
             const title = raw.summary.toLowerCase();
             if (pats.some((p) => title.includes(p))) found.push(raw);
@@ -1199,6 +1201,29 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return out.replace(/\s{2,}/g, " ").trim() || summary;
   }
 
+  /**
+   * Private: the calendar is marked `private: true`, or the title or description
+   * matches a private pattern. Checked on the event as Home Assistant sends it.
+   */
+  private _isPrivate(cal: string, ev: any): boolean {
+    if (ev?.fb_private === true || this._calMeta(cal).private === true) return true;
+    const pats = this._config.private_patterns;
+    if (!Array.isArray(pats) || pats.length === 0) return false;
+    const text = `${ev?.summary ?? ""} ${ev?.description ?? ""}`.toLowerCase();
+    return pats.some((p) => {
+      const pat = String(p).trim().toLowerCase();
+      return pat.length > 0 && text.includes(pat);
+    });
+  }
+
+  /** Only the time stays; title, place and notes are gone before anything renders. */
+  private _makePrivate(raw: RawEvent): void {
+    raw.summary = `🔒 ${this._t("private")}`;
+    delete raw.location;
+    delete raw.description;
+    raw.private = true;
+  }
+
   /** Whether an event title marks it as tentative/provisional (case-insensitive). */
   private _matchesTentative(summary: string): boolean {
     const pats = this._config.tentative_patterns;
@@ -1277,6 +1302,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           if (this._hidden(raw.summary) || !this._allowed(raw.summary)) continue;
           if (this._matchesTentative(raw.summary)) raw.tentative = true;
           raw.summary = this._cleanTitle(raw.summary);
+          if (this._isPrivate(cal, ev)) this._makePrivate(raw);
           raws.push(raw);
         }
       }
@@ -1379,7 +1405,22 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       const data = JSON.stringify({
         key: this._fetchedKey,
         at: Date.now(),
-        cals: [...this._calData],
+        // private events are stored without their details
+        cals: [...this._calData].map(([cal, evs]) => [
+          cal,
+          evs.map((ev: any) =>
+            this._isPrivate(cal, ev)
+              ? {
+                  ...ev,
+                  summary: "",
+                  location: undefined,
+                  description: undefined,
+                  uid: undefined, // some feeds build it from the title
+                  fb_private: true,
+                }
+              : ev,
+          ),
+        ]),
       });
       if (data.length < 500000) localStorage.setItem(this._cacheId, data);
     } catch (e) {
@@ -1547,6 +1588,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     label?: string;
     icon?: string;
     title_field?: string;
+    private?: boolean;
   } {
     return (entity && this._config.calendars?.[entity]) || {};
   }
@@ -3329,6 +3371,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   private _openEvent(e: BoardEvent): void {
     const raw: RawEvent = e.ref;
+    if (raw.private) return; // nothing to show, and editing would overwrite the real title
     const cal = raw.calendar;
     const canUpdate = this._canUpdate(cal) && !!raw.uid;
     const canDelete = this._canDelete(cal) && !!raw.uid;
@@ -3434,6 +3477,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return (
       this._config.drag_drop !== false &&
       !e.allDay &&
+      !e.ref.private &&
       !e.ref.rrule &&
       !!e.ref.uid &&
       this._canUpdate(e.ref.calendar) &&

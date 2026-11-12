@@ -33,6 +33,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Slim header** – `slim_header` moves the weekday buttons onto the navigation line and puts the avatar next to the name: about 40 px less header, more room for the day.
 - **Can start on another day** – `day_offset` shifts the day and timeline views by N days (`1` = tomorrow). Meant for displays that should show the day ahead – an e-paper panel in the hallway, say.
 - **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
+- **Private events** – events whose title or description contains a `private_patterns` entry (e.g. `#private`), or every event of a calendar marked `private: true`, show only “🔒 Private” and the time. Place and notes stay hidden, the event cannot be opened or dragged, and the browser cache keeps no details. The time still counts for the day check.
 - **Rides** – mark the people who drive with `driver: true`. Events such as “Pick up Mia” or “Ben: drop off Leon” become rides: the driver named in the event takes it, otherwise the owner if they drive. The event shows “🚗 Ben”, and the day check warns when nobody drives (“🚗 ?”) or the driver has something else at that time. `ride_patterns` sets your own words.
 - **“Still at home”** – with `late_warning` (minutes) the board warns when someone has an event with a place coming up and Home Assistant still sees them at home: “🚪 Anna still at home – Dentist 10:30” in the day check and in the now view. Uses the `person.*` entity; events without a place or at home are left out.
 - **“Now / next” bar** – optional highlight row above the views: per person, what is running right now (with a pulsing dot) or what is coming next (incl. countdown) – made for the wall tablet.
@@ -145,7 +146,7 @@ persons:
 | `replace_patterns` | list | – | Clean up titles: `"search => replacement"` (without `=>` the text is removed) |
 | `hide_past` | boolean | `false` | Agenda: skip the days before today so the list starts at today (a week you paged back to still shows everything) |
 | `filter_duplicates` | boolean | `false` | Show identical events (title + time) only once per person and in the agenda |
-| `calendars` | map | – | Per calendar `color`, `label`, `icon` (mdi) and `title_field` (editable in the editor) |
+| `calendars` | map | – | Per calendar `color`, `label`, `icon` (mdi), `title_field` and `private: true` (every event shows only “Private”) – all editable in the editor |
 | `compact` | boolean | `false` | Compact layout: smaller fonts and tighter spacing |
 | `map_url` | string | Google | Template for the location link, `{location}` is substituted, e.g. `https://maps.apple.com/?q={location}` |
 | `event_size` | number | – | Font size of the event titles in px (editor slider, sets `--fb-event-size`) |
@@ -166,6 +167,7 @@ persons:
 | `background_hours` | number | `3` | Timed events from this length (hrs.) on are drawn as a subtle background band instead of a column; `0` = off |
 | `max_columns` | number | `3` | Max. side-by-side columns per person/day; with more overlaps a “+N” chip appears (1–8) |
 | `tentative_patterns` | list | – | Mark events with a matching title pattern as tentative (dashed / translucent) |
+| `private_patterns` | list | – | Text in title or description that makes an event private: only “Private” and the time are shown |
 | `ride_patterns` | list | pick up, drop off, ride, abholen, bringen … | Words that make an event a ride (whole words). Only used once a person has `driver: true` |
 | `day_offset` | number | `0` | Day/timeline view starts N days off: `1` = tomorrow, `-1` = yesterday. The shift crosses the week boundary correctly and survives `auto_return` (for e-paper and info displays) |
 | `slim_header` | boolean | `false` | Slim header: the weekday buttons move onto the navigation line and the avatar sits next to the name – saves about 40 px of height |

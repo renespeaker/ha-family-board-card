@@ -33,6 +33,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Schlanker Kopfbereich** – `slim_header` schiebt die Wochentage auf die Navigationszeile und stellt den Avatar neben den Namen: rund 40 px weniger Kopf, mehr Platz für den Tag.
 - **Startet auch an einem anderen Tag** – `day_offset` verschiebt Tages- und Zeitstrahl-Ansicht um N Tage (`1` = morgen). Gedacht für Anzeigen, die den kommenden Tag zeigen sollen – etwa ein E-Paper-Display im Flur.
 - **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
+- **Private Termine** – Termine, deren Titel oder Beschreibung einen Eintrag aus `private_patterns` enthält (z. B. `#privat`), oder alle Termine eines Kalenders mit `private: true` zeigen nur „🔒 Privat“ und die Uhrzeit. Ort und Notizen bleiben verborgen, der Termin lässt sich weder öffnen noch verschieben, und der Browser-Cache speichert keine Details. Für den Tages-Check zählt die Zeit trotzdem.
 - **Fahrdienst** – wer fährt, bekommt `driver: true`. Termine wie „Mia abholen“ oder „Ben: Leon bringen“ werden zu Fahrten: Fahrer ist, wer im Termin genannt wird, sonst der Besitzer, wenn er fährt. Am Termin steht „🚗 Ben“, und der Tages-Check warnt, wenn niemand fährt („🚗 ?“) oder der Fahrer zur selben Zeit schon etwas vorhat. Eigene Wörter mit `ride_patterns`.
 - **„Noch zuhause"** – mit `late_warning` (Minuten) warnt das Board, wenn bei jemandem bald ein Termin mit Ort ansteht und Home Assistant die Person noch zuhause sieht: „🚪 Anna noch zuhause – Zahnarzt 10:30" im Tages-Check und in der Jetzt-Ansicht. Nutzt die `person.*`-Entität; Termine ohne Ort oder zuhause zählen nicht.
 - **„Jetzt / als Nächstes"-Leiste** – optionale Glanz-Zeile über den Ansichten: pro Person auf einen Blick, was gerade läuft (mit Puls-Punkt) oder als Nächstes ansteht (inkl. Countdown) – ideal fürs Wandtablet.
@@ -145,7 +146,7 @@ persons:
 | `replace_patterns` | Liste | –      | Titel aufräumen: `"Suchtext => Ersatz"` (ohne `=>` wird der Text entfernt) |
 | `hide_past`     | boolean | `false` | Agenda: Tage vor heute überspringen, die Liste beginnt bei heute (in zurückgeblätterten Wochen weiterhin vollständig) |
 | `filter_duplicates` | boolean | `false` | Identische Termine (Titel+Zeit) pro Person und in der Agenda nur einmal zeigen |
-| `calendars`     | Map     | –       | Pro Kalender `color`, `label`, `icon` (mdi) und `title_field` (im Editor pflegbar) |
+| `calendars`     | Map     | –       | Pro Kalender `color`, `label`, `icon` (mdi), `title_field` und `private: true` (alle Termine nur als „Privat“) – alles im Editor pflegbar |
 | `compact`       | boolean | `false` | Kompakte Darstellung: kleinere Schriften und engere Abstände |
 | `map_url`       | string  | Google  | Vorlage für den Orts-Link, `{location}` wird eingesetzt, z. B. `https://maps.apple.com/?q={location}` |
 | `event_size`    | number  | –       | Schriftgröße der Termin-Titel in px (Editor-Slider, setzt `--fb-event-size`) |
@@ -166,6 +167,7 @@ persons:
 | `background_hours` | number | `3`  | Timed-Termine ab dieser Länge (Std.) als dezentes Hintergrund-Band statt als Spalte; `0` = aus |
 | `max_columns`   | number  | `3`     | Max. nebeneinander liegende Spalten pro Person/Tag; bei mehr Überlappungen erscheint ein „+N"-Chip (1–8) |
 | `tentative_patterns` | Liste | –    | Termine mit passendem Titel-Muster als vorläufig (gestrichelt/transparent) markieren |
+| `private_patterns` | Liste | – | Text in Titel oder Beschreibung, der einen Termin privat macht: nur „Privat“ und die Uhrzeit sind zu sehen |
 | `ride_patterns` | Liste | abholen, bringen, Fahrt, pick up … | Wörter, die einen Termin zur Fahrt machen (ganze Wörter). Greift erst, wenn eine Person `driver: true` hat |
 | `day_offset`    | number  | `0`     | Tag-/Zeitstrahl-Ansicht startet um N Tage versetzt: `1` = morgen, `-1` = gestern. Der Versatz überspringt korrekt die Wochengrenze und bleibt auch nach `auto_return` erhalten (für E-Paper- und Info-Displays) |
 | `slim_header`   | boolean | `false` | Schlanker Kopf: Wochentage wandern auf die Navigationszeile, Avatar steht neben dem Namen – spart rund 40 px Höhe |
