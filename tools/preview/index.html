@@ -122,6 +122,7 @@ el.setConfig({
   family_calendars: Q.has("nofamily") ? undefined : ["calendar.muell","calendar.ferien","calendar.familie"],
   calendars: { "calendar.muell": { icon: "mdi:trash-can", color: "#EAB308" },
                "calendar.ferien": { icon: "mdi:beach", color: "#22C55E" } },
+  swipe: Q.has("swipe"),
   show_focus: !Q.has("slim"), auto_icons:true, slim_header: Q.has("slim"), show_alerts: Q.has("alerts"), gap_min:60,
   background_hours: 3, start_hour:7, end_hour:18, trim_hours:false,
   hour_height: 64, hour_width: 110, time_grid:15,

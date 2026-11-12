@@ -25,6 +25,7 @@ const EN: Dict = {
   l_max_columns: "Max. columns per day",
   l_first_day: "Week starts on",
   l_scroll_to_now: "Auto-scroll to now",
+  l_swipe: "Swipe to page",
   l_day_offset: "Start on (days from today)",
   l_slim_header: "Slim header",
   l_color_by: "Color by",
@@ -64,6 +65,7 @@ const EN: Dict = {
 
   /* ---- helper texts ---------------------------------------------- */
   h_scroll_to_now: "Day view to the current time, timeline to the now line, agenda to today",
+  h_swipe: "Touch screens: swipe left or right for the next or previous day, week or month",
   h_day_offset:
     "0 = today, 1 = tomorrow, -1 = yesterday. For a display that should show the day ahead",
   h_slim_header:
@@ -169,6 +171,7 @@ const DE: Dict = {
   l_max_columns: "Max. Spalten pro Tag",
   l_first_day: "Wochenstart",
   l_scroll_to_now: "Auto-Scroll zu jetzt",
+  l_swipe: "Wischen zum Blättern",
   l_day_offset: "Beginnt bei (Tage ab heute)",
   l_slim_header: "Schlanker Kopfbereich",
   l_color_by: "Einfärben nach",
@@ -207,6 +210,8 @@ const DE: Dict = {
   l_map_url: "Karten-Link (Vorlage)",
 
   h_scroll_to_now: "Tag zur aktuellen Uhrzeit, Zeitstrahl zur Jetzt-Linie, Agenda zu heute",
+  h_swipe:
+    "Touchscreens: nach links oder rechts wischen für den nächsten oder vorigen Tag, Woche oder Monat",
   h_day_offset:
     "0 = heute, 1 = morgen, -1 = gestern. Für Anzeigen, die den kommenden Tag zeigen sollen",
   h_slim_header:

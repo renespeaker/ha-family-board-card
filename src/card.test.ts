@@ -1008,3 +1008,110 @@ describe("new recurring events", () => {
     expect(start.value).toBe("2026-10-25T16:00");
   });
 });
+
+describe("swipe to page", () => {
+  type Card = HTMLElement & {
+    _day: number;
+    _weekOffset: number;
+    _monthOffset: number;
+    updateComplete: Promise<unknown>;
+  };
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = { "calendar.anna": [ev("Büro", "09:00", "17:00")] };
+
+  /**
+   * A touch gesture from (x0, y0) to (x1, y1) on the given element; `between`
+   * runs while the finger is down (e.g. the browser scrolling something).
+   */
+  function swipe(
+    target: Element,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    between?: () => void,
+  ) {
+    const touch = (type: string, x: number, y: number, down: boolean) => {
+      const ev = new Event(type, { bubbles: true, composed: true });
+      const point = { clientX: x, clientY: y };
+      Object.defineProperty(ev, "touches", { value: down ? [point] : [] });
+      Object.defineProperty(ev, "changedTouches", { value: [point] });
+      target.dispatchEvent(ev);
+    };
+    touch("touchstart", x0, y0, true);
+    between?.();
+    touch("touchend", x1, y1, false);
+  }
+
+  async function board(extra: Partial<FamilyBoardConfig> = {}) {
+    const m = await mount(
+      {
+        persons,
+        view: "day",
+        views: ["day", "week", "month"],
+        start_hour: 7,
+        end_hour: 20,
+        swipe: true,
+        ...extra,
+      },
+      { calendars },
+    );
+    return { ...m, el: m.el as unknown as Card };
+  }
+
+  it("pages to the next and previous day in the day view", async () => {
+    const { el, root } = await board();
+    expect(el._day).toBe(4); // Friday 11 Sep
+    swipe(root.querySelector(".col") as Element, 300, 200, 150, 210);
+    expect(el._day).toBe(5);
+    swipe(root.querySelector(".col") as Element, 150, 200, 300, 190);
+    expect(el._day).toBe(4);
+  });
+
+  it("skips hidden weekend days into the next week", async () => {
+    const { el, root } = await board({ show_weekends: false });
+    swipe(root.querySelector(".col") as Element, 300, 200, 150, 200);
+    expect([el._weekOffset, el._day]).toEqual([1, 0]); // Monday of next week
+  });
+
+  it("pages weeks in the week view and months in the month view", async () => {
+    const { el, root } = await board({ view: "week" });
+    swipe(root.querySelector(".wcell") as Element, 150, 200, 300, 200);
+    expect(el._weekOffset).toBe(-1);
+    const m = await board({ view: "month" });
+    swipe(m.root.querySelector(".monthgrid") as Element, 300, 200, 100, 200);
+    expect(m.el._monthOffset).toBe(1);
+  });
+
+  it("does nothing when switched off, for scrolls, taps or a drag on an event", async () => {
+    const off = await board({ swipe: false });
+    swipe(off.root.querySelector(".col") as Element, 300, 200, 150, 200);
+    expect(off.el._day).toBe(4);
+
+    const { el, root } = await board();
+    const col = root.querySelector(".col") as Element;
+    swipe(col, 300, 200, 200, 500); // 100 px sideways, 300 down: a scroll
+    swipe(col, 300, 200, 270, 200); // too short: a tap
+    const scroller = root.querySelector(".board") as HTMLElement;
+    swipe(col, 300, 200, 100, 200, () => (scroller.scrollLeft = 120)); // the browser scrolled
+    expect(el._day).toBe(4);
+  });
+
+  it("leaves dragging an event alone, but pages over events that only open on tap", async () => {
+    // read-only calendar: the event only opens on tap, so a swipe over it pages
+    const ro = await board();
+    swipe(ro.root.querySelector(".event, .band") as Element, 300, 200, 100, 200);
+    expect(ro.el._day).toBe(5);
+    // writable calendar: the event is draggable, the gesture belongs to it
+    const m = await mount(
+      { persons, view: "day", views: ["day"], start_hour: 7, end_hour: 20, swipe: true },
+      {
+        calendars: { "calendar.anna": [ev("Arzt", "10:00", "11:00")] },
+        writable: ["calendar.anna"],
+      },
+    );
+    const el = m.el as unknown as Card;
+    swipe(m.root.querySelector(".event.draggable") as Element, 300, 200, 100, 200);
+    expect(el._day).toBe(4);
+  });
+});

@@ -43,6 +43,7 @@ async function open({
   locale = "de-DE",
   slim = false,
   writable = false,
+  swipe = false,
   timezoneId,
   time,
 }) {
@@ -52,7 +53,7 @@ async function open({
   const at = time ?? new Date();
   if (!time) at.setHours(10, 20, 0, 0);
   await page.clock.install({ time: at });
-  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}${writable ? "&writable=1" : ""}`;
+  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}${writable ? "&writable=1" : ""}${swipe ? "&swipe=1" : ""}`;
   await page.goto(url);
   await page.waitForTimeout(1500);
   return { page, errors };
@@ -289,6 +290,66 @@ for (const [view, sel, width] of [
     `${fit.n} Zellen mit Familien-Terminen, ${fit.bad} zu schmal`,
   );
   await page.close();
+}
+
+/* --- swipe: pages where nothing scrolls, never fights a scroll ------- */
+{
+  // a real touch gesture through Chrome's input pipeline, so the browser
+  // itself decides whether it is a scroll (that is the point of the check)
+  const touchSwipe = async (page, x0, y0, x1, y1) => {
+    const cdp = await page.context().newCDPSession(page);
+    const point = (x, y) => [{ x, y, id: 1 }];
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(x0, y0) });
+    for (let i = 1; i <= 8; i++) {
+      const x = x0 + ((x1 - x0) * i) / 8;
+      const y = y0 + ((y1 - y0) * i) / 8;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x, y) });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(300);
+  };
+  const state = (page, scroller) =>
+    page.evaluate((scroller) => {
+      const el = document.querySelector("family-board-card");
+      const box = el.renderRoot.querySelector(scroller);
+      return { day: el._day, week: el._weekOffset, scrolled: Math.round(box?.scrollLeft ?? 0) };
+    }, scroller);
+  for (const [view, width, scroller, expectPage] of [
+    ["day", 1400, ".board", true], // nothing scrolls sideways: the swipe pages
+    ["week", 1400, ".weekwrap", true],
+    ["timeline", 400, ".tlwrap", false], // the timeline scrolls sideways: scrolling wins
+  ]) {
+    const page = await browser.newPage({
+      viewport: { width, height: 900 },
+      hasTouch: true,
+      isMobile: width < 600,
+    });
+    const at = new Date();
+    at.setHours(10, 20, 0, 0);
+    await page.clock.install({ time: at });
+    await page.goto(`http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&swipe=1`);
+    await page.waitForTimeout(1500);
+    // across the grid itself, right to left, inside the viewport
+    const y = await page.evaluate((scroller) => {
+      const r = document
+        .querySelector("family-board-card")
+        .renderRoot.querySelector(scroller)
+        .getBoundingClientRect();
+      return Math.round(Math.min(r.top + r.height * 0.6, innerHeight - 40));
+    }, scroller);
+    const before = await state(page, scroller);
+    await touchSwipe(page, width * 0.75, y, width * 0.2, y);
+    const after = await state(page, scroller);
+    const paged = after.day !== before.day || after.week !== before.week;
+    check(
+      expectPage
+        ? `Wischen blättert (${view}, ${width}px)`
+        : `Wischen lässt seitliches Scrollen in Ruhe (${view}, ${width}px)`,
+      expectPage ? paged : !paged && after.scrolled !== before.scrolled,
+      `Tag ${before.day}→${after.day}, Woche ${before.week}→${after.week}, scrollLeft ${before.scrolled}→${after.scrolled}`,
+    );
+    await page.close();
+  }
 }
 
 /* --- accessibility: axe-core over every view ------------------------ */

@@ -159,6 +159,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         selector: { number: { min: 0, max: 60, step: 1, mode: "box", unit_of_measurement: "min" } },
       },
       { name: "scroll_to_now", selector: { boolean: {} } },
+      { name: "swipe", selector: { boolean: {} } },
       { name: "show_now_line", selector: { boolean: {} } },
       { name: "show_progress", selector: { boolean: {} } },
       {
@@ -319,10 +320,11 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         fit_height: true,
         trim_hours: true,
         scroll_to_now: true,
+        swipe: true,
         auto_return: 5,
       });
     } else if (kind === "phone") {
-      Object.assign(cfg, { view: "agenda", col_min_width: 96 });
+      Object.assign(cfg, { view: "agenda", col_min_width: 96, swipe: true });
       clear(["full_height", "fit_height", "auto_return"]);
     } else {
       clear([

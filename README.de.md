@@ -38,7 +38,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Auto-Symbole** – optional bekommt jeder Termin per Stichwort ein passendes Emoji (Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂, Schule → 🎒 …); eigene Regeln möglich. Titel, die schon ein Emoji haben, bleiben unberührt.
 - **Zeitstrahl-Ansicht** – Personen als Zeilen links, die Zeit läuft horizontal: Termine als Balken auf einem Zeitstrahl (Gantt-Stil); überlappende Termine stapeln sich in Unterzeilen.
 - **Ansichten wählbar** – im Editor festlegen, welche Umschalter (Jetzt/Tag/Zeitstrahl/Woche/Monat/Agenda) erscheinen.
-- **Wochen-Navigation** – vor/zurück blättern, ein Klick auf den Datumsbereich springt zurück zu „heute".
+- **Wochen-Navigation** – vor/zurück blättern, ein Klick auf den Datumsbereich springt zurück zu „heute". Mit `swipe: true` blättert auf Touchscreens auch Wischen: einen Tag in Tagesansicht und Zeitstrahl, eine Woche in Woche und Agenda, einen Monat in der Monatsansicht. Wo das Board selbst seitlich scrollt (ein breiter Zeitstrahl auf dem Handy), gewinnt das Scrollen.
 - **Theme-aware** – übernimmt Farben und Schrift des aktiven Dashboard-Themes (nutzt durchgehend HA-CSS-Variablen).
 - **Konfigurierbar** – Zeitraster 15/30/60 min, Tagesfenster, Wochenende ein/aus, Einfärben nach Person oder Ort, Auto-Aktualisierung.
 - **Drag & Drop** – in der Tagesansicht Termine per Ziehen verschieben (Uhrzeit) und am unteren Rand die Dauer ändern; rastet aufs Zeitraster und schreibt direkt in den Kalender zurück – **nur** bei schreibbaren Kalendern, Einzeltermine (keine Serien).
@@ -162,6 +162,7 @@ persons:
 | `day_offset`    | number  | `0`     | Tag-/Zeitstrahl-Ansicht startet um N Tage versetzt: `1` = morgen, `-1` = gestern. Der Versatz überspringt korrekt die Wochengrenze und bleibt auch nach `auto_return` erhalten (für E-Paper- und Info-Displays) |
 | `slim_header`   | boolean | `false` | Schlanker Kopf: Wochentage wandern auf die Navigationszeile, Avatar steht neben dem Namen – spart rund 40 px Höhe |
 | `first_day`     | string  | `monday`| Wochenstart: `monday` oder `sunday` |
+| `swipe`         | boolean | `false` | Touchscreens: nach links/rechts wischen für nächsten/vorigen Tag, Woche oder Monat (in den Profilen Wandtablet und Handy schon an) |
 | `scroll_to_now` | boolean | `true`  | Beim Laden automatisch zu „jetzt“ scrollen: Tagesansicht zur aktuellen Uhrzeit, Zeitstrahl horizontal zur Jetzt-Linie, Agenda zum heutigen Abschnitt (hat heute keine Termine, zum nächsten Tag mit Terminen) |
 | `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen |
 

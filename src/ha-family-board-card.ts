@@ -102,6 +102,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   max_columns?: number; // max side-by-side columns per person/day. default 3
   first_day?: "monday" | "sunday"; // week start. default monday
   scroll_to_now?: boolean; // auto-scroll day view to current time. default true
+  swipe?: boolean; // touch: swipe left/right to page days, weeks or months. default false
 }
 
 /** A collapsed "+N more" marker for dense overlap clusters in the day view. */
@@ -489,6 +490,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     window.addEventListener("focus", this._onVisible);
     this._startTimer();
     this.addEventListener("pointerdown", this._onInteract);
+    this.addEventListener("touchstart", this._onSwipeStart, { passive: true });
+    this.addEventListener("touchend", this._onSwipeEnd, { passive: true });
+    this.addEventListener("touchcancel", this._onSwipeCancel, { passive: true });
+    this.addEventListener("click", this._onClickAfterSwipe, true);
     this._scheduleTick();
     // recompute the fit-to-height scaling whenever the card is resized
     if (typeof ResizeObserver !== "undefined") {
@@ -503,6 +508,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     document.removeEventListener("visibilitychange", this._onVisible);
     window.removeEventListener("focus", this._onVisible);
     this.removeEventListener("pointerdown", this._onInteract);
+    this.removeEventListener("touchstart", this._onSwipeStart);
+    this.removeEventListener("touchend", this._onSwipeEnd);
+    this.removeEventListener("touchcancel", this._onSwipeCancel);
+    this.removeEventListener("click", this._onClickAfterSwipe, true);
     this._stopTimer();
     if (this._tick) {
       clearTimeout(this._tick);
@@ -1572,6 +1581,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   };
   /** Jump to the day view for a specific date (from the month grid). */
   private _goToDate(date: Date): void {
+    this._showDate(date);
+    this._view = this._enabledViews.includes("day") ? "day" : this._view;
+  }
+
+  /** Put `date` on screen (week + day) without changing the view. */
+  private _showDate(date: Date): void {
     const today = startOfDay(new Date());
     const toWeekStart = (d: Date) => {
       const s = startOfDay(d);
@@ -1581,8 +1596,87 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const weeks = daysBetween(toWeekStart(today), toWeekStart(date)) / 7;
     this._weekOffset = weeks;
     this._day = (date.getDay() - this._firstDayJs + 7) % 7;
-    this._view = this._enabledViews.includes("day") ? "day" : this._view;
   }
+
+  /**
+   * One swipe step: a day in the day view and the timeline (skipping hidden
+   * weekend days, across week boundaries), a week in week and agenda, a month
+   * in the month view. The now view has nothing to page.
+   */
+  private _swipeStep(dir: 1 | -1): void {
+    if (this._view === "day" || this._view === "timeline") {
+      const visible = this._visibleDays;
+      let date = this._dateForDay(this._day);
+      for (let i = 0; i < 7; i++) {
+        date = addDays(date, dir);
+        if (visible.includes((date.getDay() - this._firstDayJs + 7) % 7)) break;
+      }
+      this._showDate(date);
+    } else if (this._view === "week" || this._view === "agenda") {
+      this._weekOffset += dir;
+    } else if (this._view === "month") {
+      this._monthOffset += dir;
+    }
+  }
+
+  /*
+   * Swipe to page, on touch screens. Touch events, not pointer events: Chrome
+   * cancels the pointer as soon as it treats a sideways move as a pan, even
+   * where nothing can scroll, while touch events keep arriving. Whether the
+   * browser really scrolled something sideways is read from the scroll
+   * positions along the touched path: if one moved, it was a scroll and
+   * scrolling wins. Draggable events, the tab rows and fields keep their own
+   * gestures.
+   */
+  private _swipe?: { x: number; y: number; t: number; scroll: Array<[Element, number]> };
+  private _swiped = false;
+
+  private _onSwipeStart = (e: TouchEvent): void => {
+    this._swipe = undefined;
+    if (!this._config?.swipe || e.touches.length !== 1 || this._dialog || this._drag) return;
+    const path = (e.composedPath() as EventTarget[]).filter(
+      (n): n is Element => n instanceof Element,
+    );
+    const own = path.some((n) =>
+      n.matches(
+        // only what has a sideways gesture of its own: dragging an event,
+        // the scrollable tab rows, text fields; a tap on anything else stays a tap
+        ".draggable, .switch, .tabs, input, select, textarea",
+      ),
+    );
+    if (own) return;
+    const t = e.touches[0];
+    const scroll = [...path, document.scrollingElement]
+      .filter((n): n is Element => !!n)
+      .map((n): [Element, number] => [n, n.scrollLeft]);
+    this._swipe = { x: t.clientX, y: t.clientY, t: e.timeStamp, scroll };
+  };
+
+  private _onSwipeEnd = (e: TouchEvent): void => {
+    const s = this._swipe;
+    this._swipe = undefined;
+    const t = e.changedTouches[0];
+    if (!s || !t) return;
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    // clearly sideways, far enough and quick: anything else is a tap or a scroll
+    if (Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(dy) || e.timeStamp - s.t > 800) return;
+    if (s.scroll.some(([n, left]) => Math.abs(n.scrollLeft - left) > 2)) return; // it scrolled
+    this._swiped = true;
+    this._swipeStep(dx < 0 ? 1 : -1);
+  };
+
+  private _onSwipeCancel = (): void => {
+    this._swipe = undefined;
+  };
+
+  /** A swipe must not end as a tap that opens "new event" on the column below. */
+  private _onClickAfterSwipe = (e: Event): void => {
+    if (!this._swiped) return;
+    this._swiped = false;
+    e.stopPropagation();
+    e.preventDefault();
+  };
 
   /* ---- render -------------------------------------------------- */
   protected render() {

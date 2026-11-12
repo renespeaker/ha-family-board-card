@@ -38,7 +38,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Auto icons** – optionally every event gets a matching emoji by keyword (doctor → 🩺, sport → 🏃, birthday → 🎂, school → 🎒 …); custom rules possible. Titles that already contain an emoji stay untouched.
 - **Timeline view** – people as rows on the left, time running horizontally: events as bars on a timeline (Gantt style); overlapping events stack into sub-rows.
 - **Pick your views** – choose in the editor which switchers (now/day/timeline/week/month/agenda) appear.
-- **Week navigation** – page back and forth, a click on the date range jumps back to “today”.
+- **Week navigation** – page back and forth, a click on the date range jumps back to “today”. With `swipe: true`, a swipe on a touch screen pages too: a day in the day view and timeline, a week in the week view and agenda, a month in the month view. Where the board itself scrolls sideways (a wide timeline on a phone), scrolling wins.
 - **Theme-aware** – picks up the colors and fonts of the active dashboard theme (uses HA CSS variables throughout).
 - **Configurable** – 15/30/60 min grid, day window, weekend on/off, color by person or location, auto refresh.
 - **Drag & drop** – in the day view, drag events to move them (time) and drag the bottom edge to change the duration; snaps to the time grid and writes straight back to the calendar – **only** for writable calendars and single events (no series).
@@ -162,6 +162,7 @@ persons:
 | `day_offset` | number | `0` | Day/timeline view starts N days off: `1` = tomorrow, `-1` = yesterday. The shift crosses the week boundary correctly and survives `auto_return` (for e-paper and info displays) |
 | `slim_header` | boolean | `false` | Slim header: the weekday buttons move onto the navigation line and the avatar sits next to the name – saves about 40 px of height |
 | `first_day` | string | `monday` | Week starts on `monday` or `sunday` |
+| `swipe` | boolean | `false` | Touch screens: swipe left/right for the next/previous day, week or month (on by default in the wall-tablet and phone profiles) |
 | `scroll_to_now` | boolean | `true` | Scroll to “now” on load: the day view to the current time, the timeline horizontally to the now line, the agenda to today's section (or the next day with events when today has none) |
 | `refresh_interval` | number | `300` | Auto refresh of the events in seconds (0 = off); additionally when the tablet wakes up |
 
