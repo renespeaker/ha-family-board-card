@@ -116,6 +116,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   first_day?: "monday" | "sunday" | "today"; // week start; "today" = a rolling week. default monday
   scroll_to_now?: boolean; // auto-scroll day view to current time. default true
   swipe?: boolean; // touch: swipe left/right to page days, weeks or months. default false
+  night_wake_entity?: string | string[]; // motion/presence sensors: "on" wakes the night screen
   night_start?: string; // "21:00": from here a calm, dimmed night screen (clock + next events)
   night_end?: string; // "06:30": ... until here. Both needed; a tap wakes the board for a while
 }
@@ -572,11 +573,36 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this._lastInteract = Date.now();
     // a touch at night wakes the board for a while (auto_return, at least 2 min)
     if (this._nightWindow()) {
-      const min = Math.max(Number(this._config.auto_return) || 0, 2);
-      this._wakeUntil = Date.now() + min * 60000;
+      this._wakeUntil = Date.now() + this._wakeMin * 60000;
       this.requestUpdate();
     }
   };
+
+  private get _wakeMin(): number {
+    return Math.max(Number(this._config.auto_return) || 0, 2);
+  }
+
+  /** A configured motion or presence sensor reports "on". */
+  private get _motion(): boolean {
+    const ids = this._config?.night_wake_entity;
+    const list = Array.isArray(ids) ? ids : ids ? [ids] : [];
+    return list.some((id) => this.hass?.states[id]?.state === "on");
+  }
+
+  protected willUpdate(changed: PropertyValues): void {
+    // movement in the room wakes the night screen; it stays awake while the
+    // sensor reports motion and for a while after (like a touch)
+    if (changed.has("hass")) {
+      const motion = this._motion;
+      // count the while from the last movement, also when it just stopped
+      if ((motion || this._hadMotion) && this._nightWindow()) {
+        this._wakeUntil = Date.now() + this._wakeMin * 60000;
+      }
+      this._hadMotion = motion;
+    }
+  }
+
+  private _hadMotion = false;
 
   private _wakeUntil = 0;
   private _wasNight = false;
@@ -601,7 +627,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   /** The night screen is showing: night hours, no dialog, not woken by a touch. */
   private get _night(): boolean {
-    return this._nightWindow() && !this._dialog && Date.now() >= this._wakeUntil;
+    return this._nightWindow() && !this._dialog && Date.now() >= this._wakeUntil && !this._motion;
   }
 
   /** The view whose data is needed: at night the night screen's (that of the now view). */

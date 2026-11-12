@@ -1317,6 +1317,44 @@ describe("night screen", () => {
     expect(el.hasAttribute("night")).toBe(true);
   });
 
+  it("wakes while a motion sensor reports movement, and sleeps again after it stops", async () => {
+    const { el } = await mount(
+      { ...base, night_wake_entity: "binary_sensor.flur" },
+      { calendars, now: "2026-09-11T23:00:00", states: { "binary_sensor.flur": "off" } },
+    );
+    const card = el as unknown as {
+      hass: { states: Record<string, { state: string }> };
+      updateComplete: Promise<unknown>;
+    };
+    const motion = async (state: string) => {
+      card.hass = {
+        ...card.hass,
+        states: { ...card.hass.states, "binary_sensor.flur": { state } },
+      };
+      await card.updateComplete;
+    };
+    expect(el.hasAttribute("night")).toBe(true);
+    await motion("on");
+    expect(el.hasAttribute("night")).toBe(false);
+    await vi.advanceTimersByTimeAsync(5 * 60000); // still moving: stays awake
+    await card.updateComplete;
+    expect(el.hasAttribute("night")).toBe(false);
+    await motion("off");
+    expect(el.hasAttribute("night")).toBe(false); // a short while longer, like a touch
+    await vi.advanceTimersByTimeAsync(3 * 60000);
+    await card.updateComplete;
+    expect(el.hasAttribute("night")).toBe(true);
+  });
+
+  it("ignores motion during the day", async () => {
+    const { el, root } = await mount(
+      { ...base, night_wake_entity: ["binary_sensor.flur"] },
+      { calendars, now: "2026-09-11T10:20:00", states: { "binary_sensor.flur": "on" } },
+    );
+    expect(el.hasAttribute("night")).toBe(false);
+    expect(root.querySelector(".switch")).not.toBeNull();
+  });
+
   it("stays off without both times", async () => {
     const { el } = await mount(
       { ...base, night_end: undefined },

@@ -28,6 +28,7 @@ const EN: Dict = {
   l_swipe: "Swipe to page",
   l_night_start: "Night screen from",
   l_night_end: "Night screen until",
+  l_night_wake_entity: "Wake on motion",
   l_day_offset: "Start on (days from today)",
   l_slim_header: "Slim header",
   l_color_by: "Color by",
@@ -76,6 +77,8 @@ const EN: Dict = {
   h_swipe: "Touch screens: swipe left or right for the next or previous day, week or month",
   h_night_start: "Wall tablet: a dark, dimmed clock with the next events; a tap wakes the board",
   h_night_end: "Morning: back to the normal board",
+  h_night_wake_entity:
+    "Motion or presence sensor: when it reports “on”, the board wakes like after a tap",
   h_day_offset:
     "0 = today, 1 = tomorrow, -1 = yesterday. For a display that should show the day ahead",
   h_slim_header:
@@ -196,6 +199,7 @@ const DE: Dict = {
   l_swipe: "Wischen zum Blättern",
   l_night_start: "Nachtbildschirm ab",
   l_night_end: "Nachtbildschirm bis",
+  l_night_wake_entity: "Bei Bewegung aufwecken",
   l_day_offset: "Beginnt bei (Tage ab heute)",
   l_slim_header: "Schlanker Kopfbereich",
   l_color_by: "Einfärben nach",
@@ -245,6 +249,8 @@ const DE: Dict = {
   h_night_start:
     "Wandtablet: dunkle, gedimmte Uhr mit den nächsten Terminen; Antippen weckt das Board",
   h_night_end: "Morgens: zurück zum normalen Board",
+  h_night_wake_entity:
+    "Bewegungs- oder Präsenzmelder: meldet er „an“, wacht das Board auf wie nach einem Antippen",
   h_day_offset:
     "0 = heute, 1 = morgen, -1 = gestern. Für Anzeigen, die den kommenden Tag zeigen sollen",
   h_slim_header:

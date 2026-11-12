@@ -164,6 +164,16 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       { name: "swipe", selector: { boolean: {} } },
       { name: "night_start", selector: { time: {} } },
       { name: "night_end", selector: { time: {} } },
+      ...(cfg.night_start
+        ? [
+            {
+              name: "night_wake_entity",
+              selector: {
+                entity: { filter: { domain: ["binary_sensor", "input_boolean"] }, multiple: true },
+              },
+            },
+          ]
+        : []),
       { name: "show_now_line", selector: { boolean: {} } },
       { name: "show_progress", selector: { boolean: {} } },
       {
