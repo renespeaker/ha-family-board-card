@@ -55,12 +55,12 @@ const T = lang === "de"
   ? { home:"Homeoffice", office:"Büro", school:"Schule", breakt:"Pause", sport:"Sport",
       swim:"Schwimmen", lunch:"Mittagessen", nap:"Mittagsschlaf", free:"Freispiel",
       bfast:"offenes Frühstück", music:"Musikschule", doc:"Kinderarzt", pickup:"Abholen", ride:"Ben: Mia abholen",
-      care:"Betreuung", pool:"Hallenbad", bday:"Geburtstag Oma", title:"Familienplan",
+      care:"Betreuung", pool:"Hallenbad", bday:"Geburtstag Oma (1946)", title:"Familienplan",
       bin:"Gelbe Tonne", hol:"Herbstferien", parents:"Elternabend" }
   : { home:"Home office", office:"Office", school:"School", breakt:"Break", sport:"Sport",
       swim:"Swimming", lunch:"Lunch", nap:"Nap", free:"Free play",
       bfast:"Open breakfast", music:"Music school", doc:"Pediatrician", pickup:"Pick-up", ride:"Ben: pick up Mia",
-      care:"After-school care", pool:"Swimming pool", bday:"Grandma's birthday", title:"Family board",
+      care:"After-school care", pool:"Swimming pool", bday:"Grandma's birthday (1946)", title:"Family board",
       bin:"Recycling bin", hol:"Autumn break", parents:"Parents' evening" };
 
 const base = new Date(); base.setHours(0,0,0,0);
@@ -133,6 +133,7 @@ el.setConfig({
   calendars: { "calendar.muell": { icon: "mdi:trash-can", color: "#EAB308" },
                "calendar.ferien": { icon: "mdi:beach", color: "#22C55E" } },
   swipe: Q.has("swipe"),
+  birthday_age: true,
   screensaver_media: Q.has("saver") ? "media-source://media_source/local/fotos" : undefined,
   screensaver_after: 1,
   night_start: Q.has("night") ? "21:00" : undefined,

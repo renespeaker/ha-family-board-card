@@ -270,6 +270,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         { name: "filter_duplicates", selector: { boolean: {} } },
         ...(views.includes("agenda") ? [{ name: "hide_past", selector: { boolean: {} } }] : []),
         { name: "tentative_patterns", selector: { text: { multiple: true } } },
+        { name: "birthday_age", selector: { boolean: {} } },
         { name: "private_patterns", selector: { text: { multiple: true } } },
         { name: "ride_patterns", selector: { text: { multiple: true } } },
         ...(hasWeek ? [{ name: "hide_empty_persons", selector: { boolean: {} } }] : []),

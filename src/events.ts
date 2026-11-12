@@ -442,6 +442,28 @@ export function detectRideAlerts(
   return out.sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
+const BIRTHDAY = /geburtstag|birthday|b-?day|🎂/iu;
+const BORN_IN = /\s*\(\s*\*?\s*((?:18|19|20)\d{2})\s*\)|\s*\*\s*((?:18|19|20)\d{2})\b/u;
+
+/**
+ * A birthday with the year of birth in its title - "Grandma's birthday (1946)",
+ * "Geburtstag Oma *1946", "🎂 Max (2019)" - gives the title without the year and
+ * the age reached on `on`. A year in brackets counts only for birthday titles;
+ * "*1946" is clear enough on its own. Null when there is nothing to say.
+ */
+export function birthdayAge(title: string, on: Date): { title: string; age: number } | null {
+  const m = BORN_IN.exec(title);
+  if (!m) return null;
+  const starred = m[2] !== undefined;
+  if (!starred && !BIRTHDAY.test(title)) return null;
+  const age = on.getFullYear() - Number(m[1] ?? m[2]);
+  if (age < 1 || age > 130) return null;
+  const rest = (title.slice(0, m.index) + title.slice(m.index + m[0].length))
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return { title: rest || title, age };
+}
+
 export interface DayAlert {
   kind: "conflict" | "gap" | "empty";
   personIdx?: number; // unset for "empty" (nobody home), which spans everyone

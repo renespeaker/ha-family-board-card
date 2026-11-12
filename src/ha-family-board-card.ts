@@ -20,6 +20,7 @@ import {
   dragTimes,
   detectDayAlerts,
   detectLate,
+  birthdayAge,
   detectRideAlerts,
   findDriver,
   hasWord,
@@ -80,6 +81,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
     { color?: string; label?: string; icon?: string; title_field?: string; private?: boolean }
   >; // per-calendar color/label/icon and which field supplies the title
   tentative_patterns?: string[]; // mark events tentative when title matches
+  birthday_age?: boolean; // "Geburtstag Oma (1946)" shows as "Geburtstag Oma (wird 80)"
   private_patterns?: string[]; // events whose title/description matches show only "Private" and the time
   auto_icons?: boolean; // prefix events with a matching emoji by keyword. default false
   icon_patterns?: string[]; // custom icon rules: "keyword => 🎂"
@@ -1147,7 +1149,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               : HAS_EMOJI.test(r.summary)
                 ? nothing
                 : html`<span aria-hidden="true">${this._autoIcon(r.summary, true) || "⏳"}</span>`
-          }<span class="famtext">${r.summary}</span> <b>${when}</b>
+          }<span class="famtext">${this._shown(r.summary, r.start)}</span> <b>${when}</b>
         </span>`;
       })}
     </div>`;
@@ -1504,11 +1506,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const emoji = !icon && this._config.auto_icons ? this._autoIcon(r.summary) : "";
     const starts = toLocalDate(r.start) === toLocalDate(date);
     const time = !r.allDay && starts ? formatTime(this.hass, r.start) : "";
-    const label = `${r.summary}${time ? `, ${time}` : ""} (${this._calLabel(r.calendar)})`;
+    const label = `${this._shown(r.summary, r.start)}${time ? `, ${time}` : ""} (${this._calLabel(r.calendar)})`;
     return html`<span class="famchip" style="--fc:${color}" title=${label}>
       ${icon ? html`<ha-icon .icon=${icon}></ha-icon>` : nothing}${emoji}${
         time ? html`<b>${time}</b> ` : nothing
-      }<span class="famtext">${r.summary}</span>
+      }<span class="famtext">${this._shown(r.summary, r.start)}</span>
     </span>`;
   }
 
@@ -1763,8 +1765,16 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return { events, overflows };
   }
   /** Display title, with "(day X/Y)" suffix for multi-day events. */
+  /** A title as shown: with "turns 80" for birthdays when `birthday_age` is on. Display only. */
+  private _shown(title: string, start: Date): string {
+    if (this._config.birthday_age !== true) return title;
+    const b = birthdayAge(title, start);
+    return b ? `${b.title} (${this._t("turns_age").replace("{n}", String(b.age))})` : title;
+  }
+
   private _evTitle(e: BoardEvent): string {
-    const base = e.parts && e.parts > 1 ? `${e.title} (${e.part}/${e.parts})` : e.title;
+    const shown = this._shown(e.title, e.ref.start);
+    const base = e.parts && e.parts > 1 ? `${shown} (${e.part}/${e.parts})` : shown;
     const icon = this._autoIcon(e.title);
     return icon ? `${icon} ${base}` : base;
   }
@@ -2425,12 +2435,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   current
                     ? html`<span class="fnow">
                         <span class="fdot" style="background:${c}"></span>${icon(current)}
-                        ${current.summary}
+                        ${this._shown(current.summary, current.start)}
                         <small>${this._t("until")} ${formatTime(this.hass, current.end)}</small>
                       </span>`
                     : next
                       ? html`<span class="fnext">
-                          ${this._t("focus_next")}: ${icon(next)} ${next.summary}
+                          ${this._t("focus_next")}: ${icon(next)}
+                          ${this._shown(next.summary, next.start)}
                           <small>${formatCountdown(this.hass, next.start)}</small>
                         </span>`
                       : html`<span class="ffree">${this._t("focus_free")}</span>`
@@ -2514,19 +2525,21 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   <div class="nname">
                     ${name}${st ? html`<span class="nstat">${this._statusLabel(st.state)}</span>` : nothing}
                   </div>
-                  ${allDay.map((r) => html`<span class="nallday">${icon(r)} ${r.summary}</span>`)}
+                  ${allDay.map((r) => html`<span class="nallday">${icon(r)} ${this._shown(r.summary, r.start)}</span>`)}
                   ${
                     current
                       ? html`<div class="ncur">
                           <span class="ndot" aria-hidden="true"></span>
-                          <span class="ntitle">${icon(current)} ${current.summary}</span>
+                          <span class="ntitle"
+                            >${icon(current)} ${this._shown(current.summary, current.start)}</span
+                          >
                           <span class="nuntil"
                             >${this._t("until")} ${formatTime(this.hass, current.end)}</span
                           >
                           <div
                             class="nprog"
                             role="progressbar"
-                            aria-label=${current.summary}
+                            aria-label=${this._shown(current.summary, current.start)}
                             aria-valuenow=${Math.round(pct)}
                             aria-valuemin="0"
                             aria-valuemax="100"
@@ -2547,7 +2560,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   ${
                     next
                       ? html`<div class="nnext">
-                          ${this._t("focus_next")}: ${icon(next)} ${next.summary}
+                          ${this._t("focus_next")}: ${icon(next)}
+                          ${this._shown(next.summary, next.start)}
                           <b>${this._nextLabel(next.start)}</b>
                         </div>`
                       : nothing

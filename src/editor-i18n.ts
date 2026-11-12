@@ -72,6 +72,7 @@ const EN: Dict = {
   l_driver: "Drives (pick-ups, drop-offs)",
   l_ride_patterns: "Words for rides",
   l_private_patterns: "Private events",
+  l_birthday_age: "Birthdays with age",
   l_compact: "Compact layout",
   l_map_url: "Map link (template)",
 
@@ -125,6 +126,7 @@ const EN: Dict = {
   h_driver:
     "Rides such as “pick up Mia” get a driver; the day check warns when nobody drives or the driver is busy",
   h_ride_patterns: "Empty = pick up, drop off, ride, abholen, bringen …",
+  h_birthday_age: "“Grandma’s birthday (1946)” or “Max *2019” shows as “… (turns 80)”",
   h_private_patterns:
     "Text in title or description, e.g. “#private” – shows only “Private” and the time",
   h_compact: "Smaller fonts and tighter spacing in a single switch",
@@ -248,6 +250,7 @@ const DE: Dict = {
   l_driver: "Fährt (Abholen, Bringen)",
   l_ride_patterns: "Wörter für Fahrten",
   l_private_patterns: "Private Termine",
+  l_birthday_age: "Geburtstage mit Alter",
   l_compact: "Kompakte Darstellung",
   l_map_url: "Karten-Link (Vorlage)",
 
@@ -302,6 +305,7 @@ const DE: Dict = {
   h_driver:
     "Fahrten wie „Mia abholen“ bekommen einen Fahrer; der Tages-Check warnt, wenn niemand fährt oder der Fahrer belegt ist",
   h_ride_patterns: "Leer = abholen, bringen, Fahrt, pick up, drop off …",
+  h_birthday_age: "„Geburtstag Oma (1946)“ oder „Max *2019“ wird zu „… (wird 80)“",
   h_private_patterns:
     "Text in Titel oder Beschreibung, z. B. „#privat“ – zeigt nur „Privat“ und die Uhrzeit",
   h_compact: "Kleinere Schriften und engere Abstände in einem Schalter",

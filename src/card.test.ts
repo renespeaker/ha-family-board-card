@@ -1713,3 +1713,52 @@ describe("photo screensaver", () => {
     expect(night.wsCalls.some((m) => m.type === "media_source/resolve_media")).toBe(false);
   });
 });
+
+describe("birthdays with age", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = {
+    "calendar.anna": [
+      {
+        uid: "oma",
+        summary: "Geburtstag Oma (1946)",
+        start: { date: "2026-09-11" },
+        end: { date: "2026-09-12" },
+      },
+      ev("Klassentreffen (1996)", "18:00", "22:00"),
+    ],
+  };
+  const base = { persons, start_hour: 7, end_hour: 20 };
+
+  it("shows the age in the agenda and the now view", async () => {
+    const ag = await mount(
+      { ...base, birthday_age: true, view: "agenda", views: ["agenda"] },
+      { calendars },
+    );
+    expect(ag.texts(".agenda-title")).toEqual([
+      "Geburtstag Oma (wird 80)",
+      "Klassentreffen (1996)",
+    ]);
+    const now = await mount(
+      { ...base, birthday_age: true, view: "now", views: ["now"] },
+      { calendars },
+    );
+    expect(now.texts(".nallday")).toEqual(["Geburtstag Oma (wird 80)"]);
+  });
+
+  it("keeps the real title for editing", async () => {
+    const { root, el } = await mount(
+      { ...base, birthday_age: true, view: "agenda", views: ["agenda"] },
+      { calendars, writable: ["calendar.anna"] },
+    );
+    root.querySelector<HTMLElement>(".agenda-row")!.click();
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(root.querySelector<HTMLInputElement>(".dialog input[type=text]")?.value).toBe(
+      "Geburtstag Oma (1946)",
+    );
+  });
+
+  it("changes nothing while the option is off", async () => {
+    const { texts } = await mount({ ...base, view: "agenda", views: ["agenda"] }, { calendars });
+    expect(texts(".agenda-title")[0]).toBe("Geburtstag Oma (1946)");
+  });
+});

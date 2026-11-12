@@ -8,6 +8,7 @@ import {
   liveToApiEvent,
   detectDayAlerts,
   detectLate,
+  birthdayAge,
   detectRideAlerts,
   findDriver,
   hasWord,
@@ -641,5 +642,30 @@ describe("rides", () => {
     expect(detectRideAlerts([ride("Mia abholen", 2, 16)], { ...opts, words: ["taxi"] })).toEqual(
       [],
     );
+  });
+});
+
+describe("birthdayAge", () => {
+  const on = new Date(2026, 9, 16);
+  it("reads the year of birth and drops it from the title", () => {
+    expect(birthdayAge("Geburtstag Oma (1946)", on)).toEqual({ title: "Geburtstag Oma", age: 80 });
+    expect(birthdayAge("Grandma's birthday ( *1946 )", on)).toEqual({
+      title: "Grandma's birthday",
+      age: 80,
+    });
+    expect(birthdayAge("🎂 Max (2019)", on)).toEqual({ title: "🎂 Max", age: 7 });
+    expect(birthdayAge("Max *2019", on)).toEqual({ title: "Max", age: 7 });
+  });
+
+  it("leaves other years and implausible ages alone", () => {
+    expect(birthdayAge("Klassentreffen (1996)", on)).toBeNull(); // no birthday
+    expect(birthdayAge("Geburtstag Oma", on)).toBeNull(); // no year
+    expect(birthdayAge("Geburtstag Ida (2026)", on)).toBeNull(); // born this year
+    expect(birthdayAge("Geburtstag (2031)", on)).toBeNull(); // future
+    expect(birthdayAge("Birthday (1850)", on)).toBeNull(); // 176
+  });
+
+  it("counts the age in the year of the event, not today", () => {
+    expect(birthdayAge("Geburtstag Oma (1946)", new Date(2027, 0, 3))?.age).toBe(81);
   });
 });
