@@ -46,7 +46,7 @@ const browser = await chromium.launch({
 
 // name, query, viewport width, viewport height
 const SHOTS = [
-  ["day", "view=day&alerts=1", 1400, 900],
+  ["day", "view=day&alerts=1&late=1&rides=1", 1400, 900],
   ["now", "view=now", 1100, 520],
   ["week", "view=week", 1400, 1000],
   ["month", "view=month", 1400, 900],

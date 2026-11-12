@@ -2106,7 +2106,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       style=${this._boardH ? `height:${this._boardH}px` : ""}
       role="button"
       tabindex="0"
-      aria-label=${this._t("saver_close")}
+      aria-label="${formatTime(this.hass, now)} ${date} – ${this._t("saver_close")}"
       @keydown=${(k: KeyboardEvent) => {
         if (k.key === "Enter" || k.key === " " || k.key === "Escape") {
           k.preventDefault();
@@ -5960,7 +5960,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.32.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.33.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
