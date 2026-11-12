@@ -45,6 +45,8 @@ interface MountOpts {
   live?: "new" | "old";
   /** The REST answer never arrives (to see what is shown before it). */
   slowApi?: boolean;
+  /** Media folder for the screensaver: what media_source/browse_media lists. */
+  media?: Array<{ media_content_id: string; media_class: string }>;
   /** Local wall-clock time the test pretends it is. */
   now?: string;
 }
@@ -120,6 +122,11 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
     },
     callWS: async (msg: Record<string, unknown>) => {
       wsCalls.push(msg);
+      if (msg.type === "media_source/browse_media") return { children: opts.media ?? [] };
+      if (msg.type === "media_source/resolve_media") {
+        const id = String(msg.media_content_id);
+        return { url: `/media/local/${id.split("/").pop()}?authSig=x`, mime_type: "image/jpeg" };
+      }
       if (msg.type === "todo/item/list") {
         return { items: todos[msg.entity_id as string] ?? [] };
       }
@@ -1601,5 +1608,108 @@ describe("private events", () => {
       { calendars, slowApi: true },
     );
     expect(texts(".agenda-title")).toEqual(["🔒 Privat", "Büro", "🔒 Privat"]);
+  });
+});
+
+describe("photo screensaver", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = { "calendar.anna": [ev("Zahnarzt", "10:30", "11:00")] };
+  const folder = "media-source://media_source/local/fotos";
+  const media = [
+    { media_content_id: `${folder}/a.jpg`, media_class: "image" },
+    { media_content_id: `${folder}/b.jpg`, media_class: "image" },
+    { media_content_id: `${folder}/clip.mp4`, media_class: "video" },
+    { media_content_id: `${folder}/urlaub`, media_class: "directory" },
+  ];
+  const base = {
+    persons,
+    view: "day" as const,
+    views: ["day" as const],
+    screensaver_media: folder,
+    screensaver_after: 5,
+    screensaver_interval: 10,
+    start_hour: 7,
+    end_hour: 20,
+  };
+  type Card = { updateComplete: Promise<unknown> };
+  const settle = async (el: HTMLElement) => {
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(0);
+      await (el as unknown as Card).updateComplete;
+    }
+  };
+
+  it("starts after the idle time, shows photos with a clock, and moves on", async () => {
+    const { el, root, wsCalls } = await mount(base, { calendars, media });
+    expect(wsCalls.find((m) => m.type === "media_source/browse_media")).toMatchObject({
+      media_content_id: folder,
+    });
+    expect(root.querySelector(".saver")).toBeNull();
+    await vi.advanceTimersByTimeAsync(4 * 60000);
+    await settle(el);
+    expect(root.querySelector(".saver")).toBeNull(); // not yet
+    await vi.advanceTimersByTimeAsync(60000);
+    await settle(el);
+    expect(root.querySelector(".saver")).not.toBeNull();
+    expect(root.querySelector(".board")).toBeNull();
+    expect(root.querySelector(".savertime")?.textContent).toBe("10:25");
+    const first = root.querySelector<HTMLImageElement>(".saverimg")?.getAttribute("src");
+    expect(first).toMatch(/^\/media\/local\/[ab]\.jpg\?authSig=x$/);
+    await vi.advanceTimersByTimeAsync(10000);
+    await settle(el);
+    const second = root.querySelector<HTMLImageElement>(".saverimg")?.getAttribute("src");
+    expect(second).not.toBe(first);
+    // only photos are shown: two photos, so the third turn is the first again
+    const resolved = wsCalls
+      .filter((m) => m.type === "media_source/resolve_media")
+      .map((m) => String(m.media_content_id).split("/").pop());
+    expect(resolved.every((id) => id === "a.jpg" || id === "b.jpg")).toBe(true);
+  });
+
+  it("a tap brings the board back without opening what lies below", async () => {
+    const { el, root } = await mount(base, { calendars, media });
+    await vi.advanceTimersByTimeAsync(5 * 60000);
+    await settle(el);
+    const saver = root.querySelector<HTMLElement>(".saver")!;
+    saver.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true }));
+    await settle(el);
+    expect(root.querySelector(".saver")).toBeNull();
+    // the click of that same tap lands on the board and must be swallowed
+    root.querySelector<HTMLElement>("[aria-label*='Zahnarzt']")!.click();
+    await settle(el);
+    expect(root.querySelector(".dialog")).toBeNull();
+    // the next tap works as usual
+    root.querySelector<HTMLElement>("[aria-label*='Zahnarzt']")!.click();
+    await settle(el);
+    expect(root.querySelector(".dialog")).not.toBeNull();
+  });
+
+  it("can be ended with the keyboard", async () => {
+    const { el, root } = await mount(base, { calendars, media });
+    await vi.advanceTimersByTimeAsync(5 * 60000);
+    await settle(el);
+    root
+      .querySelector<HTMLElement>(".saver")!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await settle(el);
+    expect(root.querySelector(".saver")).toBeNull();
+  });
+
+  it("stays away without photos, and gives way to the night screen", async () => {
+    const empty = await mount(base, { calendars, media: [] });
+    await vi.advanceTimersByTimeAsync(10 * 60000);
+    await settle(empty.el);
+    expect(empty.root.querySelector(".saver")).toBeNull();
+    mounted.splice(0).forEach((n) => n.remove());
+    const night = await mount(
+      { ...base, night_start: "21:00", night_end: "06:30" },
+      { calendars, media, now: "2026-09-11T23:00:00" },
+    );
+    await vi.advanceTimersByTimeAsync(10 * 60000);
+    await settle(night.el);
+    expect(night.root.querySelector(".saver")).toBeNull();
+    expect(night.el.hasAttribute("night")).toBe(true);
+    // and no photos are fetched behind the night screen
+    expect(night.wsCalls.some((m) => m.type === "media_source/resolve_media")).toBe(false);
   });
 });

@@ -164,6 +164,23 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       { name: "swipe", selector: { boolean: {} } },
       { name: "night_start", selector: { time: {} } },
       { name: "night_end", selector: { time: {} } },
+      { name: "screensaver_media", selector: { text: {} } },
+      ...(cfg.screensaver_media
+        ? [
+            {
+              name: "screensaver_after",
+              selector: {
+                number: { min: 1, max: 120, step: 1, mode: "slider", unit_of_measurement: "min" },
+              },
+            },
+            {
+              name: "screensaver_interval",
+              selector: {
+                number: { min: 5, max: 300, step: 5, mode: "slider", unit_of_measurement: "s" },
+              },
+            },
+          ]
+        : []),
       ...(cfg.night_start
         ? [
             {

@@ -29,6 +29,9 @@ const EN: Dict = {
   l_night_start: "Night screen from",
   l_night_end: "Night screen until",
   l_night_wake_entity: "Wake on motion",
+  l_screensaver_media: "Photo screensaver (media folder)",
+  l_screensaver_after: "Photos after (min without touch)",
+  l_screensaver_interval: "Seconds per photo",
   l_day_offset: "Start on (days from today)",
   l_slim_header: "Slim header",
   l_color_by: "Color by",
@@ -77,6 +80,8 @@ const EN: Dict = {
   h_swipe: "Touch screens: swipe left or right for the next or previous day, week or month",
   h_night_start: "Wall tablet: a dark, dimmed clock with the next events; a tap wakes the board",
   h_night_end: "Morning: back to the normal board",
+  h_screensaver_media:
+    "A folder from Media, e.g. media-source://media_source/local/photos – a slideshow with clock after a while without touch; a tap brings the board back",
   h_night_wake_entity:
     "Motion or presence sensor: when it reports “on”, the board wakes like after a tap",
   h_day_offset:
@@ -200,6 +205,9 @@ const DE: Dict = {
   l_night_start: "Nachtbildschirm ab",
   l_night_end: "Nachtbildschirm bis",
   l_night_wake_entity: "Bei Bewegung aufwecken",
+  l_screensaver_media: "Foto-Bildschirmschoner (Medienordner)",
+  l_screensaver_after: "Fotos nach (Min. ohne Berührung)",
+  l_screensaver_interval: "Sekunden pro Foto",
   l_day_offset: "Beginnt bei (Tage ab heute)",
   l_slim_header: "Schlanker Kopfbereich",
   l_color_by: "Einfärben nach",
@@ -249,6 +257,8 @@ const DE: Dict = {
   h_night_start:
     "Wandtablet: dunkle, gedimmte Uhr mit den nächsten Terminen; Antippen weckt das Board",
   h_night_end: "Morgens: zurück zum normalen Board",
+  h_screensaver_media:
+    "Ein Ordner aus „Medien“, z. B. media-source://media_source/local/fotos – nach einer Weile ohne Berührung eine Diashow mit Uhr; Antippen holt das Board zurück",
   h_night_wake_entity:
     "Bewegungs- oder Präsenzmelder: meldet er „an“, wacht das Board auf wie nach einem Antippen",
   h_day_offset:

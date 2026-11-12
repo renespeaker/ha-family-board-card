@@ -104,6 +104,9 @@ const hass = {
   },
   callApi: async(_m,path)=>cal[path.split("?")[0].replace("calendars/","")]||[],
   callWS: async(msg)=>{
+    if (msg.type === "media_source/browse_media")
+      return { children: ["sea","hills","dusk"].map(n=>({media_class:"image",media_content_id:`${msg.media_content_id}/${n}.jpg`})) };
+    if (msg.type === "media_source/resolve_media") return { url: PHOTO(msg.media_content_id) };
     if (msg.service !== "get_forecasts") return {};
     const conds = ["rainy","sunny","partlycloudy","cloudy","lightning-rainy","snowy","sunny"];
     const forecast = Array.from({length:10},(_,i)=>({
@@ -111,6 +114,13 @@ const hass = {
       condition: conds[i%conds.length], temperature: 24-i, templow: 13-i }));
     return { response: { "weather.home": { forecast } } };
   },
+};
+// drawn stand-ins for family photos: sky, sun and hills
+const PHOTO = (id) => {
+  const k = ["sea","hills","dusk"].findIndex(n=>id.includes(n));
+  const [a,b,c] = [["#7dd3fc","#fde68a","#0ea5e9"],["#bae6fd","#fef3c7","#16a34a"],["#fb923c","#fde047","#7c3aed"]][Math.max(k,0)];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="1200" height="800" fill="url(#g)"/><circle cx="900" cy="230" r="90" fill="#fff7" /><path d="M0 560 Q300 420 600 540 T1200 500 V800 H0Z" fill="${c}"/></svg>`;
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 };
 const el=document.createElement("family-board-card");
 el.setConfig({
@@ -123,6 +133,8 @@ el.setConfig({
   calendars: { "calendar.muell": { icon: "mdi:trash-can", color: "#EAB308" },
                "calendar.ferien": { icon: "mdi:beach", color: "#22C55E" } },
   swipe: Q.has("swipe"),
+  screensaver_media: Q.has("saver") ? "media-source://media_source/local/fotos" : undefined,
+  screensaver_after: 1,
   night_start: Q.has("night") ? "21:00" : undefined,
   night_end: Q.has("night") ? "06:30" : undefined,
   countdowns: lang === "de" ? ["ferien", "geburtstag"] : ["break", "birthday"],

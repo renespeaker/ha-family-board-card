@@ -116,6 +116,9 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   first_day?: "monday" | "sunday" | "today"; // week start; "today" = a rolling week. default monday
   scroll_to_now?: boolean; // auto-scroll day view to current time. default true
   swipe?: boolean; // touch: swipe left/right to page days, weeks or months. default false
+  screensaver_media?: string; // media-source://… folder: photo slideshow when nobody touches the board
+  screensaver_after?: number; // minutes without touch before the slideshow starts. default 10
+  screensaver_interval?: number; // seconds per photo. default 20
   night_wake_entity?: string | string[]; // motion/presence sensors: "on" wakes the night screen
   night_start?: string; // "21:00": from here a calm, dimmed night screen (clock + next events)
   night_end?: string; // "06:30": ... until here. Both needed; a tap wakes the board for a while
@@ -543,6 +546,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this.removeEventListener("touchcancel", this._onSwipeCancel);
     this.removeEventListener("click", this._onClickAfterSwipe, true);
     this._stopTimer();
+    if (this._saverTimer) {
+      clearInterval(this._saverTimer);
+      this._saverTimer = undefined;
+    }
     if (this._tick) {
       clearTimeout(this._tick);
       this._tick = undefined;
@@ -570,6 +577,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private _onInteract = (): void => {
+    if (this._saverOn) {
+      // the touch only ends the slideshow; it must not open what lies below
+      this._eatClick = true;
+      this.requestUpdate();
+    }
     this._lastInteract = Date.now();
     // a touch at night wakes the board for a while (auto_return, at least 2 min)
     if (this._nightWindow()) {
@@ -707,6 +719,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._maybeFetchWeather();
       this._maybeFetchCountdowns();
       this._maybeFetchTasks();
+      this._maybeLoadSaver();
     } else if (
       (changed.has("_view") || changed.has("_weekOffset") || changed.has("_monthOffset")) &&
       this.hass &&
@@ -716,6 +729,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._maybeFetch();
       this._maybeFetchCountdowns();
     }
+    // remember the board's height, so the slideshow takes the same place
+    if (!this._saverOn && !this._night && this.offsetHeight > 200) this._boardH = this.offsetHeight;
+    this._syncSaver();
     // entering or leaving the night screen needs other data, and other colours
     const night = this._night;
     this.toggleAttribute("night", night);
@@ -1977,6 +1993,130 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
    */
   private _swipe?: { x: number; y: number; t: number; scroll: Array<[Element, number]> };
   private _swiped = false;
+  private _eatClick = false;
+
+  /* ---- photo screensaver --------------------------------------- */
+  @state() private _saverPhotos: string[] = [];
+  @state() private _saverUrl = "";
+  private _saverKey = "";
+  private _saverIdx = 0;
+  private _saverTimer?: number;
+  private _boardH = 0;
+
+  /** The slideshow runs: photos found, nobody touched the board for a while, no dialog, not at night. */
+  private get _saverOn(): boolean {
+    if (!this._config?.screensaver_media || !this._saverPhotos.length) return false;
+    if (this._dialog || this._night) return false;
+    const after = Math.max(Number(this._config.screensaver_after ?? 10) || 10, 1);
+    return Date.now() - this._lastInteract >= after * 60000;
+  }
+
+  /** Photos of the configured media folder (images only, refreshed every hour). */
+  private async _maybeLoadSaver(): Promise<void> {
+    const media = this._config.screensaver_media;
+    if (!media) {
+      this._saverKey = "";
+      if (this._saverPhotos.length) this._saverPhotos = [];
+      return;
+    }
+    const key = `${media}|${new Date().toISOString().slice(0, 13)}`;
+    if (key === this._saverKey) return;
+    this._saverKey = key;
+    try {
+      const res: any = await this.hass.callWS({
+        type: "media_source/browse_media",
+        media_content_id: media,
+      });
+      const photos = ((res?.children ?? []) as any[])
+        .filter(
+          (c) =>
+            c?.media_content_id &&
+            (c.media_class === "image" || String(c.media_content_type ?? "").startsWith("image/")),
+        )
+        .map((c) => String(c.media_content_id));
+      // shuffle, so a long evening does not always start with the same photo
+      for (let i = photos.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [photos[i], photos[j]] = [photos[j], photos[i]];
+      }
+      this._saverPhotos = photos;
+      this._saverIdx = 0;
+    } catch (e) {
+      this._saverPhotos = [];
+    }
+  }
+
+  /** Signed URLs only live a short while, so each photo is resolved just before it shows. */
+  private async _nextPhoto(): Promise<void> {
+    const list = this._saverPhotos;
+    if (!list.length) return;
+    const id = list[this._saverIdx % list.length];
+    this._saverIdx = (this._saverIdx + 1) % list.length;
+    try {
+      const res: any = await this.hass.callWS({
+        type: "media_source/resolve_media",
+        media_content_id: id,
+      });
+      const url = String(res?.url ?? "");
+      if (!url) return;
+      const hassUrl = (this.hass as any).hassUrl;
+      this._saverUrl = url.startsWith("/") && typeof hassUrl === "function" ? hassUrl(url) : url;
+    } catch (e) {
+      // a photo that fails is skipped; the next one comes with the next turn
+    }
+  }
+
+  /** Start or stop the slideshow's own clock to match whether it shows. */
+  private _syncSaver(): void {
+    const on = this._saverOn;
+    if (on && !this._saverTimer) {
+      const sec = Math.max(Number(this._config.screensaver_interval ?? 20) || 20, 5);
+      this._nextPhoto();
+      this._saverTimer = window.setInterval(() => {
+        this._nextPhoto();
+        this.requestUpdate(); // keeps the clock on the photo current
+      }, sec * 1000);
+    } else if (!on && this._saverTimer) {
+      clearInterval(this._saverTimer);
+      this._saverTimer = undefined;
+      this._saverUrl = "";
+    }
+  }
+
+  private _renderSaver() {
+    const now = new Date();
+    const date = new Intl.DateTimeFormat(this.hass.locale?.language || undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(now);
+    const url = this._saverUrl;
+    return html`<ha-card
+      class="saver"
+      style=${this._boardH ? `height:${this._boardH}px` : ""}
+      role="button"
+      tabindex="0"
+      aria-label=${this._t("saver_close")}
+      @keydown=${(k: KeyboardEvent) => {
+        if (k.key === "Enter" || k.key === " " || k.key === "Escape") {
+          k.preventDefault();
+          this._lastInteract = Date.now();
+          this.requestUpdate();
+        }
+      }}
+    >
+      ${
+        url
+          ? html`<div class="saverbg" style="background-image:url('${url}')"></div>
+              <img class="saverimg" src=${url} alt="" />`
+          : nothing
+      }
+      <div class="saverclock">
+        <span class="savertime">${formatTime(this.hass, now)}</span>
+        <span class="saverdate">${date}</span>
+      </div>
+    </ha-card>`;
+  }
 
   private _onSwipeStart = (e: TouchEvent): void => {
     this._swipe = undefined;
@@ -2019,8 +2159,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   /** A swipe must not end as a tap that opens "new event" on the column below. */
   private _onClickAfterSwipe = (e: Event): void => {
-    if (!this._swiped) return;
+    if (!this._swiped && !this._eatClick) return;
     this._swiped = false;
+    this._eatClick = false;
     e.stopPropagation();
     e.preventDefault();
   };
@@ -2032,6 +2173,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       // the night screen: no switcher, no bars, just the now view, dimmed
       return html`<ha-card class="nightcard">${this._renderNow()}</ha-card>`;
     }
+    if (this._saverOn) return this._renderSaver();
     const title = this._config.title ?? this._t("board_title");
     return html`
       <ha-card>
@@ -5166,6 +5308,62 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     /* night screen: dark, dimmed, calm - for the hours nobody looks closely.
        Colours set outright (no opacity), so it stays dark on any theme and
        any page behind the card. */
+    ha-card.saver {
+      display: block;
+      position: relative;
+      overflow: hidden;
+      height: 100%;
+      min-height: 60vh;
+      background: #000;
+      cursor: pointer;
+    }
+    .saverbg {
+      position: absolute;
+      inset: -40px;
+      background-size: cover;
+      background-position: center;
+      filter: blur(28px) brightness(0.55);
+    }
+    .saverimg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      animation: saverin 1.2s ease;
+    }
+    @keyframes saverin {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    .saverclock {
+      position: absolute;
+      left: 24px;
+      bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      color: #fff;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+    }
+    .savertime {
+      font-size: 64px;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .saverdate {
+      font-size: 20px;
+      margin-top: 6px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .saverimg {
+        animation: none;
+      }
+    }
     :host([night]) ha-card {
       --ha-card-background: #000;
       --card-background-color: #000;
