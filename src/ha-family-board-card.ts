@@ -20,6 +20,11 @@ import {
   dragTimes,
   detectDayAlerts,
   detectLate,
+  detectRideAlerts,
+  findDriver,
+  hasWord,
+  RIDE_WORDS,
+  type Driver,
   buildRrule,
   RepeatFreq,
   liveToApiEvent,
@@ -50,6 +55,7 @@ interface PersonConfig {
   color?: string; // optional override; default falls back to a palette
   badges?: string[]; // extra entities shown as chips under the person header
   hidden?: boolean; // start collapsed (person toggle can bring them back)
+  driver?: boolean; // can drive: rides (pick-up, drop-off) get assigned to them
 }
 
 export interface FamilyBoardConfig extends LovelaceCardConfig {
@@ -79,6 +85,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   show_focus?: boolean; // show a "now / next" focus bar per person above the views
   show_alerts?: boolean; // warn about double bookings, care gaps and "nobody home"
   gap_min?: number; // minutes a care gap must reach to be flagged. default 60, 0 = off
+  ride_patterns?: string[]; // words that mark a ride; default RIDE_WORDS
   late_warning?: number; // warn N minutes before an event with a place when that person is still home
   drag_drop?: boolean; // drag to move / resize events in the day view. default true
   compact?: boolean; // denser spacing + smaller fonts in one switch
@@ -1747,7 +1754,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       ? this._t("all_day")
       : `${formatTime(this.hass, e.ref.start)}–${formatTime(this.hass, e.ref.end)}`;
     const p = this._persons[e.personIdx];
-    return [this._evTitle(e), when, p ? this._personName(p, e.personIdx) : ""]
+    const ride = this._rideDriver(e.ref);
+    const rideText =
+      ride === undefined
+        ? ""
+        : ride === null
+          ? this._t("alert_no_driver")
+          : `${this._t("ride_by")} ${ride}`;
+    return [this._evTitle(e), when, p ? this._personName(p, e.personIdx) : "", rideText]
       .filter(Boolean)
       .join(", ");
   }
@@ -1981,7 +1995,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         </div>
         ${this._config.show_focus && this._view !== "now" ? this._renderFocus() : nothing}
         ${
-          (this._config.show_alerts || this._lateOn) &&
+          (this._config.show_alerts || this._lateOn || this._ridesOn) &&
           (this._view === "day" || this._view === "timeline")
             ? this._renderAlerts()
             : nothing
@@ -2016,11 +2030,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   /** "Jetzt / als Nächstes" glance bar — one chip per (visible) person. */
-  /**
-   * Day check: double bookings, care gaps and "nobody home" for the shown day.
-   * Background bands (after-school care and friends) are left out - they run
-   * for hours and would collide with everything.
-   */
   private get _lateOn(): boolean {
     return Number(this._config.late_warning) > 0;
   }
@@ -2036,6 +2045,41 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     );
   }
 
+  /** Rides are on as soon as one person is marked as a driver. */
+  private get _ridesOn(): boolean {
+    return this._persons.some((p) => p.driver === true);
+  }
+
+  private get _rideWords(): string[] {
+    const own = this._config.ride_patterns;
+    return Array.isArray(own) && own.length ? own.map(String) : RIDE_WORDS;
+  }
+
+  private get _drivers(): Driver[] {
+    return this._persons
+      .map((p, idx) => ({ idx, name: this._personName(p, idx), on: p.driver === true }))
+      .filter((d) => d.on)
+      .map(({ idx, name }) => ({ idx, name }));
+  }
+
+  /** The driver's name for a ride, null for a ride nobody drives, undefined for no ride. */
+  private _rideDriver(raw: RawEvent): string | null | undefined {
+    if (!this._ridesOn || raw.allDay || !hasWord(raw.summary, this._rideWords)) return undefined;
+    const d = findDriver(raw, this._drivers);
+    return d === undefined ? null : this._personName(this._persons[d], d);
+  }
+
+  private _rideTag(e: BoardEvent) {
+    const d = this._rideDriver(e.ref);
+    if (d === undefined) return nothing;
+    return html`<span class="eride ${d === null ? "none" : ""}">🚗 ${d ?? "?"}</span>`;
+  }
+
+  /**
+   * Day check: double bookings, care gaps and "nobody home" for the shown day.
+   * Background bands (after-school care and friends) are left out - they run
+   * for hours and would collide with everything.
+   */
   private _renderAlerts() {
     const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
     const persons = this._persons.map((_p, i) => i).filter((i) => !this._isOff(i));
@@ -2052,7 +2096,20 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       : [];
     // "still at home" is about right now, so only on today's page
     const late = this._isRealToday(day) ? this._lateWarnings() : [];
-    if (alerts.length === 0 && late.length === 0) return nothing;
+    const from = this._dateForDay(day);
+    const rides = this._ridesOn
+      ? detectRideAlerts(
+          this._raw.filter((r) => !this._isOff(r.personIdx)),
+          {
+            words: this._rideWords,
+            drivers: this._drivers,
+            from,
+            to: addDays(from, 1),
+            now: this._isRealToday(day) ? now : undefined,
+          },
+        )
+      : [];
+    if (alerts.length === 0 && late.length === 0 && rides.length === 0) return nothing;
     const icon = { conflict: "\u26a0\ufe0f", gap: "\u23f3", empty: "\ud83c\udfe0" };
     return html`
       <div class="alerts">
@@ -2068,6 +2125,26 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             </div>
           `,
         )}
+        ${rides.map((r) => {
+          const owner = this._personName(this._persons[r.personIdx], r.personIdx);
+          const driver =
+            r.driverIdx === undefined
+              ? ""
+              : this._personName(this._persons[r.driverIdx], r.driverIdx);
+          return html`
+            <div class="alert a-ride" title=${r.busyWith ?? r.title}>
+              <span>🚗</span>
+              <span>
+                ${
+                  r.kind === "no_driver"
+                    ? html`<b>${owner}</b> ${r.title} – ${this._t("alert_no_driver")}`
+                    : html`<b>${driver}</b> ${this._t("alert_driver_busy")} – ${r.title}`
+                }
+                <small>${formatTime(this.hass, r.start)}</small>
+              </span>
+            </div>
+          `;
+        })}
         ${alerts.map((a) => {
           const who =
             a.personIdx === undefined
@@ -2565,7 +2642,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           <span class="etitle"
                             >${this._calIconEl(e)}${e.continuesBefore ? "« " : ""}${this._evTitle(
                               e,
-                            )}</span
+                            )}${h > 32 || dragging ? nothing : this._rideTag(e)}</span
                           >
                           ${
                             h > 32 || dragging
@@ -2573,7 +2650,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                                   >${formatMinutes(this.hass, sMin)}–${formatMinutes(
                                     this.hass,
                                     eMin,
-                                  )}</span
+                                  )}${this._rideTag(e)}</span
                                 >`
                               : nothing
                           }
@@ -3076,7 +3153,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               e,
             )}${e.continuesAfter ? " »" : ""}</span
           >
-          <span class="agenda-meta">${name}${e.location ? ` · ${e.location}` : ""}</span>
+          <span class="agenda-meta"
+            >${name}${e.location ? ` · ${e.location}` : ""}${this._rideTag(e)}</span
+          >
           ${
             current && this._progressOn
               ? html`<span class="agenda-prog"
@@ -3795,6 +3874,18 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       border-color: color-mix(in srgb, var(--error-color, #db4437) 70%, transparent);
       background: color-mix(in srgb, var(--error-color, #db4437) 18%, transparent);
       font-weight: 600;
+    }
+    .alert.a-ride {
+      border-color: color-mix(in srgb, var(--warning-color, #ffa600) 60%, transparent);
+      background: color-mix(in srgb, var(--warning-color, #ffa600) 16%, transparent);
+    }
+    .eride {
+      margin-left: 6px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .eride.none {
+      color: var(--error-color, #db4437);
     }
     .nlate {
       font-size: 14px;

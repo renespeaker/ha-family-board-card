@@ -8,6 +8,10 @@ import {
   liveToApiEvent,
   detectDayAlerts,
   detectLate,
+  detectRideAlerts,
+  findDriver,
+  hasWord,
+  RIDE_WORDS,
   parseRawEvent,
   splitIntoSegments,
   splitAcrossDays,
@@ -556,5 +560,86 @@ describe("detectLate", () => {
 
   it("is off with 0", () => {
     expect(detectLate([at("Zahnarzt", 10, 15, "Praxis")], ["home"], now, 0)).toEqual([]);
+  });
+});
+
+describe("rides", () => {
+  const ride = (summary: string, personIdx: number, h: number, m = 0, description?: string) =>
+    ({
+      personIdx,
+      calendar: "c",
+      summary,
+      description,
+      allDay: false,
+      start: new Date(2026, 8, 11, h, m),
+      end: new Date(2026, 8, 11, h, m + 30),
+      color: "",
+    }) as RawEvent;
+  const drivers = [
+    { idx: 0, name: "Anna" },
+    { idx: 1, name: "Ben" },
+  ];
+  const opts = {
+    words: RIDE_WORDS,
+    drivers,
+    from: new Date(2026, 8, 11),
+    to: new Date(2026, 8, 12),
+  };
+
+  it("matches whole words only", () => {
+    expect(hasWord("Mia abholen", RIDE_WORDS)).toBe(true);
+    expect(hasWord("Pick up Leon", RIDE_WORDS)).toBe(true);
+    expect(hasWord("Müll rausbringen", RIDE_WORDS)).toBe(false);
+    expect(hasWord("Klassenfahrt", RIDE_WORDS)).toBe(false);
+    expect(hasWord("Riders club", RIDE_WORDS)).toBe(false);
+  });
+
+  it("takes the driver named in the event, else the owner if they drive", () => {
+    expect(findDriver(ride("Ben: Mia abholen", 2, 16), drivers)).toBe(1);
+    expect(findDriver(ride("Mia abholen", 2, 16, 0, "fährt Anna"), drivers)).toBe(0);
+    expect(findDriver(ride("Mia abholen", 0, 16), drivers)).toBe(0);
+    expect(findDriver(ride("Abholen", 2, 16), drivers)).toBeUndefined();
+  });
+
+  it("warns about a ride nobody drives", () => {
+    const a = detectRideAlerts([ride("Abholen", 2, 16)], opts);
+    expect(a).toMatchObject([{ kind: "no_driver", personIdx: 2, title: "Abholen" }]);
+  });
+
+  it("warns when the driver is busy, and names the clash", () => {
+    const busy = { ...ride("Zahnarzt", 1, 16), end: new Date(2026, 8, 11, 17) };
+    const a = detectRideAlerts([ride("Ben: Mia abholen", 2, 16, 15), busy], opts);
+    expect(a).toMatchObject([{ kind: "driver_busy", driverIdx: 1, busyWith: "Zahnarzt" }]);
+  });
+
+  it("stays quiet when the driver is free, and ignores other days, past rides and all-day events", () => {
+    const free = ride("Ben: Mia abholen", 2, 16);
+    const later = { ...ride("Zahnarzt", 1, 17), end: new Date(2026, 8, 11, 18) };
+    expect(detectRideAlerts([free, later], opts)).toEqual([]);
+    const tomorrow = {
+      ...ride("Abholen", 2, 16),
+      start: new Date(2026, 8, 12, 16),
+      end: new Date(2026, 8, 12, 17),
+    };
+    expect(detectRideAlerts([tomorrow], opts)).toEqual([]);
+    expect(
+      detectRideAlerts([ride("Abholen", 2, 9)], { ...opts, now: new Date(2026, 8, 11, 12) }),
+    ).toEqual([]);
+    expect(detectRideAlerts([{ ...ride("Abholen", 2, 0), allDay: true }], opts)).toEqual([]);
+  });
+
+  it("does not count a ride that someone else drives as the owner being busy", () => {
+    const annaDrives = ride("Anna: Ben abholen", 1, 16);
+    const benDrives = ride("Ben: Mia abholen", 2, 16);
+    expect(detectRideAlerts([annaDrives, benDrives], opts)).toEqual([]);
+  });
+
+  it("uses custom words", () => {
+    expect(detectRideAlerts([ride("Taxi Mia", 2, 16)], { ...opts, words: ["taxi"] })).toHaveLength(
+      1,
+    );
+    expect(detectRideAlerts([ride("Mia abholen", 2, 16)], { ...opts, words: ["taxi"] })).toEqual(
+      [],
+    );
   });
 });

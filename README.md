@@ -33,6 +33,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Slim header** – `slim_header` moves the weekday buttons onto the navigation line and puts the avatar next to the name: about 40 px less header, more room for the day.
 - **Can start on another day** – `day_offset` shifts the day and timeline views by N days (`1` = tomorrow). Meant for displays that should show the day ahead – an e-paper panel in the hallway, say.
 - **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
+- **Rides** – mark the people who drive with `driver: true`. Events such as “Pick up Mia” or “Ben: drop off Leon” become rides: the driver named in the event takes it, otherwise the owner if they drive. The event shows “🚗 Ben”, and the day check warns when nobody drives (“🚗 ?”) or the driver has something else at that time. `ride_patterns` sets your own words.
 - **“Still at home”** – with `late_warning` (minutes) the board warns when someone has an event with a place coming up and Home Assistant still sees them at home: “🚪 Anna still at home – Dentist 10:30” in the day check and in the now view. Uses the `person.*` entity; events without a place or at home are left out.
 - **“Now / next” bar** – optional highlight row above the views: per person, what is running right now (with a pulsing dot) or what is coming next (incl. countdown) – made for the wall tablet.
 - **Now view** – a calm full-card glance for a wall tablet or a small display: large clock and date, and per person what is running right now (with progress), today's all-day events and what comes next (“in 25 min”, “16:30”, “Tomorrow 08:00”). Opt-in: add `now` to `views`, or set `view: now`. Combined with `auto_return` the tablet always falls back to it. With `night_start` / `night_end` the wall tablet turns into a calm, dark night screen – big clock and what comes first tomorrow – and a tap wakes it. With `countdowns` (keywords such as `holiday`, `birthday`) coming events that match show as chips – “🏖️ Holiday in 12 days”, up to `countdown_days` (default 60) ahead.
@@ -118,7 +119,7 @@ persons:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `persons` | list | – | 1–10 people with `name`, `person`, `calendar` (string **or list**), optionally `color`, `badges` (entities as chips) and `hidden` (starts collapsed) |
+| `persons` | list | – | 1–10 people with `name`, `person`, `calendar` (string **or list**), optionally `color`, `badges` (entities as chips) `hidden` (starts collapsed) and `driver` (drives: rides get assigned to them) |
 | `persons[].tasks` | string/list | – | `todo.*` list(s) of this person; tasks due today and overdue ones appear as chips (day view + agenda). Without it the card queries no list at all |
 | `hide_empty_persons` | boolean | `false` | Week view: hide people without events in that week |
 | `show_alerts` | boolean | `false` | Day check above the day/timeline views: double bookings, care gaps and “nobody home” as chips |
@@ -165,6 +166,7 @@ persons:
 | `background_hours` | number | `3` | Timed events from this length (hrs.) on are drawn as a subtle background band instead of a column; `0` = off |
 | `max_columns` | number | `3` | Max. side-by-side columns per person/day; with more overlaps a “+N” chip appears (1–8) |
 | `tentative_patterns` | list | – | Mark events with a matching title pattern as tentative (dashed / translucent) |
+| `ride_patterns` | list | pick up, drop off, ride, abholen, bringen … | Words that make an event a ride (whole words). Only used once a person has `driver: true` |
 | `day_offset` | number | `0` | Day/timeline view starts N days off: `1` = tomorrow, `-1` = yesterday. The shift crosses the week boundary correctly and survives `auto_return` (for e-paper and info displays) |
 | `slim_header` | boolean | `false` | Slim header: the weekday buttons move onto the navigation line and the avatar sits next to the name – saves about 40 px of height |
 | `first_day` | string | `monday` | Week starts on `monday`, `sunday` or `today` – a rolling week: today and the next six days, so a wall tablet on Sunday already shows the coming week (the month grid keeps Monday columns) |

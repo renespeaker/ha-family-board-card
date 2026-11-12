@@ -70,6 +70,9 @@ const EN: Dict = {
   alert_gap: "gap between events",
   alert_empty: "nobody home",
   alert_late: "still at home",
+  alert_no_driver: "no driver",
+  alert_driver_busy: "is busy",
+  ride_by: "Driver:",
   task_due: "task due",
   task_overdue: "task overdue",
 };
@@ -139,6 +142,9 @@ const DE: Dict = {
   alert_gap: "Lücke zwischen Terminen",
   alert_empty: "niemand zuhause",
   alert_late: "noch zuhause",
+  alert_no_driver: "kein Fahrer",
+  alert_driver_busy: "ist belegt",
+  ride_by: "Fahrer:",
   task_due: "Aufgabe fällig",
   task_overdue: "Aufgabe überfällig",
 };

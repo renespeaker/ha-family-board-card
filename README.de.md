@@ -33,6 +33,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Schlanker Kopfbereich** – `slim_header` schiebt die Wochentage auf die Navigationszeile und stellt den Avatar neben den Namen: rund 40 px weniger Kopf, mehr Platz für den Tag.
 - **Startet auch an einem anderen Tag** – `day_offset` verschiebt Tages- und Zeitstrahl-Ansicht um N Tage (`1` = morgen). Gedacht für Anzeigen, die den kommenden Tag zeigen sollen – etwa ein E-Paper-Display im Flur.
 - **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
+- **Fahrdienst** – wer fährt, bekommt `driver: true`. Termine wie „Mia abholen“ oder „Ben: Leon bringen“ werden zu Fahrten: Fahrer ist, wer im Termin genannt wird, sonst der Besitzer, wenn er fährt. Am Termin steht „🚗 Ben“, und der Tages-Check warnt, wenn niemand fährt („🚗 ?“) oder der Fahrer zur selben Zeit schon etwas vorhat. Eigene Wörter mit `ride_patterns`.
 - **„Noch zuhause"** – mit `late_warning` (Minuten) warnt das Board, wenn bei jemandem bald ein Termin mit Ort ansteht und Home Assistant die Person noch zuhause sieht: „🚪 Anna noch zuhause – Zahnarzt 10:30" im Tages-Check und in der Jetzt-Ansicht. Nutzt die `person.*`-Entität; Termine ohne Ort oder zuhause zählen nicht.
 - **„Jetzt / als Nächstes"-Leiste** – optionale Glanz-Zeile über den Ansichten: pro Person auf einen Blick, was gerade läuft (mit Puls-Punkt) oder als Nächstes ansteht (inkl. Countdown) – ideal fürs Wandtablet.
 - **Jetzt-Ansicht** – ein ruhiger Überblick über die ganze Karte fürs Wandtablet oder ein kleines Display: große Uhr und Datum, pro Person was gerade läuft (mit Fortschritt), ganztägige Termine von heute und was als Nächstes kommt („in 25 Min.", „16:30", „Morgen 08:00"). Opt-in: `now` in `views` aufnehmen oder `view: now` setzen. Zusammen mit `auto_return` kehrt das Tablet immer dorthin zurück. Mit `night_start` / `night_end` wird das Wandtablet nachts zum ruhigen, dunklen Nachtbildschirm – große Uhr und was morgen als Erstes ansteht – und Antippen weckt es. Mit `countdowns` (Stichworte wie `urlaub`, `geburtstag`) erscheinen passende kommende Termine als Chips – „🏖️ Urlaub in 12 Tagen“, bis `countdown_days` (Standard 60) Tage voraus.
@@ -118,7 +119,7 @@ persons:
 
 | Option          | Typ     | Default | Beschreibung |
 |-----------------|---------|---------|--------------|
-| `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color`, `badges` (Entitäten als Chips) und `hidden` (startet eingeklappt) |
+| `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color`, `badges` (Entitäten als Chips) `hidden` (startet eingeklappt) und `driver` (fährt: Fahrten werden ihr zugeordnet) |
 | `persons[].tasks` | String/Liste | – | `todo.*`-Liste(n) dieser Person; heute fällige und überfällige Aufgaben erscheinen als Chips (Tagesansicht + Agenda). Ohne Angabe fragt die Karte keine Liste ab |
 | `hide_empty_persons` | boolean | `false` | Wochenansicht: Personen ohne Termine in der Woche ausblenden |
 | `show_alerts`   | boolean | `false` | Tages-Check über Tag/Zeitstrahl: Doppelbuchungen, Betreuungslücken und „niemand zuhause" als Chips |
@@ -165,6 +166,7 @@ persons:
 | `background_hours` | number | `3`  | Timed-Termine ab dieser Länge (Std.) als dezentes Hintergrund-Band statt als Spalte; `0` = aus |
 | `max_columns`   | number  | `3`     | Max. nebeneinander liegende Spalten pro Person/Tag; bei mehr Überlappungen erscheint ein „+N"-Chip (1–8) |
 | `tentative_patterns` | Liste | –    | Termine mit passendem Titel-Muster als vorläufig (gestrichelt/transparent) markieren |
+| `ride_patterns` | Liste | abholen, bringen, Fahrt, pick up … | Wörter, die einen Termin zur Fahrt machen (ganze Wörter). Greift erst, wenn eine Person `driver: true` hat |
 | `day_offset`    | number  | `0`     | Tag-/Zeitstrahl-Ansicht startet um N Tage versetzt: `1` = morgen, `-1` = gestern. Der Versatz überspringt korrekt die Wochengrenze und bleibt auch nach `auto_return` erhalten (für E-Paper- und Info-Displays) |
 | `slim_header`   | boolean | `false` | Schlanker Kopf: Wochentage wandern auf die Navigationszeile, Avatar steht neben dem Namen – spart rund 40 px Höhe |
 | `first_day`     | string  | `monday`| Wochenstart: `monday`, `sunday` oder `today` – eine rollende Woche: heute und die nächsten sechs Tage, so zeigt das Wandtablet am Sonntag schon die neue Woche (das Monatsraster bleibt bei Montag) |

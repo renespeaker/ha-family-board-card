@@ -65,6 +65,8 @@ const EN: Dict = {
   l_color: "Custom color (hex, optional)",
   l_badges: "Badges (e.g. battery, sensors)",
   l_hidden: "Hidden on start",
+  l_driver: "Drives (pick-ups, drop-offs)",
+  l_ride_patterns: "Words for rides",
   l_compact: "Compact layout",
   l_map_url: "Map link (template)",
 
@@ -111,6 +113,9 @@ const EN: Dict = {
   h_badges: "Small chips below the person header; click opens details",
   h_color: "Leave empty for the palette color",
   h_hidden: "Column starts collapsed; a click on the header brings it back",
+  h_driver:
+    "Rides such as “pick up Mia” get a driver; the day check warns when nobody drives or the driver is busy",
+  h_ride_patterns: "Empty = pick up, drop off, ride, abholen, bringen …",
   h_compact: "Smaller fonts and tighter spacing in a single switch",
   h_map_url: "{location} is substituted, e.g. https://maps.apple.com/?q={location}",
 
@@ -224,6 +229,8 @@ const DE: Dict = {
   l_color: "Eigene Farbe (Hex, optional)",
   l_badges: "Badges (z. B. Akku, Sensoren)",
   l_hidden: "Beim Start ausgeblendet",
+  l_driver: "Fährt (Abholen, Bringen)",
+  l_ride_patterns: "Wörter für Fahrten",
   l_compact: "Kompakte Darstellung",
   l_map_url: "Karten-Link (Vorlage)",
 
@@ -271,6 +278,9 @@ const DE: Dict = {
   h_badges: "Kleine Chips unter dem Personenkopf; Klick öffnet Details",
   h_color: "Leer lassen für Palettenfarbe",
   h_hidden: "Spalte startet eingeklappt; ein Klick auf den Kopf holt sie zurück",
+  h_driver:
+    "Fahrten wie „Mia abholen“ bekommen einen Fahrer; der Tages-Check warnt, wenn niemand fährt oder der Fahrer belegt ist",
+  h_ride_patterns: "Leer = abholen, bringen, Fahrt, pick up, drop off …",
   h_compact: "Kleinere Schriften und engere Abstände in einem Schalter",
   h_map_url: "{location} wird ersetzt, z. B. https://maps.apple.com/?q={location}",
 

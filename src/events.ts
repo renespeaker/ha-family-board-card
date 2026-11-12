@@ -343,6 +343,104 @@ export function detectLate(
   return out;
 }
 
+/** Words that mark a ride: someone has to drive a person somewhere or fetch them. */
+export const RIDE_WORDS = [
+  "abholen",
+  "abholung",
+  "bringen",
+  "hinbringen",
+  "fahrdienst",
+  "fahrt",
+  "pick up",
+  "pick-up",
+  "pickup",
+  "drop off",
+  "drop-off",
+  "ride",
+];
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Whole-word, case-insensitive match - "bringen" must not fire on "rausbringen". */
+export function hasWord(text: string, words: string[]): boolean {
+  const list = words.map((w) => w.trim()).filter(Boolean);
+  if (!text || list.length === 0) return false;
+  const re = new RegExp(
+    `(^|[^\\p{L}\\p{N}])(${list.map(escapeRe).join("|")})($|[^\\p{L}\\p{N}])`,
+    "iu",
+  );
+  return re.test(text);
+}
+
+export interface Driver {
+  idx: number;
+  name: string;
+}
+
+/**
+ * Who drives? A driver named in the title or description wins ("Ben: Mia
+ * abholen"); otherwise the owner of the calendar, if they drive themselves.
+ * Undefined when nobody is set - that is exactly what the day check warns about.
+ */
+export function findDriver(raw: RawEvent, drivers: Driver[]): number | undefined {
+  const text = `${raw.summary} ${raw.description ?? ""}`;
+  const named = drivers.find((d) => d.name && hasWord(text, [d.name]));
+  if (named) return named.idx;
+  return drivers.some((d) => d.idx === raw.personIdx) ? raw.personIdx : undefined;
+}
+
+export interface RideAlert {
+  kind: "no_driver" | "driver_busy";
+  personIdx: number; // whose calendar the ride is in
+  driverIdx?: number;
+  title: string;
+  start: Date;
+  busyWith?: string; // the driver's other event (driver_busy)
+}
+
+/**
+ * Rides on one day that need attention: no driver at all, or a driver who is
+ * already booked at that time. `from`/`to` bound the day; rides that are over
+ * by `now` are dropped.
+ */
+export function detectRideAlerts(
+  raws: RawEvent[],
+  opts: { words: string[]; drivers: Driver[]; from: Date; to: Date; now?: Date },
+): RideAlert[] {
+  const out: RideAlert[] = [];
+  const now = opts.now?.getTime();
+  for (const r of raws) {
+    if (r.allDay || !hasWord(r.summary, opts.words)) continue;
+    if (r.start >= opts.to || r.end <= opts.from) continue;
+    if (now !== undefined && r.end.getTime() <= now) continue;
+    const driverIdx = findDriver(r, opts.drivers);
+    if (driverIdx === undefined) {
+      out.push({ kind: "no_driver", personIdx: r.personIdx, title: r.summary, start: r.start });
+      continue;
+    }
+    const clash = raws.find(
+      (o) =>
+        o !== r &&
+        !o.allDay &&
+        o.personIdx === driverIdx &&
+        o.start < r.end &&
+        r.start < o.end &&
+        !(hasWord(o.summary, opts.words) && findDriver(o, opts.drivers) !== driverIdx),
+    );
+    if (clash) {
+      out.push({
+        kind: "driver_busy",
+        personIdx: r.personIdx,
+        driverIdx,
+        title: r.summary,
+        start: r.start,
+        busyWith: clash.summary,
+      });
+    }
+  }
+  return out.sort((a, b) => a.start.getTime() - b.start.getTime());
+}
+
 export interface DayAlert {
   kind: "conflict" | "gap" | "empty";
   personIdx?: number; // unset for "empty" (nobody home), which spans everyone

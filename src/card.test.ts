@@ -1454,3 +1454,48 @@ describe("still at home (late_warning)", () => {
     expect(root.querySelector(".a-late")).toBeNull();
   });
 });
+
+describe("rides (driver)", () => {
+  const persons = [
+    { name: "Anna", calendar: "calendar.anna", driver: true },
+    { name: "Ben", calendar: "calendar.ben", driver: true },
+    { name: "Mia", calendar: "calendar.mia" },
+  ];
+  const calendars = {
+    "calendar.anna": [ev("Büro", "09:00", "17:00")],
+    "calendar.ben": [ev("Homeoffice", "08:00", "12:00")],
+    "calendar.mia": [
+      ev("Anna: vom Sport abholen", "16:00", "16:30"),
+      ev("Zum Training bringen", "17:00", "17:30"),
+      ev("Ben: Musikschule abholen", "18:00", "18:30"),
+    ],
+  };
+  const base = { persons, start_hour: 7, end_hour: 20 };
+
+  it("tags rides with their driver, and warns about missing or busy drivers", async () => {
+    const { texts, root } = await mount({ ...base, view: "day", views: ["day"] }, { calendars });
+    expect(texts(".eride")).toEqual(["🚗 Anna", "🚗 ?", "🚗 Ben"]);
+    expect(root.querySelector(".eride.none")?.textContent).toBe("🚗 ?");
+    expect(texts(".alert.a-ride")).toEqual([
+      "🚗 Anna ist belegt – Anna: vom Sport abholen 16:00",
+      "🚗 Mia Zum Training bringen – kein Fahrer 17:00",
+    ]);
+    const label = root.querySelector(".event[aria-label*='Training']")?.getAttribute("aria-label");
+    expect(label).toContain("kein Fahrer");
+  });
+
+  it("shows the driver in the agenda", async () => {
+    const { texts } = await mount({ ...base, view: "agenda", views: ["agenda"] }, { calendars });
+    expect(texts(".agenda-meta .eride")).toEqual(["🚗 Anna", "🚗 ?", "🚗 Ben"]);
+  });
+
+  it("does nothing while nobody is marked as a driver", async () => {
+    const plain = persons.map(({ driver: _d, ...p }) => p);
+    const { root } = await mount(
+      { ...base, persons: plain, view: "day", views: ["day"] },
+      { calendars },
+    );
+    expect(root.querySelector(".eride")).toBeNull();
+    expect(root.querySelector(".a-ride")).toBeNull();
+  });
+});

@@ -13,6 +13,7 @@ interface PersonConfig {
   color?: string;
   badges?: string[];
   hidden?: boolean;
+  driver?: boolean;
 }
 
 const VIEW_VALUES = ["now", "day", "timeline", "week", "month", "agenda"];
@@ -27,6 +28,7 @@ const PERSON_SCHEMA = [
   { name: "badges", selector: { entity: { multiple: true } } },
   { name: "color", selector: { text: {} } },
   { name: "hidden", selector: { boolean: {} } },
+  { name: "driver", selector: { boolean: {} } },
 ];
 const TASKS_FIELD = {
   name: "tasks",
@@ -241,6 +243,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         { name: "filter_duplicates", selector: { boolean: {} } },
         ...(views.includes("agenda") ? [{ name: "hide_past", selector: { boolean: {} } }] : []),
         { name: "tentative_patterns", selector: { text: { multiple: true } } },
+        { name: "ride_patterns", selector: { text: { multiple: true } } },
         ...(hasWeek ? [{ name: "hide_empty_persons", selector: { boolean: {} } }] : []),
       ]),
       group(this._t("g_looks"), "mdi:palette", [
@@ -374,6 +377,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     if (!value.color) delete value.color;
     if (Array.isArray(value.badges) && value.badges.length === 0) delete value.badges;
     if (!value.hidden) delete value.hidden;
+    if (!value.driver) delete value.driver;
     // collapse a single-calendar array back to a string for tidy YAML
     if (Array.isArray(value.calendar)) {
       if (value.calendar.length === 0) delete value.calendar;
