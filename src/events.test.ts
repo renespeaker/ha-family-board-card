@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { formatWeekRange } from "./localize";
+import type { RawEvent } from "./events";
 import {
   addDays,
   buildRrule,
   daysBetween,
   liveToApiEvent,
   detectDayAlerts,
+  detectLate,
   parseRawEvent,
   splitIntoSegments,
   splitAcrossDays,
@@ -501,5 +503,58 @@ describe("liveToApiEvent", () => {
   it("leaves an event already in REST shape alone", () => {
     const ev = { summary: "C", start: { date: "2026-09-11" }, end: { date: "2026-09-12" } };
     expect(liveToApiEvent(ev)).toBe(ev);
+  });
+});
+
+describe("detectLate", () => {
+  const now = new Date(2026, 8, 11, 10, 20);
+  const at = (summary: string, h: number, m: number, location?: string, personIdx = 0) =>
+    ({
+      personIdx,
+      calendar: "c",
+      summary,
+      location,
+      allDay: false,
+      start: new Date(2026, 8, 11, h, m),
+      end: new Date(2026, 8, 11, h + 1, m),
+      color: "",
+    }) as RawEvent;
+
+  it("warns when an event with a place is close and the person is still home", () => {
+    const w = detectLate([at("Zahnarzt", 10, 30, "Praxis Dr. Meier")], ["home"], now, 20);
+    expect(w).toHaveLength(1);
+    expect(w[0]).toMatchObject({ personIdx: 0, title: "Zahnarzt", location: "Praxis Dr. Meier" });
+  });
+
+  it("stays quiet when the person is away, or the event has no place or is at home", () => {
+    expect(detectLate([at("Zahnarzt", 10, 30, "Praxis")], ["not_home"], now, 20)).toEqual([]);
+    expect(detectLate([at("Zahnarzt", 10, 30, "Praxis")], ["Arbeit"], now, 20)).toEqual([]);
+    expect(detectLate([at("Telefonat", 10, 30)], ["home"], now, 20)).toEqual([]);
+    expect(detectLate([at("Homeoffice", 10, 30, "Zuhause")], ["home"], now, 20)).toEqual([]);
+  });
+
+  it("respects the lead time and a short grace after the start", () => {
+    const ev = [at("Training", 11, 0, "Halle")];
+    expect(detectLate(ev, ["home"], now, 20)).toEqual([]); // 40 min ahead
+    expect(detectLate(ev, ["home"], now, 45)).toHaveLength(1);
+    expect(detectLate([at("Kurs", 10, 15, "VHS")], ["home"], now, 20)).toHaveLength(1); // 5 min late
+    expect(detectLate([at("Kurs", 10, 5, "VHS")], ["home"], now, 20)).toEqual([]); // long gone
+  });
+
+  it("names the soonest event, once per person", () => {
+    const w = detectLate(
+      [at("B", 10, 35, "Ort B"), at("A", 10, 25, "Ort A"), at("X", 10, 30, "Ort X", 1)],
+      ["home", "home"],
+      now,
+      20,
+    );
+    expect(w.map((x) => [x.personIdx, x.title])).toEqual([
+      [0, "A"],
+      [1, "X"],
+    ]);
+  });
+
+  it("is off with 0", () => {
+    expect(detectLate([at("Zahnarzt", 10, 15, "Praxis")], ["home"], now, 0)).toEqual([]);
   });
 });

@@ -33,6 +33,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Slim header** – `slim_header` moves the weekday buttons onto the navigation line and puts the avatar next to the name: about 40 px less header, more room for the day.
 - **Can start on another day** – `day_offset` shifts the day and timeline views by N days (`1` = tomorrow). Meant for displays that should show the day ahead – an e-paper panel in the hallway, say.
 - **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
+- **“Still at home”** – with `late_warning` (minutes) the board warns when someone has an event with a place coming up and Home Assistant still sees them at home: “🚪 Anna still at home – Dentist 10:30” in the day check and in the now view. Uses the `person.*` entity; events without a place or at home are left out.
 - **“Now / next” bar** – optional highlight row above the views: per person, what is running right now (with a pulsing dot) or what is coming next (incl. countdown) – made for the wall tablet.
 - **Now view** – a calm full-card glance for a wall tablet or a small display: large clock and date, and per person what is running right now (with progress), today's all-day events and what comes next (“in 25 min”, “16:30”, “Tomorrow 08:00”). Opt-in: add `now` to `views`, or set `view: now`. Combined with `auto_return` the tablet always falls back to it. With `night_start` / `night_end` the wall tablet turns into a calm, dark night screen – big clock and what comes first tomorrow – and a tap wakes it. With `countdowns` (keywords such as `holiday`, `birthday`) coming events that match show as chips – “🏖️ Holiday in 12 days”, up to `countdown_days` (default 60) ahead.
 - **Accessible** – fully usable by keyboard (arrow keys in the tab lists, focus moves into the dialog and stays there until Esc), and screen readers announce events with title, time and person. Checked with axe-core in every view.
@@ -121,6 +122,7 @@ persons:
 | `persons[].tasks` | string/list | – | `todo.*` list(s) of this person; tasks due today and overdue ones appear as chips (day view + agenda). Without it the card queries no list at all |
 | `hide_empty_persons` | boolean | `false` | Week view: hide people without events in that week |
 | `show_alerts` | boolean | `false` | Day check above the day/timeline views: double bookings, care gaps and “nobody home” as chips |
+| `late_warning` | number | `0` | “Still at home” warning: minutes before an event with a place, while the person’s `person.*` is still `home` (0 = off) |
 | `gap_min` | number | `60` | How many minutes a gap between two of a person's events must reach to be flagged (0 = off) |
 | `show_focus` | boolean | `false` | “Now / next” bar per person above the views |
 | `drag_drop` | boolean | `true` | Move / resize events in the day view by dragging (writable single events only) |

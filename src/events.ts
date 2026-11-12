@@ -295,6 +295,54 @@ export function layoutDayColumns(events: BoardEvent[]): LaidOutEvent[] {
 }
 
 /** A problem worth flagging for one day of the board. */
+/** Someone who should be on their way (see detectLate). */
+export interface LateWarning {
+  personIdx: number;
+  title: string;
+  location: string;
+  start: Date;
+}
+
+/** Places that are home anyway: an event there needs no leaving. */
+const AT_HOME = /^(zu ?hause|daheim|home|at home)$/i;
+
+/**
+ * People who should be on their way: their next timed event with a place
+ * starts within `leadMin` minutes (or started up to 10 minutes ago) and their
+ * person entity still says they are at home. One warning per person, the
+ * soonest event.
+ */
+export function detectLate(
+  raws: RawEvent[],
+  states: Array<string | undefined>,
+  now: Date,
+  leadMin: number,
+): LateWarning[] {
+  if (!(leadMin > 0)) return [];
+  const t = now.getTime();
+  const out: LateWarning[] = [];
+  states.forEach((state, idx) => {
+    if (state !== "home") return;
+    const next = raws
+      .filter((r) => {
+        const place = (r.location ?? "").trim();
+        if (r.personIdx !== idx || r.allDay || !place || AT_HOME.test(place)) return false;
+        const s = r.start.getTime();
+        return s - leadMin * 60000 <= t && t < s + 10 * 60000;
+      })
+      .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
+    if (next) {
+      out.push({
+        personIdx: idx,
+        title: next.summary,
+        location: next.location!.trim(),
+        start: next.start,
+      });
+    }
+  });
+  return out;
+}
+
 export interface DayAlert {
   kind: "conflict" | "gap" | "empty";
   personIdx?: number; // unset for "empty" (nobody home), which spans everyone

@@ -19,6 +19,7 @@ import {
   layoutDayColumns,
   dragTimes,
   detectDayAlerts,
+  detectLate,
   buildRrule,
   RepeatFreq,
   liveToApiEvent,
@@ -78,6 +79,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   show_focus?: boolean; // show a "now / next" focus bar per person above the views
   show_alerts?: boolean; // warn about double bookings, care gaps and "nobody home"
   gap_min?: number; // minutes a care gap must reach to be flagged. default 60, 0 = off
+  late_warning?: number; // warn N minutes before an event with a place when that person is still home
   drag_drop?: boolean; // drag to move / resize events in the day view. default true
   compact?: boolean; // denser spacing + smaller fonts in one switch
   map_url?: string; // location link template, {location} is replaced (URL-encoded)
@@ -1979,7 +1981,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         </div>
         ${this._config.show_focus && this._view !== "now" ? this._renderFocus() : nothing}
         ${
-          this._config.show_alerts && (this._view === "day" || this._view === "timeline")
+          (this._config.show_alerts || this._lateOn) &&
+          (this._view === "day" || this._view === "timeline")
             ? this._renderAlerts()
             : nothing
         }
@@ -2018,6 +2021,21 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
    * Background bands (after-school care and friends) are left out - they run
    * for hours and would collide with everything.
    */
+  private get _lateOn(): boolean {
+    return Number(this._config.late_warning) > 0;
+  }
+
+  /** People still at home while their next event with a place is about to start. */
+  private _lateWarnings() {
+    if (!this._lateOn) return [];
+    const states = this._persons.map((p) =>
+      p.person ? this.hass.states[p.person]?.state : undefined,
+    );
+    return detectLate(this._raw, states, new Date(), Number(this._config.late_warning)).filter(
+      (w) => !this._isOff(w.personIdx),
+    );
+  }
+
   private _renderAlerts() {
     const day = this._visibleDays.includes(this._day) ? this._day : this._visibleDays[0];
     const persons = this._persons.map((_p, i) => i).filter((i) => !this._isOff(i));
@@ -2025,15 +2043,31 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       (e) => e.day === day && persons.includes(e.personIdx) && !this._isBackground(e),
     );
     const now = new Date();
-    const alerts = detectDayAlerts(segments, {
-      persons,
-      gapMin: Math.max(0, this._config.gap_min ?? 60),
-      nowMin: this._isRealToday(day) ? now.getHours() * 60 + now.getMinutes() : undefined,
-    });
-    if (alerts.length === 0) return nothing;
+    const alerts = this._config.show_alerts
+      ? detectDayAlerts(segments, {
+          persons,
+          gapMin: Math.max(0, this._config.gap_min ?? 60),
+          nowMin: this._isRealToday(day) ? now.getHours() * 60 + now.getMinutes() : undefined,
+        })
+      : [];
+    // "still at home" is about right now, so only on today's page
+    const late = this._isRealToday(day) ? this._lateWarnings() : [];
+    if (alerts.length === 0 && late.length === 0) return nothing;
     const icon = { conflict: "\u26a0\ufe0f", gap: "\u23f3", empty: "\ud83c\udfe0" };
     return html`
       <div class="alerts">
+        ${late.map(
+          (w) => html`
+            <div class="alert a-late" title=${w.location}>
+              <span>🚪</span>
+              <span>
+                <b>${this._personName(this._persons[w.personIdx], w.personIdx)}</b>
+                ${this._t("alert_late")} – ${w.title}
+                <small>${formatTime(this.hass, w.start)}</small>
+              </span>
+            </div>
+          `,
+        )}
         ${alerts.map((a) => {
           const who =
             a.personIdx === undefined
@@ -2157,6 +2191,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       month: "long",
     }).format(now);
     const icon = (r: RawEvent) => (this._config.auto_icons ? this._autoIcon(r.summary) : "");
+    const late = this._lateWarnings();
     return html`
       <div class="now">
         <div class="nowhead">
@@ -2214,6 +2249,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                         </div>`
                       : html`<div class="ncur nfree">${this._t("focus_free")}</div>`
                   }
+                  ${(() => {
+                    const w = late.find((x) => x.personIdx === i);
+                    return w
+                      ? html`<div class="nlate">
+                          🚪 ${w.title} ${formatTime(this.hass, w.start)} · ${this._t("alert_late")}
+                        </div>`
+                      : nothing;
+                  })()}
                   ${
                     next
                       ? html`<div class="nnext">
@@ -3747,6 +3790,16 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .alert.a-conflict {
       border-color: color-mix(in srgb, var(--error-color, #db4437) 55%, transparent);
       background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
+    }
+    .alert.a-late {
+      border-color: color-mix(in srgb, var(--error-color, #db4437) 70%, transparent);
+      background: color-mix(in srgb, var(--error-color, #db4437) 18%, transparent);
+      font-weight: 600;
+    }
+    .nlate {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--error-color, #db4437);
     }
     .alert.a-gap {
       border-color: color-mix(in srgb, var(--warning-color, #ffa600) 60%, transparent);

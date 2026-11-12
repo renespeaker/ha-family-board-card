@@ -69,6 +69,7 @@ const EN: Dict = {
   alert_conflict: "two events at once",
   alert_gap: "gap between events",
   alert_empty: "nobody home",
+  alert_late: "still at home",
   task_due: "task due",
   task_overdue: "task overdue",
 };
@@ -137,6 +138,7 @@ const DE: Dict = {
   alert_conflict: "zwei Termine gleichzeitig",
   alert_gap: "Lücke zwischen Terminen",
   alert_empty: "niemand zuhause",
+  alert_late: "noch zuhause",
   task_due: "Aufgabe fällig",
   task_overdue: "Aufgabe überfällig",
 };

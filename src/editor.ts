@@ -246,6 +246,12 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       group(this._t("g_looks"), "mdi:palette", [
         { name: "show_focus", selector: { boolean: {} } },
         { name: "show_alerts", selector: { boolean: {} } },
+        {
+          name: "late_warning",
+          selector: {
+            number: { min: 0, max: 120, step: 5, mode: "slider", unit_of_measurement: "min" },
+          },
+        },
         ...(cfg.show_alerts
           ? [
               {

@@ -39,6 +39,8 @@ interface MountOpts {
   forecast?: unknown[];
   /** calendar.* entities the card may write to (create, update, delete). */
   writable?: string[];
+  /** Extra entity states, e.g. { "person.anna": "home" }. */
+  states?: Record<string, string>;
   /** Home Assistant with live calendar updates; "old" = command unknown. */
   live?: "new" | "old";
   /** The REST answer never arrives (to see what is shown before it). */
@@ -73,6 +75,9 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
     };
   }
   if (opts.forecast) states["weather.forecast_home"] = { state: "sunny", attributes: {} };
+  for (const [entity, state] of Object.entries(opts.states ?? {})) {
+    states[entity] = { state, attributes: { friendly_name: entity.split(".")[1] } };
+  }
   const wsCalls: Array<Record<string, unknown>> = [];
   const apiPaths: string[] = [];
   const subs: Array<{
@@ -1403,5 +1408,49 @@ describe("live updates and instant display", () => {
     const other = { ...base, persons: [{ name: "Ben", calendar: "calendar.ben" }] };
     const { text } = await mount(other, { calendars: { "calendar.ben": [] }, slowApi: true });
     expect(text()).not.toContain("Büro");
+  });
+});
+
+describe("still at home (late_warning)", () => {
+  const persons = [
+    { name: "Anna", person: "person.anna", calendar: "calendar.anna" },
+    { name: "Ben", person: "person.ben", calendar: "calendar.ben" },
+  ];
+  const calendars = {
+    "calendar.anna": [ev("Zahnarzt", "10:30", "11:00", { location: "Praxis Dr. Meier" })],
+    "calendar.ben": [ev("Training", "10:35", "12:00", { location: "Sporthalle" })],
+  };
+  const states = { "person.anna": "home", "person.ben": "not_home" };
+  const base = {
+    persons,
+    late_warning: 20,
+    start_hour: 7,
+    end_hour: 20,
+  };
+
+  it("warns in the day view for whoever is still home", async () => {
+    const { texts } = await mount({ ...base, view: "day", views: ["day"] }, { calendars, states });
+    expect(texts(".alert.a-late")).toEqual(["🚪 Anna noch zuhause – Zahnarzt 10:30"]);
+  });
+
+  it("puts the warning into the person's row in the now view", async () => {
+    const { texts } = await mount({ ...base, view: "now", views: ["now"] }, { calendars, states });
+    expect(texts(".nrow .nlate")).toEqual(["🚪 Zahnarzt 10:30 · noch zuhause"]);
+  });
+
+  it("shows nothing without the option, or on another day", async () => {
+    const off = await mount(
+      { ...base, late_warning: 0, view: "day", views: ["day"] },
+      { calendars, states },
+    );
+    expect(off.root.querySelector(".a-late")).toBeNull();
+    const { el, root } = await mount(
+      { ...base, view: "day", views: ["day"] },
+      { calendars, states },
+    );
+    const card = el as unknown as { _day: number; updateComplete: Promise<unknown> };
+    card._day = 5; // Saturday
+    await card.updateComplete;
+    expect(root.querySelector(".a-late")).toBeNull();
   });
 });

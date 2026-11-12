@@ -55,19 +55,19 @@ const T = lang === "de"
   ? { home:"Homeoffice", office:"Büro", school:"Schule", breakt:"Pause", sport:"Sport",
       swim:"Schwimmen", lunch:"Mittagessen", nap:"Mittagsschlaf", free:"Freispiel",
       bfast:"offenes Frühstück", music:"Musikschule", doc:"Kinderarzt", pickup:"Abholen",
-      care:"Betreuung", bday:"Geburtstag Oma", title:"Familienplan",
+      care:"Betreuung", pool:"Hallenbad", bday:"Geburtstag Oma", title:"Familienplan",
       bin:"Gelbe Tonne", hol:"Herbstferien", parents:"Elternabend" }
   : { home:"Home office", office:"Office", school:"School", breakt:"Break", sport:"Sport",
       swim:"Swimming", lunch:"Lunch", nap:"Nap", free:"Free play",
       bfast:"Open breakfast", music:"Music school", doc:"Pediatrician", pickup:"Pick-up",
-      care:"After-school care", bday:"Grandma's birthday", title:"Family board",
+      care:"After-school care", pool:"Swimming pool", bday:"Grandma's birthday", title:"Family board",
       bin:"Recycling bin", hol:"Autumn break", parents:"Parents' evening" };
 
 const base = new Date(); base.setHours(0,0,0,0);
 const day = i => new Date(base.getFullYear(), base.getMonth(), base.getDate() - ((base.getDay()+6)%7) + i);
 const at = (i,h,m) => { const d=day(i); return new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,m).toISOString(); };
 let n = 0;
-const E=(i,s,h1,m1,h2,m2)=>({uid:"u"+(n++),summary:s,start:{dateTime:at(i,h1,m1)},end:{dateTime:at(i,h2,m2)}});
+const E=(i,s,h1,m1,h2,m2,location)=>({uid:"u"+(n++),summary:s,location,start:{dateTime:at(i,h1,m1)},end:{dateTime:at(i,h2,m2)}});
 const todayIdx = (new Date().getDay()+6)%7;
 const t = todayIdx;
 
@@ -76,7 +76,7 @@ const cal = {
                     E(t+1,T.office,9,0,17,0), E(t-1,T.office,9,0,17,0) ],
   "calendar.ben":[  E(t,T.office,9,0,17,30), E(t+1,T.home,8,0,16,0), E(t-1,T.office,9,0,17,0) ],
   "calendar.mia":[  E(t,T.school,8,0,8,45), E(t,T.school,8,45,9,30), E(t,T.breakt,9,30,9,50),
-                    E(t,T.sport,9,50,10,35), E(t,T.swim,10,45,11,30), E(t,T.lunch,12,0,12,45),
+                    E(t,T.sport,9,50,10,35), E(t,T.swim,10,45,11,30,T.pool), E(t,T.lunch,12,0,12,45),
                     E(t,T.music,15,0,16,0), E(t+1,T.school,8,0,13,0), E(t-1,T.school,8,0,13,0) ],
   "calendar.leon":[ E(t,T.bfast,7,0,9,0), E(t,T.free,9,0,11,30), E(t,T.lunch,11,30,12,15),
                     E(t,T.nap,12,15,14,0), E(t,T.care,14,0,16,0),
@@ -126,7 +126,7 @@ el.setConfig({
   night_start: Q.has("night") ? "21:00" : undefined,
   night_end: Q.has("night") ? "06:30" : undefined,
   countdowns: lang === "de" ? ["ferien", "geburtstag"] : ["break", "birthday"],
-  show_focus: !Q.has("slim"), auto_icons:true, slim_header: Q.has("slim"), show_alerts: Q.has("alerts"), gap_min:60,
+  show_focus: !Q.has("slim"), auto_icons:true, slim_header: Q.has("slim"), show_alerts: Q.has("alerts"), late_warning: Q.has("late") ? 30 : undefined, gap_min:60,
   background_hours: 3, start_hour:7, end_hour:18, trim_hours:false,
   hour_height: 64, hour_width: 110, time_grid:15,
   persons:[

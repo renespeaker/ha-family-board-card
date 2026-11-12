@@ -46,6 +46,7 @@ const EN: Dict = {
   l_show_focus: "“Now / next” bar",
   l_show_alerts: "Day check (double bookings, gaps, nobody home)",
   l_gap_min: "Flag a gap from (min., 0 = off)",
+  l_late_warning: "Warn when still at home (min. before, 0 = off)",
   l_drag_drop: "Move events by dragging (day view)",
   l_family_calendars: "Family calendars",
   l_countdowns: "Countdowns",
@@ -101,6 +102,8 @@ const EN: Dict = {
     "Chips above the day and timeline views: one person booked twice, an unsupervised window between two events, or everyone out at the same time",
   h_gap_min:
     "How long a hole between two of a person's events has to be before it is worth a warning",
+  h_late_warning:
+    "An event with a place starts soon and the person entity still says home: warning in the day check and the now view",
   h_drag_drop: "Writable calendars only; drag to move, bottom edge changes the duration",
   h_views: "Which switchers appear at the top",
   h_tasks:
@@ -202,6 +205,7 @@ const DE: Dict = {
   l_show_focus: "„Jetzt / als Nächstes“-Leiste",
   l_show_alerts: "Tages-Check (Doppelbuchung, Lücken, niemand zuhause)",
   l_gap_min: "Lücke melden ab (Min., 0 = aus)",
+  l_late_warning: "Warnen, wenn noch zuhause (Min. vorher, 0 = aus)",
   l_drag_drop: "Termine per Ziehen verschieben (Tagesansicht)",
   l_family_calendars: "Familien-Kalender",
   l_countdowns: "Countdowns",
@@ -258,6 +262,8 @@ const DE: Dict = {
   h_show_alerts:
     "Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen oder alle gleichzeitig unterwegs",
   h_gap_min: "Ab welcher Länge ein Loch zwischen zwei Terminen einer Person eine Warnung wert ist",
+  h_late_warning:
+    "Ein Termin mit Ort beginnt gleich, die Person ist laut person-Entität noch zuhause: Warnung im Tages-Check und in der Jetzt-Ansicht",
   h_drag_drop: "Nur bei schreibbaren Kalendern; Ziehen verschiebt, unterer Rand ändert die Dauer",
   h_views: "Welche Umschalter oben erscheinen",
   h_tasks:
