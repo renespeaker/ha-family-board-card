@@ -39,6 +39,10 @@ interface MountOpts {
   forecast?: unknown[];
   /** calendar.* entities the card may write to (create, update, delete). */
   writable?: string[];
+  /** Home Assistant with live calendar updates; "old" = command unknown. */
+  live?: "new" | "old";
+  /** The REST answer never arrives (to see what is shown before it). */
+  slowApi?: boolean;
   /** Local wall-clock time the test pretends it is. */
   now?: string;
 }
@@ -71,6 +75,11 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   if (opts.forecast) states["weather.forecast_home"] = { state: "sunny", attributes: {} };
   const wsCalls: Array<Record<string, unknown>> = [];
   const apiPaths: string[] = [];
+  const subs: Array<{
+    msg: Record<string, unknown>;
+    push: (events: unknown[] | null) => void;
+    unsubscribed: boolean;
+  }> = [];
   const el = document.createElement("family-board-card") as HTMLElement & {
     setConfig(c: unknown): void;
     hass: unknown;
@@ -80,8 +89,28 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   el.hass = {
     locale: { language: opts.lang ?? "de", time_format: "24" },
     states,
+    connection: opts.live
+      ? {
+          subscribeMessage: async (
+            cb: (m: { events: unknown[] | null }) => void,
+            msg: Record<string, unknown>,
+          ) => {
+            if (opts.live === "old") throw new Error("Unknown command.");
+            const sub = {
+              msg,
+              push: (events: unknown[] | null) => cb({ events }),
+              unsubscribed: false,
+            };
+            subs.push(sub);
+            return async () => {
+              sub.unsubscribed = true;
+            };
+          },
+        }
+      : undefined,
     callApi: async (_method: string, path: string) => {
       apiPaths.push(path);
+      if (opts.slowApi) return new Promise(() => undefined);
       return calendars[path.split("?")[0].replace("calendars/", "")] ?? [];
     },
     callWS: async (msg: Record<string, unknown>) => {
@@ -108,6 +137,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
     root,
     wsCalls,
     apiPaths,
+    subs,
     text: () => (root.textContent ?? "").replace(/\s+/g, " ").trim(),
     all: (sel: string) => [...root.querySelectorAll(sel)],
     texts: (sel: string) =>
@@ -117,6 +147,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
 
 afterEach(() => {
   mounted.splice(0).forEach((el) => el.remove());
+  localStorage.clear();
   vi.useRealTimers();
 });
 
@@ -1287,5 +1318,90 @@ describe("night screen", () => {
       { calendars, now: "2026-09-11T23:00:00" },
     );
     expect(el.hasAttribute("night")).toBe(false);
+  });
+});
+
+describe("live updates and instant display", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = { "calendar.anna": [ev("Büro", "09:00", "17:00")] };
+  const base = { persons, view: "agenda" as const, views: ["agenda" as const] };
+
+  it("subscribes to the shown range and takes pushed changes at once", async () => {
+    const { subs, text, el } = await mount(base, { calendars, live: "new" });
+    expect(subs).toHaveLength(1);
+    expect(subs[0].msg).toMatchObject({
+      type: "calendar/event/subscribe",
+      entity_id: "calendar.anna",
+    });
+    expect(new Date(subs[0].msg.start as string).getDate()).toBe(7); // Monday of the week
+    // someone adds an appointment on the phone; HA pushes the new list
+    subs[0].push([
+      {
+        summary: "Büro",
+        start: "2026-09-11T09:00:00+02:00",
+        end: "2026-09-11T17:00:00+02:00",
+        all_day: false,
+      },
+      {
+        summary: "Zahnarzt",
+        start: "2026-09-11T15:00:00+02:00",
+        end: "2026-09-11T16:00:00+02:00",
+        all_day: false,
+      },
+    ]);
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(text()).toContain("Zahnarzt");
+    expect(text()).toContain("15:00");
+  });
+
+  it("keeps the board when a push says the calendar could not be read", async () => {
+    const { subs, text, el } = await mount(base, { calendars, live: "new" });
+    subs[0].push(null);
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(text()).toContain("Büro");
+  });
+
+  it("works as before on a Home Assistant without live updates", async () => {
+    const { text, subs } = await mount(base, { calendars, live: "old" });
+    expect(subs).toHaveLength(0);
+    expect(text()).toContain("Büro");
+  });
+
+  it("unsubscribes when the board leaves the screen, and when the range changes", async () => {
+    const { subs, el, root } = await mount(base, { calendars, live: "new" });
+    (root.querySelectorAll("button.nav")[1] as HTMLButtonElement).click(); // next week
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(0);
+      await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    }
+    expect(subs[0].unsubscribed).toBe(true);
+    expect(subs).toHaveLength(2);
+    el.remove();
+    expect(subs[1].unsubscribed).toBe(true);
+  });
+
+  it("shows the last known events at once while the fresh answer is on its way", async () => {
+    await mount(base, { calendars }); // a first visit fills the cache
+    mounted.splice(0).forEach((n) => n.remove());
+    const { text } = await mount(base, { calendars, slowApi: true });
+    expect(text()).toContain("Büro");
+  });
+
+  it("keeps a cache per board, so two boards on one dashboard both start instantly", async () => {
+    const ben = { ...base, persons: [{ name: "Ben", calendar: "calendar.ben" }] };
+    const both = { ...calendars, "calendar.ben": [ev("Training", "18:00", "19:30")] };
+    await mount(base, { calendars: both });
+    await mount(ben, { calendars: both });
+    mounted.splice(0).forEach((n) => n.remove());
+    const { text } = await mount(base, { calendars: both, slowApi: true });
+    expect(text()).toContain("Büro");
+  });
+
+  it("does not show cached events of another board", async () => {
+    await mount(base, { calendars });
+    mounted.splice(0).forEach((n) => n.remove());
+    const other = { ...base, persons: [{ name: "Ben", calendar: "calendar.ben" }] };
+    const { text } = await mount(other, { calendars: { "calendar.ben": [] }, slowApi: true });
+    expect(text()).not.toContain("Büro");
   });
 });

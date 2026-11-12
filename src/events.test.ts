@@ -4,6 +4,7 @@ import {
   addDays,
   buildRrule,
   daysBetween,
+  liveToApiEvent,
   detectDayAlerts,
   parseRawEvent,
   splitIntoSegments,
@@ -474,5 +475,31 @@ describe("buildRrule", () => {
     // Berlin: winter UTC+1, summer UTC+2
     expect(buildRrule("DAILY", "2026-12-18", false)).toBe("FREQ=DAILY;UNTIL=20261218T225959Z");
     expect(buildRrule("DAILY", "2026-07-01", false)).toBe("FREQ=DAILY;UNTIL=20260701T215959Z");
+  });
+});
+
+describe("liveToApiEvent", () => {
+  it("wraps pushed start/end like the REST API does", () => {
+    expect(
+      liveToApiEvent({
+        summary: "A",
+        start: "2026-09-11T09:00:00+02:00",
+        end: "2026-09-11T10:00:00+02:00",
+        all_day: false,
+      }),
+    ).toMatchObject({
+      start: { dateTime: "2026-09-11T09:00:00+02:00" },
+      end: { dateTime: "2026-09-11T10:00:00+02:00" },
+    });
+    expect(
+      liveToApiEvent({ summary: "B", start: "2026-09-11", end: "2026-09-12", all_day: true }),
+    ).toMatchObject({
+      start: { date: "2026-09-11" },
+      end: { date: "2026-09-12" },
+    });
+  });
+  it("leaves an event already in REST shape alone", () => {
+    const ev = { summary: "C", start: { date: "2026-09-11" }, end: { date: "2026-09-12" } };
+    expect(liveToApiEvent(ev)).toBe(ev);
   });
 });

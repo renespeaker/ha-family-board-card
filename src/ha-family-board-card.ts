@@ -21,6 +21,7 @@ import {
   detectDayAlerts,
   buildRrule,
   RepeatFreq,
+  liveToApiEvent,
 } from "./events";
 import {
   localize,
@@ -524,6 +525,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     document.removeEventListener("visibilitychange", this._onVisible);
     window.removeEventListener("focus", this._onVisible);
     this.removeEventListener("pointerdown", this._onInteract);
+    this._unsubscribe();
+    this._fetchedKey = ""; // back on screen: fetch (and subscribe) afresh
     this.removeEventListener("touchstart", this._onSwipeStart);
     this.removeEventListener("touchend", this._onSwipeEnd);
     this.removeEventListener("touchcancel", this._onSwipeCancel);
@@ -902,6 +905,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const key = `${scope}|${cals}`;
     if (key === this._fetchedKey) return;
     this._fetchedKey = key;
+    // only before the very first answer: after an edit the cache is stale
+    if (!this._cacheTried) {
+      this._cacheTried = true;
+      this._loadCache(key);
+    }
     await this._fetchEvents();
   }
 
@@ -1193,71 +1201,87 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     });
   }
 
+  /**
+   * Raw API events per calendar for the shown range (REST shape). A fetch, a
+   * live push or the cache fills it; _rebuild turns it into the board.
+   */
+  private _calData = new Map<string, any[]>();
+  private _fetchGen = 0;
+  private _cacheTried = false;
+
+  /** Every calendar the board reads (people and family), once each. */
+  private _allCals(): string[] {
+    const cals = [...this._config.persons.flatMap((p) => this._calsOf(p)), ...this._familyCals()];
+    return [...new Set(cals)].filter((cal) => this.hass.states[cal]);
+  }
+
   private async _fetchEvents(): Promise<void> {
+    const gen = ++this._fetchGen;
     const { start, end } = this._fetchRange();
-    const startIso = start.toISOString();
-    const endIso = end.toISOString();
-    const raws: RawEvent[] = [];
+    const startIso = encodeURIComponent(start.toISOString());
+    const endIso = encodeURIComponent(end.toISOString());
+    const cals = this._allCals();
     let anyError = false;
     this._loading = true;
-
-    const family: RawEvent[] = [];
-    const famJob = Promise.all(
-      this._familyCals()
-        .filter((cal) => this.hass.states[cal])
-        .map(async (cal) => {
-          try {
-            const events = await this.hass.callApi<any[]>(
-              "GET",
-              `calendars/${cal}?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`,
-            );
-            for (const ev of events) {
-              const raw = parseRawEvent(ev, -1, cal, this._calMeta(cal).color ?? "");
-              if (raw && !this._hidden(raw.summary) && this._allowed(raw.summary)) {
-                raw.summary = this._cleanTitle(raw.summary);
-                family.push(raw);
-              }
-            }
-          } catch (err) {
-            anyError = true;
-          }
-        }),
-    );
-
+    const data = new Map<string, any[]>();
     await Promise.all(
-      this._config.persons.flatMap((p, idx) => {
-        const color = personColor(p, idx);
-        return this._calsOf(p)
-          .filter((cal) => this.hass.states[cal])
-          .map(async (cal) => {
-            try {
-              const events = await this.hass.callApi<any[]>(
-                "GET",
-                `calendars/${cal}?start=${encodeURIComponent(startIso)}&end=${encodeURIComponent(endIso)}`,
-              );
-              for (const ev of events) {
-                const raw = parseRawEvent(ev, idx, cal, color);
-                if (raw) {
-                  // optional per-calendar override: take the title from another
-                  // field (school feeds often hide the subject in `description`)
-                  const tf = this._calMeta(cal).title_field;
-                  if (tf) {
-                    const alt = (ev as Record<string, unknown>)[tf];
-                    if (typeof alt === "string" && alt.trim()) raw.summary = alt.trim();
-                  }
-                }
-                if (raw && !this._hidden(raw.summary) && this._allowed(raw.summary)) {
-                  if (this._matchesTentative(raw.summary)) raw.tentative = true;
-                  raw.summary = this._cleanTitle(raw.summary);
-                  raws.push(raw);
-                }
-              }
-            } catch (err) {
-              anyError = true;
-            }
-          });
+      cals.map(async (cal) => {
+        try {
+          data.set(
+            cal,
+            await this.hass.callApi<any[]>(
+              "GET",
+              `calendars/${cal}?start=${startIso}&end=${endIso}`,
+            ),
+          );
+        } catch (err) {
+          anyError = true;
+        }
       }),
     );
+    // a newer request (other week, other view) has started meanwhile: its answer wins
+    if (gen !== this._fetchGen) return;
+    this._calData = data;
+    this._rebuild();
+    this._loadError = anyError && this._raw.length === 0;
+    this._loading = false;
+    this._saveCache();
+    this._subscribe(start, end, cals);
+  }
+
+  /** People's and family events from _calData, filtered and cleaned. */
+  private _rebuild(): void {
+    const raws: RawEvent[] = [];
+    this._config.persons.forEach((p, idx) => {
+      const color = personColor(p, idx);
+      for (const cal of this._calsOf(p)) {
+        const tf = this._calMeta(cal).title_field;
+        for (const ev of this._calData.get(cal) ?? []) {
+          const raw = parseRawEvent(ev, idx, cal, color);
+          if (!raw) continue;
+          // optional per-calendar override: take the title from another
+          // field (school feeds often hide the subject in `description`)
+          if (tf) {
+            const alt = (ev as Record<string, unknown>)[tf];
+            if (typeof alt === "string" && alt.trim()) raw.summary = alt.trim();
+          }
+          if (this._hidden(raw.summary) || !this._allowed(raw.summary)) continue;
+          if (this._matchesTentative(raw.summary)) raw.tentative = true;
+          raw.summary = this._cleanTitle(raw.summary);
+          raws.push(raw);
+        }
+      }
+    });
+    const family: RawEvent[] = [];
+    for (const cal of this._familyCals()) {
+      for (const ev of this._calData.get(cal) ?? []) {
+        const raw = parseRawEvent(ev, -1, cal, this._calMeta(cal).color ?? "");
+        if (raw && !this._hidden(raw.summary) && this._allowed(raw.summary)) {
+          raw.summary = this._cleanTitle(raw.summary);
+          family.push(raw);
+        }
+      }
+    }
     let cleaned = raws;
     if (this._config.filter_duplicates) {
       // same title/start/end within ONE person (e.g. mirrored in two calendars)
@@ -1269,7 +1293,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         return true;
       });
     }
-    await famJob;
     this._family = family.sort(
       (a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime(),
     );
@@ -1278,8 +1301,93 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const { monday } = this._weekBounds();
     this._events =
       this._view === "month" ? [] : cleaned.flatMap((r) => splitIntoSegments(r, monday));
-    this._loadError = anyError && raws.length === 0;
-    this._loading = false;
+  }
+
+  /*
+   * Live updates (Home Assistant 2026.5+): calendar/event/subscribe pushes a
+   * calendar's events for a range at once and again whenever they change, so
+   * a change made on the phone shows on the wall tablet without waiting for
+   * the refresh. On an older Home Assistant the command is unknown and the
+   * board simply keeps polling (refresh_interval).
+   */
+  private _subs: Array<() => unknown> = [];
+  private _subKey = "";
+
+  private async _subscribe(start: Date, end: Date, cals: string[]): Promise<void> {
+    const conn = (this.hass as any)?.connection;
+    const key = `${start.toISOString()}|${end.toISOString()}|${cals.join(",")}`;
+    if (key === this._subKey) return;
+    this._unsubscribe();
+    this._subKey = key;
+    if (typeof conn?.subscribeMessage !== "function") return;
+    for (const cal of cals) {
+      try {
+        const unsub = await conn.subscribeMessage(
+          (msg: { events?: any[] | null }) => {
+            // null: the calendar could not be read just now - keep what we have
+            if (key !== this._subKey || !Array.isArray(msg?.events)) return;
+            this._calData.set(cal, msg.events.map(liveToApiEvent));
+            this._rebuild();
+            this._saveCache();
+          },
+          {
+            type: "calendar/event/subscribe",
+            entity_id: cal,
+            start: start.toISOString(),
+            end: end.toISOString(),
+          },
+        );
+        if (key !== this._subKey) {
+          Promise.resolve(unsub()).catch(() => undefined);
+          return;
+        }
+        this._subs.push(unsub);
+      } catch (err) {
+        // older Home Assistant: no live updates, polling carries on
+        return;
+      }
+    }
+  }
+
+  private _unsubscribe(): void {
+    for (const unsub of this._subs) Promise.resolve(unsub()).catch(() => undefined);
+    this._subs = [];
+    this._subKey = "";
+  }
+
+  /*
+   * Instant display: the last events seen for this board and range are kept
+   * in the browser and shown at once after a reload (wall tablet, app start),
+   * until the fresh answer arrives. Per browser only; never older than a day.
+   */
+  private get _cacheId(): string {
+    const cals = this._config.persons.map((p) => this._calsOf(p).join("+")).join(",");
+    return `family-board-card:${cals}|${this._familyCals().join("+")}`;
+  }
+
+  private _saveCache(): void {
+    try {
+      const data = JSON.stringify({
+        key: this._fetchedKey,
+        at: Date.now(),
+        cals: [...this._calData],
+      });
+      if (data.length < 500000) localStorage.setItem(this._cacheId, data);
+    } catch (e) {
+      // private mode, full storage: no cache, no harm
+    }
+  }
+
+  /** Show cached events for `key` while the request for it is still running. */
+  private _loadCache(key: string): void {
+    try {
+      const c = JSON.parse(localStorage.getItem(this._cacheId) ?? "null");
+      if (!c || c.key !== key || Date.now() - c.at > 86400000 || !Array.isArray(c.cals)) return;
+      this._calData = new Map(c.cals);
+      this._rebuild();
+    } catch (e) {
+      // unreadable cache: ignore it
+    }
   }
 
   /* ---- capabilities -------------------------------------------- */
@@ -5426,7 +5534,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.31.3 ",
+  "%c FAMILY-BOARD-CARD %c v0.32.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

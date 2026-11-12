@@ -50,6 +50,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Multilingual & localized** – texts in English/German, weekday names and clock format (12/24 h) from the HA locale; relative days (“Today/Tomorrow”).
 - **Everyday polish** – past events dimmed, coloring by calendar, open a location straight in the maps app, hide noisy events by pattern.
 - **Live progress & countdown** – running events show a progress bar (can be turned off), upcoming ones show “in 20 min” in the agenda; updates every minute.
+- **Live updates, instant start** – on Home Assistant 2026.5 or newer the board subscribes to its calendars: an appointment added on a phone appears on the wall tablet right away, without waiting for the refresh. After a reload the last known events show at once while the fresh ones load (kept per board in the browser, at most a day old). Older Home Assistant versions keep refreshing as before.
 - **Weather** – daily forecast from a `weather.*` entity (HA location, not the event address): icon with high/low in the day, timeline and agenda headers, icon + high next to each weekday in the week view, icon in the month cells.
 - **Busy days stay readable** – if more events overlap than `max_columns` allows, the extra columns are collapsed into a “+N” chip (click opens the agenda) instead of shrinking into unreadable slivers.
 - **Long events as a background band** – long-running events (after-school care, “free play”) beyond a configurable length run as a subtle full-width band behind the column instead of squeezing the short events sideways. The real appointments get the full width.
@@ -69,7 +70,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Compact mode** – one switch (`compact`) for smaller fonts and tighter spacing instead of adjusting three sliders.
 - **People hidden on start** – `hidden: true` per person; the column starts collapsed and a click on the header brings it back.
 
-> Status: **v0.31 – complete family day planning: 6 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
+> Status: **v0.32 – complete family day planning: 6 views, write access, auto layout (trim/fit/full height), background bands, badges, kiosk mode, mobile optimized, fully localized card *and* editor.**
 
 ## Installation (HACS)
 
@@ -168,7 +169,7 @@ persons:
 | `night_start` / `night_end` | time | – | Night screen between these times (e.g. `"21:00"` / `"06:30"`): a dark, dimmed clock with what comes next; a tap wakes the board for `auto_return` minutes (at least 2). Both needed |
 | `swipe` | boolean | `false` | Touch screens: swipe left/right for the next/previous day, week or month (on by default in the wall-tablet and phone profiles) |
 | `scroll_to_now` | boolean | `true` | Scroll to “now” on load: the day view to the current time, the timeline horizontally to the now line, the agenda to today's section (or the next day with events when today has none) |
-| `refresh_interval` | number | `300` | Auto refresh of the events in seconds (0 = off); additionally when the tablet wakes up |
+| `refresh_interval` | number | `300` | Auto refresh of the events in seconds (0 = off); additionally when the tablet wakes up. On Home Assistant 2026.5+ changes arrive live anyway – this is the safety net |
 
 Every `calendar.*` entity works – no matter whether `local_calendar` (local, no cloud), Google or CalDAV. Home Assistant delivers them all in the same shape.
 

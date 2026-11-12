@@ -31,6 +31,22 @@ export function daysBetween(from: Date, to: Date): number {
   return Math.round((b.getTime() - a.getTime()) / DAY_MS);
 }
 
+/**
+ * Events pushed by `calendar/event/subscribe` carry start/end as plain ISO
+ * strings plus `all_day`; the REST API wraps them as {dateTime} / {date}.
+ * Bring a pushed event into the REST shape, so one parser serves both.
+ */
+export function liveToApiEvent(ev: any): any {
+  if (!ev || typeof ev.start !== "string") return ev;
+  const wrap = (v: string) =>
+    ev.all_day === true || /^\d{4}-\d{2}-\d{2}$/.test(v) ? { date: v } : { dateTime: v };
+  return {
+    ...ev,
+    start: wrap(ev.start),
+    end: wrap(typeof ev.end === "string" ? ev.end : ev.start),
+  };
+}
+
 export type RepeatFreq = "" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
 
 /**

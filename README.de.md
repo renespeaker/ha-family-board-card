@@ -50,6 +50,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Mehrsprachig & lokalisiert** – Texte in Deutsch/Englisch, Wochentage und Uhrzeiten (12/24 h) aus der HA-Locale; relative Tage („Heute/Morgen").
 - **Alltags-Politur** – vergangene Termine ausgegraut, Einfärben auch nach Kalender, Ort direkt in der Karten-App öffnen, störende Termine per Muster ausblenden.
 - **Live-Fortschritt & Countdown** – laufende Termine zeigen einen Fortschrittsbalken (abschaltbar), kommende in der Agenda ein „in 20 Min."; aktualisiert minütlich.
+- **Live-Updates, Sofort-Start** – ab Home Assistant 2026.5 abonniert das Board seine Kalender: Ein auf dem Handy angelegter Termin erscheint sofort auf dem Wandtablet, ohne auf die Aktualisierung zu warten. Nach dem Neuladen stehen die zuletzt bekannten Termine sofort da, bis die frischen geladen sind (pro Board im Browser, höchstens einen Tag alt). Ältere Home-Assistant-Versionen aktualisieren wie bisher.
 - **Wetter** – Tagesvorhersage aus einer `weather.*`-Entität (HA-Standort, nicht die Termin-Adresse): Symbol mit Höchst-/Tiefstwert im Kopf von Tag, Zeitstrahl und Agenda, Symbol + Höchstwert am Wochentag in der Wochenansicht, Symbol in den Monatszellen.
 - **Dichte Tage bleiben lesbar** – überlappen mehr Termine als `max_columns` erlaubt, werden die zusätzlichen Spalten zu einem „+N"-Chip zusammengefasst (Klick öffnet die Agenda) statt zu unlesbar schmalen Streifen zu schrumpfen.
 - **Lange Termine als Hintergrund-Band** – Dauertermine (z. B. OGS/Betreuung, „Freispiel") ab einer einstellbaren Länge laufen als dezentes Vollbreiten-Band hinter der Spalte, statt die kurzen Stunden nebeneinander zu quetschen. So bekommen die eigentlichen Termine die volle Breite.
@@ -69,7 +70,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Kompakt-Modus** – ein Schalter (`compact`) für kleinere Schriften und engere Abstände, statt drei Regler einzeln zu justieren.
 - **Personen beim Start ausgeblendet** – `hidden: true` pro Person; die Spalte startet eingeklappt und ein Klick auf den Kopf holt sie zurück.
 
-> Status: **v0.31 – vollständige Familien-Tagesplanung: 6 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
+> Status: **v0.32 – vollständige Familien-Tagesplanung: 6 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
 
 ## Installation (HACS)
 
@@ -168,7 +169,7 @@ persons:
 | `night_start` / `night_end` | Uhrzeit | – | Nachtbildschirm zwischen diesen Zeiten (z. B. `"21:00"` / `"06:30"`): dunkle, gedimmte Uhr mit dem, was als Nächstes kommt; Antippen weckt das Board für `auto_return` Minuten (mindestens 2). Beide nötig |
 | `swipe`         | boolean | `false` | Touchscreens: nach links/rechts wischen für nächsten/vorigen Tag, Woche oder Monat (in den Profilen Wandtablet und Handy schon an) |
 | `scroll_to_now` | boolean | `true`  | Beim Laden automatisch zu „jetzt“ scrollen: Tagesansicht zur aktuellen Uhrzeit, Zeitstrahl horizontal zur Jetzt-Linie, Agenda zum heutigen Abschnitt (hat heute keine Termine, zum nächsten Tag mit Terminen) |
-| `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen |
+| `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen. Ab Home Assistant 2026.5 kommen Änderungen ohnehin live – das ist das Sicherheitsnetz |
 
 Jede `calendar.*`-Entität funktioniert – egal ob `local_calendar` (lokal, ohne Cloud), Google oder CalDAV. Home Assistant liefert alle einheitlich.
 
