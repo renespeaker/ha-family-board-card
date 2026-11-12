@@ -264,14 +264,17 @@ for (const [view, sel, width] of [
   ["month", ".mcell", 1400],
   ["month", ".mcell", 400],
   ["day", ".famband", 400],
+  ["now", ".cdband", 400],
 ]) {
   const { page } = await open({ view, width });
   const fit = await page.evaluate((sel) => {
     const root = document.querySelector("family-board-card").renderRoot;
-    const cells = [...root.querySelectorAll(sel)].filter((c) => c.querySelector(".famchip"));
+    const cells = [...root.querySelectorAll(sel)].filter((c) =>
+      c.querySelector(".famchip, .cdchip"),
+    );
     const bad = cells.filter((c) => {
       const box = c.getBoundingClientRect();
-      return [...c.querySelectorAll(".famchip")].some((chip) => {
+      return [...c.querySelectorAll(".famchip, .cdchip")].some((chip) => {
         const r = chip.getBoundingClientRect();
         // the chip box leaves the cell, or its text spills out of the chip
         // (an ellipsis clips inside the chip and is fine)

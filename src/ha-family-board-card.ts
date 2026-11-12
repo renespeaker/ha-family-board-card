@@ -82,6 +82,8 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   map_url?: string; // location link template, {location} is replaced (URL-encoded)
   show_progress?: boolean; // progress bar on running events. default true
   family_calendars?: string | string[]; // calendar.* for everyone (holidays, bin collection …), shown above the people
+  countdowns?: string[]; // now view: "in 12 days" chips for coming events whose title matches
+  countdown_days?: number; // how far ahead countdowns look. default 60
   weather_entity?: string; // weather.* entity for the daily forecast
   show_weather?: boolean; // show weather in headers. default true when entity set
   refresh_interval?: number; // seconds; 0 disables. default 300
@@ -333,6 +335,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _dragGrid = 30;
   private _suppressClick = false;
   private _raw: RawEvent[] = [];
+  /** Coming events that match `countdowns` (now view), up to countdown_days ahead. */
+  @state() private _countdowns: RawEvent[] = [];
+  private _countdownKey = "";
   /** Events of the shared family calendars (personIdx -1); never part of _raw. */
   @state() private _family: RawEvent[] = [];
   private _fetchedKey = "";
@@ -622,6 +627,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if ((changed.has("hass") || changed.has("_config")) && this.hass && this._config) {
       this._maybeFetch();
       this._maybeFetchWeather();
+      this._maybeFetchCountdowns();
       this._maybeFetchTasks();
     } else if (
       (changed.has("_view") || changed.has("_weekOffset") || changed.has("_monthOffset")) &&
@@ -630,6 +636,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     ) {
       // navigating needs other data - don't wait for the next hass update
       this._maybeFetch();
+      this._maybeFetchCountdowns();
     }
     if (changed.has("_dialog")) this._manageDialogFocus(changed.get("_dialog") as DialogState);
     this._measureFit();
@@ -947,6 +954,97 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   /** Fetch the daily forecast for the configured weather entity (once/day). */
+  private _countdownPatterns(): string[] {
+    const c = this._config.countdowns;
+    return (Array.isArray(c) ? c : []).map((p) => String(p).trim().toLowerCase()).filter(Boolean);
+  }
+
+  /**
+   * Countdowns look further ahead than any view (default 60 days), so they
+   * get a request of their own - only while the now view, which shows them,
+   * is open, and once a day.
+   */
+  private async _maybeFetchCountdowns(): Promise<void> {
+    const pats = this._countdownPatterns();
+    const days = Math.min(Math.max(Number(this._config.countdown_days ?? 60) || 60, 1), 366);
+    const cals = [
+      ...this._config.persons.flatMap((p, idx) => this._calsOf(p).map((c) => [c, idx] as const)),
+      ...this._familyCals().map((c) => [c, -1] as const),
+    ].filter(([c]) => this.hass.states[c]);
+    if (!pats.length || this._view !== "now" || !cals.length) {
+      if (this._countdowns.length) this._countdowns = [];
+      this._countdownKey = "";
+      return;
+    }
+    const today = startOfDay(new Date());
+    const key = `${toLocalDate(today)}|${days}|${pats.join(",")}|${cals.map(([c]) => c).join(",")}`;
+    if (key === this._countdownKey) return;
+    this._countdownKey = key;
+    const start = encodeURIComponent(today.toISOString());
+    const end = encodeURIComponent(addDays(today, days + 1).toISOString());
+    const found: RawEvent[] = [];
+    await Promise.all(
+      cals.map(async ([cal, idx]) => {
+        try {
+          const events = await this.hass.callApi<any[]>(
+            "GET",
+            `calendars/${cal}?start=${start}&end=${end}`,
+          );
+          for (const ev of events) {
+            const raw = parseRawEvent(ev, idx, cal, "");
+            if (!raw || this._hidden(raw.summary) || !this._allowed(raw.summary)) continue;
+            raw.summary = this._cleanTitle(raw.summary);
+            const title = raw.summary.toLowerCase();
+            if (pats.some((p) => title.includes(p))) found.push(raw);
+          }
+        } catch (e) {
+          // a calendar that fails just has no countdowns
+        }
+      }),
+    );
+    // one chip per event, even when it sits in several calendars
+    const seen = new Set<string>();
+    this._countdowns = found
+      .sort((a, b) => a.start.getTime() - b.start.getTime())
+      .filter((r) => {
+        const k = `${r.summary}|${r.start.getTime()}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+  }
+
+  /** "🏖️ Urlaub · in 12 Tagen" for events that have not started yet. */
+  private _countdownBand() {
+    const now = new Date();
+    const today = startOfDay(now);
+    const items = this._countdowns.filter((r) => r.start.getTime() > now.getTime()).slice(0, 6);
+    if (!items.length) return nothing;
+    const rtf = new Intl.RelativeTimeFormat(this.hass.locale?.language || undefined, {
+      numeric: "auto",
+    });
+    return html`<div class="cdband" role="list">
+      ${items.map((r) => {
+        const n = daysBetween(today, startOfDay(r.start));
+        const when = n === 0 ? formatTime(this.hass, r.start) : rtf.format(n, "day");
+        const color =
+          r.personIdx >= 0
+            ? personColor(this._persons[r.personIdx], r.personIdx)
+            : this._calMeta(r.calendar).color || "var(--secondary-text-color)";
+        const icon = this._calIcon(r.calendar);
+        return html`<span class="cdchip" role="listitem" style="--fc:${color}">
+          ${
+            icon
+              ? html`<ha-icon .icon=${icon}></ha-icon>`
+              : HAS_EMOJI.test(r.summary)
+                ? nothing
+                : html`<span aria-hidden="true">${this._autoIcon(r.summary, true) || "⏳"}</span>`
+          }<span class="famtext">${r.summary}</span> <b>${when}</b>
+        </span>`;
+      })}
+    </div>`;
+  }
+
   private async _maybeFetchWeather(): Promise<void> {
     const ent = this._config.weather_entity;
     if (!ent || this._config.show_weather === false || !this.hass.states[ent]) {
@@ -1424,8 +1522,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   /** Emoji for a title via custom rules then the built-in keyword map. */
-  private _autoIcon(title: string): string {
-    if (this._config.auto_icons !== true) return "";
+  /** Emoji for a title by keyword; `always` also when auto_icons is off (countdowns). */
+  private _autoIcon(title: string, always = false): string {
+    if (this._config.auto_icons !== true && !always) return "";
     if (!title || HAS_EMOJI.test(title)) return "";
     const custom = this._config.icon_patterns;
     if (Array.isArray(custom)) {
@@ -1907,7 +2006,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           ${this._weatherChip(now)}
           ${this._loading && this._raw.length === 0 ? html`<span class="spinner"></span>` : nothing}
         </div>
-        ${this._familyBand(now)}
+        ${this._familyBand(now)} ${this._countdownBand()}
         <ul class="nowlist">
           ${this._persons.map((p, i) => {
             if (this._isOff(i)) return nothing;
@@ -4689,6 +4788,37 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       align-items: flex-start;
       justify-content: center;
       gap: 3px;
+    }
+
+    /* countdowns in the now view: "🏖️ Holiday · in 12 days" */
+    .cdband {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 8px;
+      margin: -2px 0 12px;
+    }
+    .cdchip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--fc) 14%, var(--card-background-color, #fff));
+      border: 1px solid color-mix(in srgb, var(--fc) 45%, transparent);
+    }
+    .cdchip ha-icon {
+      --mdc-icon-size: 15px;
+      color: var(--fc);
+      flex: none;
+    }
+    .cdchip b {
+      font-weight: 700;
+      white-space: nowrap;
+      color: var(--fb-soft-text);
     }
 
     /* "now" view: large, calm glance for wall tablets and small displays */

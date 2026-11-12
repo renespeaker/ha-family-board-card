@@ -86,7 +86,7 @@ const D = (i) => { const d = day(i); return `${d.getFullYear()}-${String(d.getMo
 const A = (i,j,s) => ({uid:"a"+(n++),summary:s,start:{date:D(i)},end:{date:D(j)}});
 cal["calendar.muell"] = [A(t,t+1,T.bin), A(t+7,t+8,T.bin)];
 cal["calendar.ferien"] = [A(t+1,t+6,T.hol)];
-cal["calendar.familie"] = [E(t,T.parents,19,0,20,30)];
+cal["calendar.familie"] = [E(t,T.parents,19,0,20,30), A(t+9,t+10,T.bday)];
 const person = (n,s)=>({state:s,attributes:{friendly_name:n}});
 const hass = {
   locale:{language:lang,time_format:lang==="de"?"24":"12"},
@@ -123,6 +123,7 @@ el.setConfig({
   calendars: { "calendar.muell": { icon: "mdi:trash-can", color: "#EAB308" },
                "calendar.ferien": { icon: "mdi:beach", color: "#22C55E" } },
   swipe: Q.has("swipe"),
+  countdowns: lang === "de" ? ["ferien", "geburtstag"] : ["break", "birthday"],
   show_focus: !Q.has("slim"), auto_icons:true, slim_header: Q.has("slim"), show_alerts: Q.has("alerts"), gap_min:60,
   background_hours: 3, start_hour:7, end_hour:18, trim_hours:false,
   hour_height: 64, hour_width: 110, time_grid:15,

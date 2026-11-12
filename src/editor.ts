@@ -166,6 +166,17 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         name: "family_calendars",
         selector: { entity: { filter: { domain: "calendar" }, multiple: true } },
       },
+      ...(views.includes("now")
+        ? [{ name: "countdowns", selector: { text: { multiple: true } } }]
+        : []),
+      ...(views.includes("now") && (cfg.countdowns?.length ?? 0) > 0
+        ? [
+            {
+              name: "countdown_days",
+              selector: { number: { min: 1, max: 366, mode: "box", unit_of_measurement: "d" } },
+            },
+          ]
+        : []),
       { name: "weather_entity", selector: { entity: { filter: { domain: "weather" } } } },
       { name: "map_url", selector: { text: {} } },
     ];

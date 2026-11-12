@@ -33,7 +33,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Startet auch an einem anderen Tag** – `day_offset` verschiebt Tages- und Zeitstrahl-Ansicht um N Tage (`1` = morgen). Gedacht für Anzeigen, die den kommenden Tag zeigen sollen – etwa ein E-Paper-Display im Flur.
 - **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
 - **„Jetzt / als Nächstes"-Leiste** – optionale Glanz-Zeile über den Ansichten: pro Person auf einen Blick, was gerade läuft (mit Puls-Punkt) oder als Nächstes ansteht (inkl. Countdown) – ideal fürs Wandtablet.
-- **Jetzt-Ansicht** – ein ruhiger Überblick über die ganze Karte fürs Wandtablet oder ein kleines Display: große Uhr und Datum, pro Person was gerade läuft (mit Fortschritt), ganztägige Termine von heute und was als Nächstes kommt („in 25 Min.", „16:30", „Morgen 08:00"). Opt-in: `now` in `views` aufnehmen oder `view: now` setzen. Zusammen mit `auto_return` kehrt das Tablet immer dorthin zurück.
+- **Jetzt-Ansicht** – ein ruhiger Überblick über die ganze Karte fürs Wandtablet oder ein kleines Display: große Uhr und Datum, pro Person was gerade läuft (mit Fortschritt), ganztägige Termine von heute und was als Nächstes kommt („in 25 Min.", „16:30", „Morgen 08:00"). Opt-in: `now` in `views` aufnehmen oder `view: now` setzen. Zusammen mit `auto_return` kehrt das Tablet immer dorthin zurück. Mit `countdowns` (Stichworte wie `urlaub`, `geburtstag`) erscheinen passende kommende Termine als Chips – „🏖️ Urlaub in 12 Tagen“, bis `countdown_days` (Standard 60) Tage voraus.
 - **Barrierearm** – komplett per Tastatur bedienbar (Pfeiltasten in den Tab-Leisten, der Fokus springt in den Dialog und bleibt dort bis Esc), Screenreader lesen Termine mit Titel, Uhrzeit und Person vor. In jeder Ansicht mit axe-core geprüft.
 - **Auto-Symbole** – optional bekommt jeder Termin per Stichwort ein passendes Emoji (Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂, Schule → 🎒 …); eigene Regeln möglich. Titel, die schon ein Emoji haben, bleiben unberührt.
 - **Zeitstrahl-Ansicht** – Personen als Zeilen links, die Zeit läuft horizontal: Termine als Balken auf einem Zeitstrahl (Gantt-Stil); überlappende Termine stapeln sich in Unterzeilen.
@@ -147,6 +147,8 @@ persons:
 | `radius`        | number  | –       | Ecken-Radius der Termin-Blöcke in px (setzt `--fb-radius`) |
 | `past_opacity`  | number  | –       | Deckkraft vergangener Termine in % (setzt `--fb-past-opacity`) |
 | `show_progress` | boolean | `true`  | Fortschrittsbalken am laufenden Termin |
+| `countdowns`    | Liste   | –       | Jetzt-Ansicht: Stichworte (z. B. `[urlaub, geburtstag]`); kommende Termine mit passendem Titel erscheinen als „in 12 Tagen“-Chips |
+| `countdown_days`| number  | `60`    | Wie viele Tage voraus Countdowns schauen |
 | `family_calendars` | Liste | –     | `calendar.*`-Entitäten für alle (Feiertage, Müllabfuhr …), erscheinen über den Personen |
 | `weather_entity`| string  | –       | `weather.*`-Entität für die Tages-Vorhersage (HA-Standort) |
 | `show_weather`  | boolean | `true`* | Wetter in den Ansichten anzeigen (*wirkt nur, wenn `weather_entity` gesetzt) |

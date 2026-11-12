@@ -33,7 +33,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Can start on another day** – `day_offset` shifts the day and timeline views by N days (`1` = tomorrow). Meant for displays that should show the day ahead – an e-paper panel in the hallway, say.
 - **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
 - **“Now / next” bar** – optional highlight row above the views: per person, what is running right now (with a pulsing dot) or what is coming next (incl. countdown) – made for the wall tablet.
-- **Now view** – a calm full-card glance for a wall tablet or a small display: large clock and date, and per person what is running right now (with progress), today's all-day events and what comes next (“in 25 min”, “16:30”, “Tomorrow 08:00”). Opt-in: add `now` to `views`, or set `view: now`. Combined with `auto_return` the tablet always falls back to it.
+- **Now view** – a calm full-card glance for a wall tablet or a small display: large clock and date, and per person what is running right now (with progress), today's all-day events and what comes next (“in 25 min”, “16:30”, “Tomorrow 08:00”). Opt-in: add `now` to `views`, or set `view: now`. Combined with `auto_return` the tablet always falls back to it. With `countdowns` (keywords such as `holiday`, `birthday`) coming events that match show as chips – “🏖️ Holiday in 12 days”, up to `countdown_days` (default 60) ahead.
 - **Accessible** – fully usable by keyboard (arrow keys in the tab lists, focus moves into the dialog and stays there until Esc), and screen readers announce events with title, time and person. Checked with axe-core in every view.
 - **Auto icons** – optionally every event gets a matching emoji by keyword (doctor → 🩺, sport → 🏃, birthday → 🎂, school → 🎒 …); custom rules possible. Titles that already contain an emoji stay untouched.
 - **Timeline view** – people as rows on the left, time running horizontally: events as bars on a timeline (Gantt style); overlapping events stack into sub-rows.
@@ -147,6 +147,8 @@ persons:
 | `radius` | number | – | Corner radius of the event blocks in px (sets `--fb-radius`) |
 | `past_opacity` | number | – | Opacity of past events in % (sets `--fb-past-opacity`) |
 | `show_progress` | boolean | `true` | Progress bar on the running event |
+| `countdowns` | list | – | Now view: keywords (e.g. `[holiday, birthday]`); coming events whose title matches show as “in 12 days” chips |
+| `countdown_days` | number | `60` | How many days ahead countdowns look |
 | `family_calendars` | list | – | `calendar.*` entities for everyone (holidays, bin collection …), shown above the people |
 | `weather_entity` | string | – | `weather.*` entity for the daily forecast (HA location) |
 | `show_weather` | boolean | `true`* | Show the weather in the views (*only takes effect when `weather_entity` is set) |

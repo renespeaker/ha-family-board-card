@@ -1162,3 +1162,60 @@ describe("rolling week (first_day: today)", () => {
     expect(texts(".mhcell")[0]).toBe("Mo");
   });
 });
+
+describe("countdowns (now view)", () => {
+  const at = (summary: string, day: string, extra: Record<string, unknown> = {}) => ({
+    uid: `${summary}-${day}`,
+    summary,
+    start: { date: day },
+    end: { date: day },
+    ...extra,
+  });
+  const calendars = {
+    "calendar.anna": [
+      ev("Büro", "09:00", "17:00"),
+      at("Urlaub Ostsee", "2026-09-23"),
+      at("Urlaub Harz", "2026-09-01"), // already over
+      at("Zahnarzt", "2026-09-15"), // no keyword
+      at("Urlaub geheim", "2026-09-20"), // hidden by hide_patterns
+    ],
+    "calendar.familie": [at("Geburtstag Oma", "2026-09-12")],
+  };
+  const base = {
+    persons: [{ name: "Anna", calendar: "calendar.anna" }],
+    family_calendars: ["calendar.familie"],
+    countdowns: ["urlaub", "geburtstag"],
+    hide_patterns: ["geheim"],
+  };
+
+  it("shows coming matching events with the days left, soonest first", async () => {
+    const { texts } = await mount({ ...base, view: "now", views: ["now"] }, { calendars });
+    expect(texts(".cdchip")).toEqual(["🎂Geburtstag Oma morgen", "🏖️Urlaub Ostsee in 12 Tagen"]);
+  });
+
+  it("looks ahead countdown_days with a request of its own", async () => {
+    const { apiPaths } = await mount(
+      { ...base, view: "now", views: ["now"], countdown_days: 30 },
+      { calendars },
+    );
+    const long = apiPaths
+      .map((p) => new URLSearchParams(p.split("?")[1]))
+      .filter((q) => new Date(q.get("end") as string).getMonth() === 9); // reaches October
+    expect(long.length).toBeGreaterThan(0);
+    expect(new Date(long[0].get("end") as string).getDate()).toBe(12); // 11 Sep + 31 days
+  });
+
+  it("costs nothing outside the now view or without keywords", async () => {
+    const day = await mount(
+      { ...base, view: "day", views: ["day", "now"], start_hour: 7, end_hour: 20 },
+      { calendars },
+    );
+    expect(day.root.querySelector(".cdchip")).toBeNull();
+    const plain = await mount(
+      { persons: base.persons, view: "now", views: ["now"] },
+      { calendars },
+    );
+    expect(plain.root.querySelector(".cdband")).toBeNull();
+    expect(day.apiPaths.concat(plain.apiPaths).every((p) => !p.includes("2026-10"))).toBe(true);
+  });
+});
