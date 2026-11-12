@@ -207,6 +207,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
               options: [
                 { value: "monday", label: this._t("o_monday") },
                 { value: "sunday", label: this._t("o_sunday") },
+                { value: "today", label: this._t("o_today") },
               ],
             },
           },

@@ -161,7 +161,7 @@ persons:
 | `tentative_patterns` | Liste | –    | Termine mit passendem Titel-Muster als vorläufig (gestrichelt/transparent) markieren |
 | `day_offset`    | number  | `0`     | Tag-/Zeitstrahl-Ansicht startet um N Tage versetzt: `1` = morgen, `-1` = gestern. Der Versatz überspringt korrekt die Wochengrenze und bleibt auch nach `auto_return` erhalten (für E-Paper- und Info-Displays) |
 | `slim_header`   | boolean | `false` | Schlanker Kopf: Wochentage wandern auf die Navigationszeile, Avatar steht neben dem Namen – spart rund 40 px Höhe |
-| `first_day`     | string  | `monday`| Wochenstart: `monday` oder `sunday` |
+| `first_day`     | string  | `monday`| Wochenstart: `monday`, `sunday` oder `today` – eine rollende Woche: heute und die nächsten sechs Tage, so zeigt das Wandtablet am Sonntag schon die neue Woche (das Monatsraster bleibt bei Montag) |
 | `swipe`         | boolean | `false` | Touchscreens: nach links/rechts wischen für nächsten/vorigen Tag, Woche oder Monat (in den Profilen Wandtablet und Handy schon an) |
 | `scroll_to_now` | boolean | `true`  | Beim Laden automatisch zu „jetzt“ scrollen: Tagesansicht zur aktuellen Uhrzeit, Zeitstrahl horizontal zur Jetzt-Linie, Agenda zum heutigen Abschnitt (hat heute keine Termine, zum nächsten Tag mit Terminen) |
 | `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen |

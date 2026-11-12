@@ -1115,3 +1115,50 @@ describe("swipe to page", () => {
     expect(el._day).toBe(4);
   });
 });
+
+describe("rolling week (first_day: today)", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = {
+    "calendar.anna": [
+      ev("Büro", "09:00", "17:00"),
+      {
+        uid: "mo",
+        summary: "Zahnarzt",
+        start: { dateTime: "2026-09-14T10:00:00" },
+        end: { dateTime: "2026-09-14T11:00:00" },
+      },
+    ],
+  };
+  const name = (n: Element) => (n.textContent ?? "").replace(/\s+/g, " ").trim();
+
+  it("starts the week view today and reaches into next week", async () => {
+    const { all, text, apiPaths } = await mount(
+      { persons, view: "week", views: ["week"], first_day: "today" },
+      { calendars },
+    );
+    expect(name(all(".wday")[0])).toMatch(/^Freitag, 11\. September/);
+    expect(name(all(".wday")[6])).toMatch(/^Donnerstag, 17\. September/);
+    // Monday the 14th belongs to next calendar week, but is in the rolling one
+    expect(text()).toContain("Zahnarzt");
+    const q = new URLSearchParams(apiPaths[0].split("?")[1]);
+    expect(new Date(q.get("start") as string).getDate()).toBe(11);
+    expect(new Date(q.get("end") as string).getDate()).toBe(18);
+  });
+
+  it("puts today first in the day tabs", async () => {
+    const { texts } = await mount(
+      { persons, view: "day", views: ["day"], first_day: "today", start_hour: 7, end_hour: 20 },
+      { calendars },
+    );
+    expect(texts(".tabs [role=tab]")).toEqual(["Fr", "Sa", "So", "Mo", "Di", "Mi", "Do"]);
+    expect(texts(".tabs [aria-selected=true]")).toEqual(["Fr"]);
+  });
+
+  it("keeps the month grid on Monday columns", async () => {
+    const { texts } = await mount(
+      { persons, view: "month", views: ["month"], first_day: "today" },
+      { calendars },
+    );
+    expect(texts(".mhcell")[0]).toBe("Mo");
+  });
+});

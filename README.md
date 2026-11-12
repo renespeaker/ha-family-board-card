@@ -161,7 +161,7 @@ persons:
 | `tentative_patterns` | list | – | Mark events with a matching title pattern as tentative (dashed / translucent) |
 | `day_offset` | number | `0` | Day/timeline view starts N days off: `1` = tomorrow, `-1` = yesterday. The shift crosses the week boundary correctly and survives `auto_return` (for e-paper and info displays) |
 | `slim_header` | boolean | `false` | Slim header: the weekday buttons move onto the navigation line and the avatar sits next to the name – saves about 40 px of height |
-| `first_day` | string | `monday` | Week starts on `monday` or `sunday` |
+| `first_day` | string | `monday` | Week starts on `monday`, `sunday` or `today` – a rolling week: today and the next six days, so a wall tablet on Sunday already shows the coming week (the month grid keeps Monday columns) |
 | `swipe` | boolean | `false` | Touch screens: swipe left/right for the next/previous day, week or month (on by default in the wall-tablet and phone profiles) |
 | `scroll_to_now` | boolean | `true` | Scroll to “now” on load: the day view to the current time, the timeline horizontally to the now line, the agenda to today's section (or the next day with events when today has none) |
 | `refresh_interval` | number | `300` | Auto refresh of the events in seconds (0 = off); additionally when the tablet wakes up |

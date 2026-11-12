@@ -108,6 +108,7 @@ const EN: Dict = {
   o_calendar: "Calendar",
   o_monday: "Monday",
   o_sunday: "Sunday",
+  o_today: "Today (rolling week)",
 
   /* ---- group titles ---------------------------------------------- */
   g_views: "🗓️ Views",
@@ -253,6 +254,7 @@ const DE: Dict = {
   o_calendar: "Kalender",
   o_monday: "Montag",
   o_sunday: "Sonntag",
+  o_today: "Heute (rollende Woche)",
 
   g_views: "🗓️ Ansichten",
   g_layout: "📐 Layout & Größe",

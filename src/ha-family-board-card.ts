@@ -100,7 +100,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   trim_hours?: boolean; // day view: cut empty edge hours so events get the full height. default true
   background_hours?: number; // timed events >= this many hours become a faint band. default 3, 0=off
   max_columns?: number; // max side-by-side columns per person/day. default 3
-  first_day?: "monday" | "sunday"; // week start. default monday
+  first_day?: "monday" | "sunday" | "today"; // week start; "today" = a rolling week. default monday
   scroll_to_now?: boolean; // auto-scroll day view to current time. default true
   swipe?: boolean; // touch: swipe left/right to page days, weeks or months. default false
 }
@@ -436,15 +436,24 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private get _firstDayJs(): number {
     return this._config?.first_day === "sunday" ? 0 : 1;
   }
+
+  /**
+   * JS weekday the shown week starts on. With `first_day: today` the week
+   * rolls: today and the next six days, so a wall tablet on a Sunday shows the
+   * coming week. The month grid keeps its columns (`_firstDayJs`).
+   */
+  private get _weekStartJs(): number {
+    return this._config?.first_day === "today" ? new Date().getDay() : this._firstDayJs;
+  }
   /** Column index (0..6 from week start) of the real today. */
   private _todayIndex(): number {
-    return (new Date().getDay() - this._firstDayJs + 7) % 7;
+    return (new Date().getDay() - this._weekStartJs + 7) % 7;
   }
 
   /** Start of the week (per `first_day`) that `date` falls into. */
   private _weekStart(date: Date): Date {
     const d = startOfDay(date);
-    d.setDate(d.getDate() - ((d.getDay() - this._firstDayJs + 7) % 7));
+    d.setDate(d.getDate() - ((d.getDay() - this._weekStartJs + 7) % 7));
     return d;
   }
 
@@ -462,7 +471,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const today = startOfDay(new Date());
     const target = addDays(today, offset);
     const week = daysBetween(this._weekStart(today), this._weekStart(target)) / 7;
-    return { day: (target.getDay() - this._firstDayJs + 7) % 7, week };
+    return { day: (target.getDay() - this._weekStartJs + 7) % 7, week };
   }
 
   public getCardSize(): number {
@@ -793,7 +802,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const monday = new Date(now); // "monday" = configured week start
     monday.setHours(0, 0, 0, 0);
     monday.setDate(
-      now.getDate() - ((now.getDay() - this._firstDayJs + 7) % 7) + this._weekOffset * 7,
+      now.getDate() - ((now.getDay() - this._weekStartJs + 7) % 7) + this._weekOffset * 7,
     );
     const nextMonday = new Date(monday);
     nextMonday.setDate(monday.getDate() + 7);
@@ -835,7 +844,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         ? `n${toLocalDate(new Date())}`
         : this._view === "month"
           ? `m${this._monthOffset}`
-          : `w${this._weekOffset}`;
+          : `w${this._weekOffset}${this._config.first_day === "today" ? toLocalDate(new Date()) : ""}`;
     const key = `${scope}|${cals}`;
     if (key === this._fetchedKey) return;
     this._fetchedKey = key;
@@ -1255,7 +1264,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
   /** Column index (0..6 from week start) -> JS weekday (0=Sun..6=Sat). */
   private _jsDay(index: number): number {
-    return (this._firstDayJs + index) % 7;
+    return (this._weekStartJs + index) % 7;
   }
   private get _visibleDays(): number[] {
     const all = [0, 1, 2, 3, 4, 5, 6];
@@ -1590,12 +1599,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const today = startOfDay(new Date());
     const toWeekStart = (d: Date) => {
       const s = startOfDay(d);
-      s.setDate(s.getDate() - ((s.getDay() - this._firstDayJs + 7) % 7));
+      s.setDate(s.getDate() - ((s.getDay() - this._weekStartJs + 7) % 7));
       return s;
     };
     const weeks = daysBetween(toWeekStart(today), toWeekStart(date)) / 7;
     this._weekOffset = weeks;
-    this._day = (date.getDay() - this._firstDayJs + 7) % 7;
+    this._day = (date.getDay() - this._weekStartJs + 7) % 7;
   }
 
   /**
@@ -1609,7 +1618,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       let date = this._dateForDay(this._day);
       for (let i = 0; i < 7; i++) {
         date = addDays(date, dir);
-        if (visible.includes((date.getDay() - this._firstDayJs + 7) % 7)) break;
+        if (visible.includes((date.getDay() - this._weekStartJs + 7) % 7)) break;
       }
       this._showDate(date);
     } else if (this._view === "week" || this._view === "agenda") {
@@ -2002,7 +2011,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private _renderDayTabs() {
-    const short = weekdayNames(this.hass, "short", this._firstDayJs);
+    const short = weekdayNames(this.hass, "short", this._weekStartJs);
     return html`
       <div
         class="tabs"
@@ -2033,7 +2042,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const hourPx = 60 * px;
     const { startMin, endMin } = this._dayWindow(day);
     const height = (endMin - startMin) * px;
-    const full = weekdayNames(this.hass, "long", this._firstDayJs);
+    const full = weekdayNames(this.hass, "long", this._weekStartJs);
 
     const hours: number[] = [];
     for (let h = startMin / 60; h <= endMin / 60; h++) hours.push(h);
@@ -2344,7 +2353,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const hourPx = Math.min(240, Math.max(48, Number(this._config.hour_width) || 96));
     const px = hourPx / 60;
     const width = (endMin - startMin) * px;
-    const full = weekdayNames(this.hass, "long", this._firstDayJs);
+    const full = weekdayNames(this.hass, "long", this._weekStartJs);
     const hours: number[] = [];
     for (let h = startMin / 60; h <= endMin / 60; h++) hours.push(h);
     const now = new Date();
@@ -2530,7 +2539,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private _renderWeek() {
-    const short = weekdayNames(this.hass, "short", this._firstDayJs);
+    const short = weekdayNames(this.hass, "short", this._weekStartJs);
     // optionally hide persons without any events in the shown week
     const people = this._persons
       .map((p, i) => ({ p, i }))
@@ -2637,7 +2646,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private _renderAgenda() {
-    const full = weekdayNames(this.hass, "long", this._firstDayJs);
+    const full = weekdayNames(this.hass, "long", this._weekStartJs);
     const dateFmt = new Intl.DateTimeFormat(this.hass.locale?.language || "en", {
       day: "numeric",
       month: "short",
