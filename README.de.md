@@ -18,7 +18,8 @@
 <td valign="top"><b>Auf dem Handy</b> – die Tagesansicht auf kleinem Bildschirm<br><img src="docs/preview-phone.png" alt="Family Board Card – Auf dem Handy"></td>
 </tr>
 <tr>
-<td colspan="2" valign="top"><b>Dunkles Design</b> – folgt deinem Home-Assistant-Theme<br><img src="docs/preview-dark.png" alt="Family Board Card – Dunkles Design"></td>
+<td valign="top"><b>Dunkles Design</b> – folgt deinem Home-Assistant-Theme<br><img src="docs/preview-dark.png" alt="Family Board Card – Dunkles Design"></td>
+<td valign="top"><b>Nachtbildschirm</b> – ruhig und gedimmt von `night_start` bis `night_end`; Antippen weckt das Board<br><img src="docs/preview-night.png" alt="Family Board Card – Nachtbildschirm"></td>
 </tr>
 </table>
 
@@ -33,7 +34,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Startet auch an einem anderen Tag** – `day_offset` verschiebt Tages- und Zeitstrahl-Ansicht um N Tage (`1` = morgen). Gedacht für Anzeigen, die den kommenden Tag zeigen sollen – etwa ein E-Paper-Display im Flur.
 - **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
 - **„Jetzt / als Nächstes"-Leiste** – optionale Glanz-Zeile über den Ansichten: pro Person auf einen Blick, was gerade läuft (mit Puls-Punkt) oder als Nächstes ansteht (inkl. Countdown) – ideal fürs Wandtablet.
-- **Jetzt-Ansicht** – ein ruhiger Überblick über die ganze Karte fürs Wandtablet oder ein kleines Display: große Uhr und Datum, pro Person was gerade läuft (mit Fortschritt), ganztägige Termine von heute und was als Nächstes kommt („in 25 Min.", „16:30", „Morgen 08:00"). Opt-in: `now` in `views` aufnehmen oder `view: now` setzen. Zusammen mit `auto_return` kehrt das Tablet immer dorthin zurück. Mit `countdowns` (Stichworte wie `urlaub`, `geburtstag`) erscheinen passende kommende Termine als Chips – „🏖️ Urlaub in 12 Tagen“, bis `countdown_days` (Standard 60) Tage voraus.
+- **Jetzt-Ansicht** – ein ruhiger Überblick über die ganze Karte fürs Wandtablet oder ein kleines Display: große Uhr und Datum, pro Person was gerade läuft (mit Fortschritt), ganztägige Termine von heute und was als Nächstes kommt („in 25 Min.", „16:30", „Morgen 08:00"). Opt-in: `now` in `views` aufnehmen oder `view: now` setzen. Zusammen mit `auto_return` kehrt das Tablet immer dorthin zurück. Mit `night_start` / `night_end` wird das Wandtablet nachts zum ruhigen, dunklen Nachtbildschirm – große Uhr und was morgen als Erstes ansteht – und Antippen weckt es. Mit `countdowns` (Stichworte wie `urlaub`, `geburtstag`) erscheinen passende kommende Termine als Chips – „🏖️ Urlaub in 12 Tagen“, bis `countdown_days` (Standard 60) Tage voraus.
 - **Barrierearm** – komplett per Tastatur bedienbar (Pfeiltasten in den Tab-Leisten, der Fokus springt in den Dialog und bleibt dort bis Esc), Screenreader lesen Termine mit Titel, Uhrzeit und Person vor. In jeder Ansicht mit axe-core geprüft.
 - **Auto-Symbole** – optional bekommt jeder Termin per Stichwort ein passendes Emoji (Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂, Schule → 🎒 …); eigene Regeln möglich. Titel, die schon ein Emoji haben, bleiben unberührt.
 - **Zeitstrahl-Ansicht** – Personen als Zeilen links, die Zeit läuft horizontal: Termine als Balken auf einem Zeitstrahl (Gantt-Stil); überlappende Termine stapeln sich in Unterzeilen.
@@ -164,6 +165,7 @@ persons:
 | `day_offset`    | number  | `0`     | Tag-/Zeitstrahl-Ansicht startet um N Tage versetzt: `1` = morgen, `-1` = gestern. Der Versatz überspringt korrekt die Wochengrenze und bleibt auch nach `auto_return` erhalten (für E-Paper- und Info-Displays) |
 | `slim_header`   | boolean | `false` | Schlanker Kopf: Wochentage wandern auf die Navigationszeile, Avatar steht neben dem Namen – spart rund 40 px Höhe |
 | `first_day`     | string  | `monday`| Wochenstart: `monday`, `sunday` oder `today` – eine rollende Woche: heute und die nächsten sechs Tage, so zeigt das Wandtablet am Sonntag schon die neue Woche (das Monatsraster bleibt bei Montag) |
+| `night_start` / `night_end` | Uhrzeit | – | Nachtbildschirm zwischen diesen Zeiten (z. B. `"21:00"` / `"06:30"`): dunkle, gedimmte Uhr mit dem, was als Nächstes kommt; Antippen weckt das Board für `auto_return` Minuten (mindestens 2). Beide nötig |
 | `swipe`         | boolean | `false` | Touchscreens: nach links/rechts wischen für nächsten/vorigen Tag, Woche oder Monat (in den Profilen Wandtablet und Handy schon an) |
 | `scroll_to_now` | boolean | `true`  | Beim Laden automatisch zu „jetzt“ scrollen: Tagesansicht zur aktuellen Uhrzeit, Zeitstrahl horizontal zur Jetzt-Linie, Agenda zum heutigen Abschnitt (hat heute keine Termine, zum nächsten Tag mit Terminen) |
 | `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen |

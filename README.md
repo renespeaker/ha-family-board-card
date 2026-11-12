@@ -18,7 +18,8 @@
 <td valign="top"><b>On the phone</b> – the day view on a small screen<br><img src="docs/preview-phone-en.png" alt="Family Board Card – On the phone"></td>
 </tr>
 <tr>
-<td colspan="2" valign="top"><b>Dark mode</b> – follows your Home Assistant theme<br><img src="docs/preview-dark-en.png" alt="Family Board Card – Dark mode"></td>
+<td valign="top"><b>Dark mode</b> – follows your Home Assistant theme<br><img src="docs/preview-dark-en.png" alt="Family Board Card – Dark mode"></td>
+<td valign="top"><b>Night screen</b> – calm and dim from `night_start` to `night_end`; a tap wakes the board<br><img src="docs/preview-night-en.png" alt="Family Board Card – Night screen"></td>
 </tr>
 </table>
 
@@ -33,7 +34,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Can start on another day** – `day_offset` shifts the day and timeline views by N days (`1` = tomorrow). Meant for displays that should show the day ahead – an e-paper panel in the hallway, say.
 - **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
 - **“Now / next” bar** – optional highlight row above the views: per person, what is running right now (with a pulsing dot) or what is coming next (incl. countdown) – made for the wall tablet.
-- **Now view** – a calm full-card glance for a wall tablet or a small display: large clock and date, and per person what is running right now (with progress), today's all-day events and what comes next (“in 25 min”, “16:30”, “Tomorrow 08:00”). Opt-in: add `now` to `views`, or set `view: now`. Combined with `auto_return` the tablet always falls back to it. With `countdowns` (keywords such as `holiday`, `birthday`) coming events that match show as chips – “🏖️ Holiday in 12 days”, up to `countdown_days` (default 60) ahead.
+- **Now view** – a calm full-card glance for a wall tablet or a small display: large clock and date, and per person what is running right now (with progress), today's all-day events and what comes next (“in 25 min”, “16:30”, “Tomorrow 08:00”). Opt-in: add `now` to `views`, or set `view: now`. Combined with `auto_return` the tablet always falls back to it. With `night_start` / `night_end` the wall tablet turns into a calm, dark night screen – big clock and what comes first tomorrow – and a tap wakes it. With `countdowns` (keywords such as `holiday`, `birthday`) coming events that match show as chips – “🏖️ Holiday in 12 days”, up to `countdown_days` (default 60) ahead.
 - **Accessible** – fully usable by keyboard (arrow keys in the tab lists, focus moves into the dialog and stays there until Esc), and screen readers announce events with title, time and person. Checked with axe-core in every view.
 - **Auto icons** – optionally every event gets a matching emoji by keyword (doctor → 🩺, sport → 🏃, birthday → 🎂, school → 🎒 …); custom rules possible. Titles that already contain an emoji stay untouched.
 - **Timeline view** – people as rows on the left, time running horizontally: events as bars on a timeline (Gantt style); overlapping events stack into sub-rows.
@@ -164,6 +165,7 @@ persons:
 | `day_offset` | number | `0` | Day/timeline view starts N days off: `1` = tomorrow, `-1` = yesterday. The shift crosses the week boundary correctly and survives `auto_return` (for e-paper and info displays) |
 | `slim_header` | boolean | `false` | Slim header: the weekday buttons move onto the navigation line and the avatar sits next to the name – saves about 40 px of height |
 | `first_day` | string | `monday` | Week starts on `monday`, `sunday` or `today` – a rolling week: today and the next six days, so a wall tablet on Sunday already shows the coming week (the month grid keeps Monday columns) |
+| `night_start` / `night_end` | time | – | Night screen between these times (e.g. `"21:00"` / `"06:30"`): a dark, dimmed clock with what comes next; a tap wakes the board for `auto_return` minutes (at least 2). Both needed |
 | `swipe` | boolean | `false` | Touch screens: swipe left/right for the next/previous day, week or month (on by default in the wall-tablet and phone profiles) |
 | `scroll_to_now` | boolean | `true` | Scroll to “now” on load: the day view to the current time, the timeline horizontally to the now line, the agenda to today's section (or the next day with events when today has none) |
 | `refresh_interval` | number | `300` | Auto refresh of the events in seconds (0 = off); additionally when the tablet wakes up |

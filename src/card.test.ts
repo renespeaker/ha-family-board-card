@@ -1219,3 +1219,73 @@ describe("countdowns (now view)", () => {
     expect(day.apiPaths.concat(plain.apiPaths).every((p) => !p.includes("2026-10"))).toBe(true);
   });
 });
+
+describe("night screen", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = {
+    "calendar.anna": [
+      {
+        uid: "fr",
+        summary: "Frühdienst",
+        start: { dateTime: "2026-09-14T06:00:00" }, // Monday: next week
+        end: { dateTime: "2026-09-14T14:00:00" },
+      },
+    ],
+  };
+  const base = {
+    persons,
+    view: "day" as const,
+    views: ["day" as const, "week" as const],
+    start_hour: 7,
+    end_hour: 20,
+    night_start: "21:00",
+    night_end: "06:30",
+  };
+
+  it("shows the calm night screen in the night hours, whatever the view", async () => {
+    // Sunday night in the day view: the week ends at midnight, the night screen
+    // still has to find Monday's early shift
+    const { el, root, text, apiPaths } = await mount(base, {
+      calendars,
+      now: "2026-09-13T23:00:00",
+    });
+    // asked from today on, past the end of the week
+    const q = new URLSearchParams(apiPaths[apiPaths.length - 1].split("?")[1]);
+    expect(new Date(q.get("start") as string).getDate()).toBe(13);
+    expect(new Date(q.get("end") as string).getDate()).toBe(21);
+    expect(el.hasAttribute("night")).toBe(true);
+    expect(root.querySelector(".nightcard .now")).not.toBeNull();
+    expect(root.querySelector(".switch")).toBeNull();
+    // what comes first tomorrow
+    expect(text()).toContain("Frühdienst");
+    expect(text()).toContain("Morgen 06:00");
+  });
+
+  it("also after midnight, and not during the day", async () => {
+    const late = await mount(base, { calendars, now: "2026-09-12T02:00:00" });
+    expect(late.el.hasAttribute("night")).toBe(true);
+    const day = await mount(base, { calendars, now: "2026-09-11T10:20:00" });
+    expect(day.el.hasAttribute("night")).toBe(false);
+    expect(day.root.querySelector(".switch")).not.toBeNull();
+  });
+
+  it("wakes on a touch and falls asleep again after a while", async () => {
+    const { el, root } = await mount(base, { calendars, now: "2026-09-11T23:00:00" });
+    const card = el as unknown as { updateComplete: Promise<unknown> };
+    el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await card.updateComplete;
+    expect(el.hasAttribute("night")).toBe(false);
+    expect(root.querySelector(".board")).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(3 * 60000); // the minute tick re-checks
+    await card.updateComplete;
+    expect(el.hasAttribute("night")).toBe(true);
+  });
+
+  it("stays off without both times", async () => {
+    const { el } = await mount(
+      { ...base, night_end: undefined },
+      { calendars, now: "2026-09-11T23:00:00" },
+    );
+    expect(el.hasAttribute("night")).toBe(false);
+  });
+});

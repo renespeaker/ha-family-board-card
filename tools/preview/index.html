@@ -123,6 +123,8 @@ el.setConfig({
   calendars: { "calendar.muell": { icon: "mdi:trash-can", color: "#EAB308" },
                "calendar.ferien": { icon: "mdi:beach", color: "#22C55E" } },
   swipe: Q.has("swipe"),
+  night_start: Q.has("night") ? "21:00" : undefined,
+  night_end: Q.has("night") ? "06:30" : undefined,
   countdowns: lang === "de" ? ["ferien", "geburtstag"] : ["break", "birthday"],
   show_focus: !Q.has("slim"), auto_icons:true, slim_header: Q.has("slim"), show_alerts: Q.has("alerts"), gap_min:60,
   background_hours: 3, start_hour:7, end_hour:18, trim_hours:false,

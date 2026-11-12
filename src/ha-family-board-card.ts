@@ -105,6 +105,8 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   first_day?: "monday" | "sunday" | "today"; // week start; "today" = a rolling week. default monday
   scroll_to_now?: boolean; // auto-scroll day view to current time. default true
   swipe?: boolean; // touch: swipe left/right to page days, weeks or months. default false
+  night_start?: string; // "21:00": from here a calm, dimmed night screen (clock + next events)
+  night_end?: string; // "06:30": ... until here. Both needed; a tap wakes the board for a while
 }
 
 /** A collapsed "+N more" marker for dense overlap clusters in the day view. */
@@ -555,7 +557,44 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   private _onInteract = (): void => {
     this._lastInteract = Date.now();
+    // a touch at night wakes the board for a while (auto_return, at least 2 min)
+    if (this._nightWindow()) {
+      const min = Math.max(Number(this._config.auto_return) || 0, 2);
+      this._wakeUntil = Date.now() + min * 60000;
+      this.requestUpdate();
+    }
   };
+
+  private _wakeUntil = 0;
+  private _wasNight = false;
+
+  /** Minutes of the day for "HH:MM" or "HH:MM:SS", or null. */
+  private static _clockMin(v?: string): number | null {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(v ?? "").trim());
+    if (!m) return null;
+    const min = Number(m[1]) * 60 + Number(m[2]);
+    return min >= 0 && min < 1440 ? min : null;
+  }
+
+  /** Inside the configured night hours (may cross midnight)? */
+  private _nightWindow(): boolean {
+    const from = FamilyBoardCard._clockMin(this._config?.night_start);
+    const to = FamilyBoardCard._clockMin(this._config?.night_end);
+    if (from === null || to === null || from === to) return false;
+    const now = new Date();
+    const min = now.getHours() * 60 + now.getMinutes();
+    return from < to ? min >= from && min < to : min >= from || min < to;
+  }
+
+  /** The night screen is showing: night hours, no dialog, not woken by a touch. */
+  private get _night(): boolean {
+    return this._nightWindow() && !this._dialog && Date.now() >= this._wakeUntil;
+  }
+
+  /** The view whose data is needed: at night the night screen's (that of the now view). */
+  private get _dataView(): ViewName {
+    return this._night ? "now" : this._view;
+  }
 
   /** Kiosk mode: after `auto_return` minutes without touch, go back to the default view. */
   private _kioskReturn(): void {
@@ -635,6 +674,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._config
     ) {
       // navigating needs other data - don't wait for the next hass update
+      this._maybeFetch();
+      this._maybeFetchCountdowns();
+    }
+    // entering or leaving the night screen needs other data, and other colours
+    const night = this._night;
+    this.toggleAttribute("night", night);
+    if (night !== this._wasNight && this.hass && this._config) {
+      this._wasNight = night;
       this._maybeFetch();
       this._maybeFetchCountdowns();
     }
@@ -829,7 +876,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   /** Fetch window for the current view. */
   private _fetchRange(): { start: Date; end: Date } {
-    if (this._view === "now") {
+    if (this._dataView === "now") {
       // from today on, so "next" still finds Monday's first event on a Sunday night
       const start = startOfDay(new Date());
       return { start, end: addDays(start, 8) };
@@ -847,7 +894,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._config.persons.map((p) => this._calsOf(p).join("+")).join(",") +
       `|${this._familyCals().join("+")}`;
     const scope =
-      this._view === "now"
+      this._dataView === "now"
         ? `n${toLocalDate(new Date())}`
         : this._view === "month"
           ? `m${this._monthOffset}`
@@ -971,7 +1018,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       ...this._config.persons.flatMap((p, idx) => this._calsOf(p).map((c) => [c, idx] as const)),
       ...this._familyCals().map((c) => [c, -1] as const),
     ].filter(([c]) => this.hass.states[c]);
-    if (!pats.length || this._view !== "now" || !cals.length) {
+    if (!pats.length || this._dataView !== "now" || !cals.length) {
       if (this._countdowns.length) this._countdowns = [];
       this._countdownKey = "";
       return;
@@ -1789,6 +1836,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   /* ---- render -------------------------------------------------- */
   protected render() {
     if (!this._config || !this.hass) return nothing;
+    if (this._night) {
+      // the night screen: no switcher, no bars, just the now view, dimmed
+      return html`<ha-card class="nightcard">${this._renderNow()}</ha-card>`;
+    }
     const title = this._config.title ?? this._t("board_title");
     return html`
       <ha-card>
@@ -4788,6 +4839,45 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       align-items: flex-start;
       justify-content: center;
       gap: 3px;
+    }
+
+    /* night screen: dark, dimmed, calm - for the hours nobody looks closely.
+       Colours set outright (no opacity), so it stays dark on any theme and
+       any page behind the card. */
+    :host([night]) ha-card {
+      --ha-card-background: #000;
+      --card-background-color: #000;
+      --primary-text-color: #a3a3a3;
+      --secondary-text-color: #747474;
+      --divider-color: #1c1c1c;
+      --secondary-background-color: #111;
+      /* derived from the day's text colour on :host - redo it for the night */
+      --fb-soft-text: #8c8c8c;
+      display: block;
+      background: #000;
+      color: var(--primary-text-color);
+    }
+    :host([night]) .now {
+      padding-top: 24px;
+    }
+    :host([night]) .nowclock {
+      font-size: clamp(56px, 14vw, 120px);
+      font-weight: 300;
+      letter-spacing: -0.02em;
+    }
+    :host([night]) .nrow {
+      background: #0b0b0b;
+      border-left-color: color-mix(in srgb, var(--pc) 45%, #000);
+    }
+    :host([night]) .famchip,
+    :host([night]) .cdchip {
+      background: #111;
+      border-color: #2a2a2a;
+    }
+    :host([night]) .avatar,
+    :host([night]) .nprog,
+    :host([night]) .ndot {
+      filter: grayscale(0.5) brightness(0.6);
     }
 
     /* countdowns in the now view: "🏖️ Holiday · in 12 days" */

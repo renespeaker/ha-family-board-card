@@ -44,6 +44,7 @@ async function open({
   slim = false,
   writable = false,
   swipe = false,
+  night = false,
   timezoneId,
   time,
 }) {
@@ -53,7 +54,7 @@ async function open({
   const at = time ?? new Date();
   if (!time) at.setHours(10, 20, 0, 0);
   await page.clock.install({ time: at });
-  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}${writable ? "&writable=1" : ""}${swipe ? "&swipe=1" : ""}`;
+  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}${writable ? "&writable=1" : ""}${swipe ? "&swipe=1" : ""}${night ? "&night=1" : ""}`;
   await page.goto(url);
   await page.waitForTimeout(1500);
   return { page, errors };
@@ -93,14 +94,21 @@ for (const locale of ["de-DE", "en-US"]) {
     });
     const r = await page.evaluate(() => {
       const d = document.querySelector("family-board-card").renderRoot.querySelector(".dialog");
-      return { overflow: d.scrollWidth - d.clientWidth, until: !!d.querySelector('input[type="date"]') };
+      return {
+        overflow: d.scrollWidth - d.clientWidth,
+        until: !!d.querySelector('input[type="date"]'),
+      };
     });
     check(
       `Serien-Dialog ohne Überlauf (${locale}, ${width}px)`,
       r.overflow <= 0 && r.until,
       `${r.overflow}px${r.until ? "" : ", kein Bis-Feld"}`,
     );
-    check(`keine Konsolenfehler (Serie, ${locale}, ${width}px)`, errors.length === 0, errors.join(" | "));
+    check(
+      `keine Konsolenfehler (Serie, ${locale}, ${width}px)`,
+      errors.length === 0,
+      errors.join(" | "),
+    );
     await page.close();
   }
 }
@@ -159,8 +167,15 @@ for (const [locale, lang] of [
 ]) {
   const { page } = await open({ view: "timeline", lang, locale });
   const h = await page.evaluate(() => {
-    const span = document.querySelector("family-board-card").renderRoot.querySelector(".tlnow span");
-    return span ? { text: span.textContent.trim(), lines: Math.round(span.getBoundingClientRect().height / 14) } : null;
+    const span = document
+      .querySelector("family-board-card")
+      .renderRoot.querySelector(".tlnow span");
+    return span
+      ? {
+          text: span.textContent.trim(),
+          lines: Math.round(span.getBoundingClientRect().height / 14),
+        }
+      : null;
   });
   check(
     `Zeitstrahl-Uhrzeit einzeilig (${lang})`,
@@ -180,7 +195,10 @@ for (const [locale, lang] of [
     if (!today) return { ok: false, why: "kein Heute-Abschnitt" };
     const offset =
       today.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
-    return { ok: Math.abs(box.scrollTop - offset) < 8, why: `scrollTop=${Math.round(box.scrollTop)} heute=${Math.round(offset)}` };
+    return {
+      ok: Math.abs(box.scrollTop - offset) < 8,
+      why: `scrollTop=${Math.round(box.scrollTop)} heute=${Math.round(offset)}`,
+    };
   });
   check("Agenda scrollt auf heute", landed.ok, landed.why);
   await page.close();
@@ -373,7 +391,7 @@ const axe = (page, context, options) =>
       [context, options],
     ),
   );
-for (const [view, dark, dialog] of [
+for (const [view, dark, dialog, night] of [
   ["now"],
   ["day"],
   ["timeline"],
@@ -382,8 +400,21 @@ for (const [view, dark, dialog] of [
   ["agenda"],
   ["day", true],
   ["day", false, true],
+  ["day", false, false, true],
 ]) {
-  const { page } = await open({ view, dark });
+  const { page } = await open(
+    night
+      ? {
+          view,
+          night: true,
+          time: (() => {
+            const d = new Date();
+            d.setHours(23, 10, 0, 0);
+            return d;
+          })(),
+        }
+      : { view, dark },
+  );
   if (dialog) {
     await page.evaluate(() =>
       document.querySelector("family-board-card").renderRoot.querySelector(".event").click(),
@@ -391,7 +422,7 @@ for (const [view, dark, dialog] of [
     await page.waitForTimeout(300);
   }
   const found = await axe(page, null, { rules: { "color-contrast": { enabled: false } } });
-  const name = `${view}${dark ? " dunkel" : ""}${dialog ? " + Dialog" : ""}`;
+  const name = `${view}${dark ? " dunkel" : ""}${dialog ? " + Dialog" : ""}${night ? " nachts" : ""}`;
   check(`axe: keine Barrierefreiheits-Fehler (${name})`, found.length === 0, found.join(", "));
   await page.close();
 }
@@ -424,7 +455,9 @@ for (const dark of [false, true]) {
   const active = () =>
     page.evaluate(() => {
       const a = document.querySelector("family-board-card").renderRoot.activeElement;
-      return a ? { tag: a.tagName, text: a.textContent.trim(), inDialog: !!a.closest(".dialog") } : {};
+      return a
+        ? { tag: a.tagName, text: a.textContent.trim(), inDialog: !!a.closest(".dialog") }
+        : {};
     });
   await page.keyboard.press("Tab");
   const first = await active();
@@ -461,12 +494,21 @@ for (const dark of [false, true]) {
   await page.keyboard.press("Escape");
   await page.waitForTimeout(300);
   const back = await active();
-  check("Fokus kehrt nach Escape zum Termin zurück", back.tag === "DIV" && !back.inDialog, back.text);
+  check(
+    "Fokus kehrt nach Escape zum Termin zurück",
+    back.tag === "DIV" && !back.inDialog,
+    back.text,
+  );
   await page.close();
 }
 
 /* --- nothing may scroll sideways out of the card -------------------- */
-for (const [view, width] of [["day", 400], ["agenda", 400], ["week", 400], ["month", 400]]) {
+for (const [view, width] of [
+  ["day", 400],
+  ["agenda", 400],
+  ["week", 400],
+  ["month", 400],
+]) {
   const { page } = await open({ view, width });
   const bleed = await page.evaluate(() => {
     const el = document.querySelector("family-board-card");
@@ -478,5 +520,7 @@ for (const [view, width] of [["day", 400], ["agenda", 400], ["week", 400], ["mon
 
 await browser.close();
 server.close();
-console.log(failures.length ? `\n${failures.length} Prüfung(en) fehlgeschlagen` : "\nalles in Ordnung");
+console.log(
+  failures.length ? `\n${failures.length} Prüfung(en) fehlgeschlagen` : "\nalles in Ordnung",
+);
 process.exit(failures.length ? 1 : 0);

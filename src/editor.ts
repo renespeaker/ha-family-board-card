@@ -160,6 +160,8 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       },
       { name: "scroll_to_now", selector: { boolean: {} } },
       { name: "swipe", selector: { boolean: {} } },
+      { name: "night_start", selector: { time: {} } },
+      { name: "night_end", selector: { time: {} } },
       { name: "show_now_line", selector: { boolean: {} } },
       { name: "show_progress", selector: { boolean: {} } },
       {
