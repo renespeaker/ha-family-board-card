@@ -189,6 +189,8 @@ const ICON_MAP: Array<[RegExp, string]> = [
   ],
   [/kita|kindergarten|krippe|hort/i, "🧸"],
   [/frühstück|fruehstueck|breakfast/i, "🥐"],
+  // before the meals: "Mittagsschlaf" (nap) contains "Mittag" (lunch)
+  [/schlaf|nap|ruhezeit|mittagsschlaf/i, "😴"],
   [/mittag|lunch|abendessen|dinner|essen|kochen|restaurant|brunch/i, "🍽️"],
   [/kaffee|coffee|café|cafe/i, "☕"],
   [/urlaub|ferien|vacation|holiday|reise|trip|strand|beach/i, "🏖️"],
@@ -198,7 +200,6 @@ const ICON_MAP: Array<[RegExp, string]> = [
   [/party|feier|fest|celebration/i, "🎉"],
   [/einkauf|shopping|supermarkt|einkaufen|besorgung/i, "🛒"],
   [/putz|reinig|cleaning|wäsche|waesche|müll|muell|garbage|trash/i, "🧹"],
-  [/schlaf|nap|ruhezeit|mittagsschlaf/i, "😴"],
   [/spiel|freispiel|play|angebotszeit/i, "🧸"],
   [/meeting|besprechung|termin|call|konferenz|conference|office|büro|buero|arbeit|work/i, "💼"],
   [/friseur|haircut|hairdresser|frisör|frisoer/i, "💇"],
@@ -4108,8 +4109,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       }
     }
     .nowline span {
+      /* start at the axis' left edge, whatever its width; a long 12-hour label
+         ("10:20 AM") may reach over the line, so it sits above the dot */
       position: absolute;
-      left: -50px;
+      left: calc(2px - var(--fb-axis-width, 56px));
+      z-index: 1;
+      white-space: nowrap;
       top: -8px;
       font-size: 10px;
       font-weight: 600;
@@ -4271,6 +4276,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       top: 2px;
       left: -1px;
       transform: translateX(-50%);
+      white-space: nowrap; /* "10:20 AM" broke onto two lines */
       font-size: 10px;
       font-weight: 600;
       color: var(--text-primary-color, #fff);
@@ -5042,7 +5048,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.31.2 ",
+  "%c FAMILY-BOARD-CARD %c v0.31.3 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

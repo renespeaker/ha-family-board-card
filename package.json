@@ -1,6 +1,6 @@
 {
   "name": "ha-family-board-card",
-  "version": "0.31.2",
+  "version": "0.31.3",
   "description": "Family calendar / who-is-where board for Home Assistant",
   "type": "module",
   "license": "MIT",
@@ -14,12 +14,14 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "preview": "python3 -m http.server 8931",
     "check:browser": "node tools/preview/check.mjs",
-    "check:shared": "node tools/check-shared.mjs"
+    "check:shared": "node tools/check-shared.mjs",
+    "screenshots": "node tools/preview/screenshots.mjs"
   },
   "dependencies": {
     "lit": "^3.1.0"
   },
   "devDependencies": {
+    "@mdi/js": "^7.4.47",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-terser": "^1.0.2",
     "@rollup/plugin-typescript": "^12.3.1",

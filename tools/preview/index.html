@@ -25,13 +25,27 @@
 <div id="root"></div>
 <script type="module">
 import "../../dist/ha-family-board-card.js";
-// Stand-in for HA's <ha-icon>: takes the space a real icon takes, so layout
-// checks see what users see (without it every icon would be 0px wide).
+// Stand-in for HA's <ha-icon>: the real Material Design Icons (as in HA), at
+// the size HA gives them, so layout checks and README screenshots see what
+// users see. An unknown name falls back to a grey dot.
+import * as MDI from "../../node_modules/@mdi/js/mdi.js";
+const mdiPath = (name) =>
+  MDI["mdi" + String(name || "").replace(/^mdi:/, "").replace(/(^|-)([a-z0-9])/g, (_, __, c) => c.toUpperCase())];
 customElements.define("ha-icon", class extends HTMLElement {
+  static get observedAttributes() { return ["icon"]; }
+  set icon(v) { this._icon = v; this._draw(); }
+  get icon() { return this._icon ?? this.getAttribute("icon"); }
+  attributeChangedCallback() { this._draw(); }
   connectedCallback() {
-    Object.assign(this.style, { display: "inline-block", flex: "none",
-      width: "var(--mdc-icon-size, 24px)", height: "var(--mdc-icon-size, 24px)",
-      borderRadius: "50%", background: "currentColor", opacity: ".35" });
+    Object.assign(this.style, { display: "inline-flex", flex: "none", verticalAlign: "middle",
+      width: "var(--mdc-icon-size, 24px)", height: "var(--mdc-icon-size, 24px)" });
+    this._draw();
+  }
+  _draw() {
+    const d = mdiPath(this.icon);
+    this.innerHTML = d
+      ? `<svg viewBox="0 0 24 24" width="100%" height="100%" fill="currentColor" aria-hidden="true"><path d="${d}"/></svg>`
+      : `<span style="display:block;width:100%;height:100%;border-radius:50%;background:currentColor;opacity:.35"></span>`;
   }
 });
 const Q = new URLSearchParams(location.search);

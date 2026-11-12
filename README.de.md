@@ -4,18 +4,23 @@
 
 ![Family Board Card – Tagesansicht](docs/preview-day.png)
 
-<details>
-<summary><b>Weitere Ansichten ansehen</b> (Zeitstrahl, Agenda)</summary>
-
-**Zeitstrahl** – Personen als Zeilen, die Zeit läuft horizontal:
-
-![Family Board Card – Zeitstrahl](docs/preview-timeline.png)
-
-**Agenda** – chronologisch, nach Tagen gruppiert, springt beim Laden auf heute:
-
-<img src="docs/preview-agenda.png" alt="Family Board Card – Agenda" width="380">
-
-</details>
+<table>
+<tr>
+<td valign="top"><b>Jetzt</b> – das Wandtablet auf einen Blick: wer gerade was macht und was als Nächstes kommt<br><img src="docs/preview-now.png" alt="Family Board Card – Jetzt"></td>
+<td valign="top"><b>Woche</b> – die Woche aller, mit Wetter und Familien-Terminen unter jedem Tag<br><img src="docs/preview-week.png" alt="Family Board Card – Woche"></td>
+</tr>
+<tr>
+<td valign="top"><b>Monat</b> – Ferien, Mülltage und die Pläne aller in einem Raster<br><img src="docs/preview-month.png" alt="Family Board Card – Monat"></td>
+<td valign="top"><b>Zeitstrahl</b> – Personen als Zeilen, der Tag läuft von links nach rechts<br><img src="docs/preview-timeline.png" alt="Family Board Card – Zeitstrahl"></td>
+</tr>
+<tr>
+<td valign="top"><b>Agenda</b> – eine Liste fürs Handy, die bei heute aufgeht<br><img src="docs/preview-agenda.png" alt="Family Board Card – Agenda"></td>
+<td valign="top"><b>Auf dem Handy</b> – die Tagesansicht auf kleinem Bildschirm<br><img src="docs/preview-phone.png" alt="Family Board Card – Auf dem Handy"></td>
+</tr>
+<tr>
+<td colspan="2" valign="top"><b>Dunkles Design</b> – folgt deinem Home-Assistant-Theme<br><img src="docs/preview-dark.png" alt="Family Board Card – Dunkles Design"></td>
+</tr>
+</table>
 
 Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https://www.home-assistant.io/). Personen stehen als Spalten oben (mit Avatar aus der `person.*`-Entität), links läuft die Zeitleiste. Die Karte zeigt auf einen Blick, welche Aktivitäten gleichzeitig an unterschiedlichen Orten stattfinden — für bis zu 10 Personen.
 

@@ -4,18 +4,23 @@
 
 ![Family Board Card – day view](docs/preview-day-en.png)
 
-<details>
-<summary><b>See the other views</b> (timeline, agenda)</summary>
-
-**Timeline** – people as rows, time running horizontally:
-
-![Family Board Card – timeline](docs/preview-timeline-en.png)
-
-**Agenda** – chronological, grouped by day, jumps to today on load:
-
-<img src="docs/preview-agenda-en.png" alt="Family Board Card – agenda" width="380">
-
-</details>
+<table>
+<tr>
+<td valign="top"><b>Now</b> – the wall tablet at a glance: who is doing what, and what comes next<br><img src="docs/preview-now-en.png" alt="Family Board Card – Now"></td>
+<td valign="top"><b>Week</b> – everyone's week, with weather and family events under each day<br><img src="docs/preview-week-en.png" alt="Family Board Card – Week"></td>
+</tr>
+<tr>
+<td valign="top"><b>Month</b> – holidays, bin days and everyone's plans in one grid<br><img src="docs/preview-month-en.png" alt="Family Board Card – Month"></td>
+<td valign="top"><b>Timeline</b> – people as rows, the day running left to right<br><img src="docs/preview-timeline-en.png" alt="Family Board Card – Timeline"></td>
+</tr>
+<tr>
+<td valign="top"><b>Agenda</b> – a list for the phone that opens on today<br><img src="docs/preview-agenda-en.png" alt="Family Board Card – Agenda"></td>
+<td valign="top"><b>On the phone</b> – the day view on a small screen<br><img src="docs/preview-phone-en.png" alt="Family Board Card – On the phone"></td>
+</tr>
+<tr>
+<td colspan="2" valign="top"><b>Dark mode</b> – follows your Home Assistant theme<br><img src="docs/preview-dark-en.png" alt="Family Board Card – Dark mode"></td>
+</tr>
+</table>
 
 A family calendar — a “who is where, when” board — for [Home Assistant](https://www.home-assistant.io/). People are columns across the top (with the avatar from their `person.*` entity), time runs down the left. The card shows at a glance which activities happen at the same time in different places — for up to 10 people.
 
