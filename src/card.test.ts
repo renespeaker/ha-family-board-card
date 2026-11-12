@@ -909,3 +909,21 @@ describe("family calendars", () => {
     expect(apiPaths.some((p) => p.includes("calendar.muell"))).toBe(false);
   });
 });
+
+describe("auto icons", () => {
+  it("gives a nap the nap icon, even when its German name starts like lunch", async () => {
+    const calendars = {
+      "calendar.leon": [ev("Mittagessen", "11:30", "12:15"), ev("Mittagsschlaf", "12:15", "14:00")],
+    };
+    const { texts } = await mount(
+      {
+        persons: [{ name: "Leon", calendar: "calendar.leon" }],
+        view: "agenda",
+        views: ["agenda"],
+        auto_icons: true,
+      },
+      { calendars },
+    );
+    expect(texts(".agenda-title")).toEqual(["🍽️ Mittagessen", "😴 Mittagsschlaf"]);
+  });
+});

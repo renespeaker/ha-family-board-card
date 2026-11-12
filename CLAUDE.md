@@ -43,6 +43,9 @@ be mentioned as a hint. `src/shared/person-palette.ts` is mirrored in both repos
 - `npm run check:browser` – real-browser layout, axe-core accessibility and
   keyboard checks (`tools/preview/`, Chromium at `/opt/pw-browsers/chromium`).
   Not in CI; run it before every release.
+- `npm run screenshots` – regenerates every README image (`docs/preview-*.png`,
+  English and German) from the harness with a fixed date. Run it after a
+  visible change and look at the images before committing them.
 - New features get tests; verify a test bites by briefly breaking the code.
 - New views/options are opt-in so existing boards don't change.
 

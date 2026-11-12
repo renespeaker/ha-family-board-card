@@ -97,6 +97,50 @@ for (const locale of ["de-DE", "en-US"]) {
   await page.close();
 }
 
+/* --- the now-line time label: fully visible, never covered ---------- */
+for (const [locale, lang, width] of [
+  ["en-US", "en", 1400],
+  ["en-US", "en", 400],
+  ["de-DE", "de", 400],
+]) {
+  const { page } = await open({ view: "day", lang, locale, width });
+  const r = await page.evaluate(() => {
+    const root = document.querySelector("family-board-card").renderRoot;
+    const span = root.querySelector(".nowline span");
+    if (!span) return { ok: false, why: "keine Jetzt-Linie" };
+    const s = span.getBoundingClientRect();
+    const card = root.querySelector(".board").getBoundingClientRect();
+    // what is on top at the label's last character (where the dot used to
+    // sit); the line ignores the pointer, so let hit-testing see it here
+    span.parentElement.style.pointerEvents = span.style.pointerEvents = "auto";
+    const hit = root.elementFromPoint(s.right - 4, s.top + s.height / 2);
+    return {
+      ok: s.left >= card.left - 0.5 && (hit === span || span.contains(hit)),
+      why: `"${span.textContent.trim()}" ${Math.round(s.left)}..${Math.round(s.right)}px, oben: ${hit?.tagName}`,
+    };
+  });
+  check(`Uhrzeit an der Jetzt-Linie lesbar (${lang}, ${width}px)`, r.ok, r.why);
+  await page.close();
+}
+
+/* --- the timeline's now label stays on one line ---------------------- */
+for (const [locale, lang] of [
+  ["en-US", "en"],
+  ["de-DE", "de"],
+]) {
+  const { page } = await open({ view: "timeline", lang, locale });
+  const h = await page.evaluate(() => {
+    const span = document.querySelector("family-board-card").renderRoot.querySelector(".tlnow span");
+    return span ? { text: span.textContent.trim(), lines: Math.round(span.getBoundingClientRect().height / 14) } : null;
+  });
+  check(
+    `Zeitstrahl-Uhrzeit einzeilig (${lang})`,
+    !!h && h.lines <= 1,
+    h ? `"${h.text}", ${h.lines} Zeile(n)` : "keine Jetzt-Linie",
+  );
+  await page.close();
+}
+
 /* --- the agenda must land on today, not at the top of the week ------ */
 {
   const { page } = await open({ view: "agenda", width: 560 });
