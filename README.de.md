@@ -21,6 +21,10 @@
 <td valign="top"><b>Dunkles Design</b> – folgt deinem Home-Assistant-Theme<br><img src="docs/preview-dark.png" alt="Family Board Card – Dunkles Design"></td>
 <td valign="top"><b>Nachtbildschirm</b> – ruhig und gedimmt von `night_start` bis `night_end`; Antippen weckt das Board<br><img src="docs/preview-night.png" alt="Family Board Card – Nachtbildschirm"></td>
 </tr>
+<tr>
+<td valign="top"><b>Fahrdienst</b> – wer fährt wen: „🚗 Ben“ an der Abholung und eine Warnung, wenn der Fahrer belegt ist<br><img src="docs/preview-rides.png" alt="Family Board Card – Fahrdienst"></td>
+<td valign="top"><b>Foto-Bildschirmschoner</b> – Familienfotos aus einem Medienordner mit großer Uhr; Antippen holt das Board zurück<br><img src="docs/preview-saver.png" alt="Family Board Card – Foto-Bildschirmschoner"></td>
+</tr>
 </table>
 
 Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https://www.home-assistant.io/). Personen stehen als Spalten oben (mit Avatar aus der `person.*`-Entität), links läuft die Zeitleiste. Die Karte zeigt auf einen Blick, welche Aktivitäten gleichzeitig an unterschiedlichen Orten stattfinden — für bis zu 10 Personen.
