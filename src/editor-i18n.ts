@@ -28,6 +28,10 @@ const EN: Dict = {
   l_swipe: "Swipe to page",
   l_night_start: "Night screen from",
   l_night_end: "Night screen until",
+  l_night_wake_entity: "Wake on motion",
+  l_screensaver_media: "Photo screensaver (media folder)",
+  l_screensaver_after: "Photos after (min without touch)",
+  l_screensaver_interval: "Seconds per photo",
   l_day_offset: "Start on (days from today)",
   l_slim_header: "Slim header",
   l_color_by: "Color by",
@@ -46,6 +50,7 @@ const EN: Dict = {
   l_show_focus: "“Now / next” bar",
   l_show_alerts: "Day check (double bookings, gaps, nobody home)",
   l_gap_min: "Flag a gap from (min., 0 = off)",
+  l_late_warning: "Warn when still at home (min. before, 0 = off)",
   l_drag_drop: "Move events by dragging (day view)",
   l_family_calendars: "Family calendars",
   l_countdowns: "Countdowns",
@@ -64,6 +69,10 @@ const EN: Dict = {
   l_color: "Custom color (hex, optional)",
   l_badges: "Badges (e.g. battery, sensors)",
   l_hidden: "Hidden on start",
+  l_driver: "Drives (pick-ups, drop-offs)",
+  l_ride_patterns: "Words for rides",
+  l_private_patterns: "Private events",
+  l_birthday_age: "Birthdays with age",
   l_compact: "Compact layout",
   l_map_url: "Map link (template)",
 
@@ -72,6 +81,10 @@ const EN: Dict = {
   h_swipe: "Touch screens: swipe left or right for the next or previous day, week or month",
   h_night_start: "Wall tablet: a dark, dimmed clock with the next events; a tap wakes the board",
   h_night_end: "Morning: back to the normal board",
+  h_screensaver_media:
+    "A folder from Media, e.g. media-source://media_source/local/photos – a slideshow with clock after a while without touch; a tap brings the board back",
+  h_night_wake_entity:
+    "Motion or presence sensor: when it reports “on”, the board wakes like after a tap",
   h_day_offset:
     "0 = today, 1 = tomorrow, -1 = yesterday. For a display that should show the day ahead",
   h_slim_header:
@@ -101,6 +114,8 @@ const EN: Dict = {
     "Chips above the day and timeline views: one person booked twice, an unsupervised window between two events, or everyone out at the same time",
   h_gap_min:
     "How long a hole between two of a person's events has to be before it is worth a warning",
+  h_late_warning:
+    "An event with a place starts soon and the person entity still says home: warning in the day check and the now view",
   h_drag_drop: "Writable calendars only; drag to move, bottom edge changes the duration",
   h_views: "Which switchers appear at the top",
   h_tasks:
@@ -108,6 +123,12 @@ const EN: Dict = {
   h_badges: "Small chips below the person header; click opens details",
   h_color: "Leave empty for the palette color",
   h_hidden: "Column starts collapsed; a click on the header brings it back",
+  h_driver:
+    "Rides such as “pick up Mia” get a driver; the day check warns when nobody drives or the driver is busy",
+  h_ride_patterns: "Empty = pick up, drop off, ride, abholen, bringen …",
+  h_birthday_age: "“Grandma’s birthday (1946)” or “Max *2019” shows as “… (turns 80)”",
+  h_private_patterns:
+    "Text in title or description, e.g. “#private” – shows only “Private” and the time",
   h_compact: "Smaller fonts and tighter spacing in a single switch",
   h_map_url: "{location} is substituted, e.g. https://maps.apple.com/?q={location}",
 
@@ -156,6 +177,7 @@ const EN: Dict = {
   ph_label: "Custom label",
   ph_icon: "Icon, e.g. mdi:school",
   ph_title_field: "Title from field (e.g. description)",
+  cal_private: "Private – show only “Private” and the time",
   person_n: "Person",
   cal_hint_1:
     "Colors apply with “Color by: calendar”, labels in the event dialog. Icon = mdi icon in front of the title. “Title from field” uses e.g.",
@@ -184,6 +206,10 @@ const DE: Dict = {
   l_swipe: "Wischen zum Blättern",
   l_night_start: "Nachtbildschirm ab",
   l_night_end: "Nachtbildschirm bis",
+  l_night_wake_entity: "Bei Bewegung aufwecken",
+  l_screensaver_media: "Foto-Bildschirmschoner (Medienordner)",
+  l_screensaver_after: "Fotos nach (Min. ohne Berührung)",
+  l_screensaver_interval: "Sekunden pro Foto",
   l_day_offset: "Beginnt bei (Tage ab heute)",
   l_slim_header: "Schlanker Kopfbereich",
   l_color_by: "Einfärben nach",
@@ -202,6 +228,7 @@ const DE: Dict = {
   l_show_focus: "„Jetzt / als Nächstes“-Leiste",
   l_show_alerts: "Tages-Check (Doppelbuchung, Lücken, niemand zuhause)",
   l_gap_min: "Lücke melden ab (Min., 0 = aus)",
+  l_late_warning: "Warnen, wenn noch zuhause (Min. vorher, 0 = aus)",
   l_drag_drop: "Termine per Ziehen verschieben (Tagesansicht)",
   l_family_calendars: "Familien-Kalender",
   l_countdowns: "Countdowns",
@@ -220,6 +247,10 @@ const DE: Dict = {
   l_color: "Eigene Farbe (Hex, optional)",
   l_badges: "Badges (z. B. Akku, Sensoren)",
   l_hidden: "Beim Start ausgeblendet",
+  l_driver: "Fährt (Abholen, Bringen)",
+  l_ride_patterns: "Wörter für Fahrten",
+  l_private_patterns: "Private Termine",
+  l_birthday_age: "Geburtstage mit Alter",
   l_compact: "Kompakte Darstellung",
   l_map_url: "Karten-Link (Vorlage)",
 
@@ -229,6 +260,10 @@ const DE: Dict = {
   h_night_start:
     "Wandtablet: dunkle, gedimmte Uhr mit den nächsten Terminen; Antippen weckt das Board",
   h_night_end: "Morgens: zurück zum normalen Board",
+  h_screensaver_media:
+    "Ein Ordner aus „Medien“, z. B. media-source://media_source/local/fotos – nach einer Weile ohne Berührung eine Diashow mit Uhr; Antippen holt das Board zurück",
+  h_night_wake_entity:
+    "Bewegungs- oder Präsenzmelder: meldet er „an“, wacht das Board auf wie nach einem Antippen",
   h_day_offset:
     "0 = heute, 1 = morgen, -1 = gestern. Für Anzeigen, die den kommenden Tag zeigen sollen",
   h_slim_header:
@@ -258,6 +293,8 @@ const DE: Dict = {
   h_show_alerts:
     "Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen oder alle gleichzeitig unterwegs",
   h_gap_min: "Ab welcher Länge ein Loch zwischen zwei Terminen einer Person eine Warnung wert ist",
+  h_late_warning:
+    "Ein Termin mit Ort beginnt gleich, die Person ist laut person-Entität noch zuhause: Warnung im Tages-Check und in der Jetzt-Ansicht",
   h_drag_drop: "Nur bei schreibbaren Kalendern; Ziehen verschiebt, unterer Rand ändert die Dauer",
   h_views: "Welche Umschalter oben erscheinen",
   h_tasks:
@@ -265,6 +302,12 @@ const DE: Dict = {
   h_badges: "Kleine Chips unter dem Personenkopf; Klick öffnet Details",
   h_color: "Leer lassen für Palettenfarbe",
   h_hidden: "Spalte startet eingeklappt; ein Klick auf den Kopf holt sie zurück",
+  h_driver:
+    "Fahrten wie „Mia abholen“ bekommen einen Fahrer; der Tages-Check warnt, wenn niemand fährt oder der Fahrer belegt ist",
+  h_ride_patterns: "Leer = abholen, bringen, Fahrt, pick up, drop off …",
+  h_birthday_age: "„Geburtstag Oma (1946)“ oder „Max *2019“ wird zu „… (wird 80)“",
+  h_private_patterns:
+    "Text in Titel oder Beschreibung, z. B. „#privat“ – zeigt nur „Privat“ und die Uhrzeit",
   h_compact: "Kleinere Schriften und engere Abstände in einem Schalter",
   h_map_url: "{location} wird ersetzt, z. B. https://maps.apple.com/?q={location}",
 
@@ -308,6 +351,7 @@ const DE: Dict = {
   ph_label: "Eigenes Label",
   ph_icon: "Symbol, z. B. mdi:school",
   ph_title_field: "Titel aus Feld (z. B. description)",
+  cal_private: "Privat – nur „Privat“ und die Uhrzeit zeigen",
   person_n: "Person",
   cal_hint_1:
     "Farben wirken bei „Einfärben nach: Kalender“, Labels im Termin-Dialog. Symbol = mdi-Icon vor dem Titel. „Titel aus Feld“ nutzt z. B.",

@@ -1,11 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { formatWeekRange } from "./localize";
+import type { RawEvent } from "./events";
 import {
   addDays,
   buildRrule,
   daysBetween,
   liveToApiEvent,
   detectDayAlerts,
+  detectLate,
+  birthdayAge,
+  detectRideAlerts,
+  findDriver,
+  hasWord,
+  RIDE_WORDS,
   parseRawEvent,
   splitIntoSegments,
   splitAcrossDays,
@@ -501,5 +508,164 @@ describe("liveToApiEvent", () => {
   it("leaves an event already in REST shape alone", () => {
     const ev = { summary: "C", start: { date: "2026-09-11" }, end: { date: "2026-09-12" } };
     expect(liveToApiEvent(ev)).toBe(ev);
+  });
+});
+
+describe("detectLate", () => {
+  const now = new Date(2026, 8, 11, 10, 20);
+  const at = (summary: string, h: number, m: number, location?: string, personIdx = 0) =>
+    ({
+      personIdx,
+      calendar: "c",
+      summary,
+      location,
+      allDay: false,
+      start: new Date(2026, 8, 11, h, m),
+      end: new Date(2026, 8, 11, h + 1, m),
+      color: "",
+    }) as RawEvent;
+
+  it("warns when an event with a place is close and the person is still home", () => {
+    const w = detectLate([at("Zahnarzt", 10, 30, "Praxis Dr. Meier")], ["home"], now, 20);
+    expect(w).toHaveLength(1);
+    expect(w[0]).toMatchObject({ personIdx: 0, title: "Zahnarzt", location: "Praxis Dr. Meier" });
+  });
+
+  it("stays quiet when the person is away, or the event has no place or is at home", () => {
+    expect(detectLate([at("Zahnarzt", 10, 30, "Praxis")], ["not_home"], now, 20)).toEqual([]);
+    expect(detectLate([at("Zahnarzt", 10, 30, "Praxis")], ["Arbeit"], now, 20)).toEqual([]);
+    expect(detectLate([at("Telefonat", 10, 30)], ["home"], now, 20)).toEqual([]);
+    expect(detectLate([at("Homeoffice", 10, 30, "Zuhause")], ["home"], now, 20)).toEqual([]);
+  });
+
+  it("respects the lead time and a short grace after the start", () => {
+    const ev = [at("Training", 11, 0, "Halle")];
+    expect(detectLate(ev, ["home"], now, 20)).toEqual([]); // 40 min ahead
+    expect(detectLate(ev, ["home"], now, 45)).toHaveLength(1);
+    expect(detectLate([at("Kurs", 10, 15, "VHS")], ["home"], now, 20)).toHaveLength(1); // 5 min late
+    expect(detectLate([at("Kurs", 10, 5, "VHS")], ["home"], now, 20)).toEqual([]); // long gone
+  });
+
+  it("names the soonest event, once per person", () => {
+    const w = detectLate(
+      [at("B", 10, 35, "Ort B"), at("A", 10, 25, "Ort A"), at("X", 10, 30, "Ort X", 1)],
+      ["home", "home"],
+      now,
+      20,
+    );
+    expect(w.map((x) => [x.personIdx, x.title])).toEqual([
+      [0, "A"],
+      [1, "X"],
+    ]);
+  });
+
+  it("is off with 0", () => {
+    expect(detectLate([at("Zahnarzt", 10, 15, "Praxis")], ["home"], now, 0)).toEqual([]);
+  });
+});
+
+describe("rides", () => {
+  const ride = (summary: string, personIdx: number, h: number, m = 0, description?: string) =>
+    ({
+      personIdx,
+      calendar: "c",
+      summary,
+      description,
+      allDay: false,
+      start: new Date(2026, 8, 11, h, m),
+      end: new Date(2026, 8, 11, h, m + 30),
+      color: "",
+    }) as RawEvent;
+  const drivers = [
+    { idx: 0, name: "Anna" },
+    { idx: 1, name: "Ben" },
+  ];
+  const opts = {
+    words: RIDE_WORDS,
+    drivers,
+    from: new Date(2026, 8, 11),
+    to: new Date(2026, 8, 12),
+  };
+
+  it("matches whole words only", () => {
+    expect(hasWord("Mia abholen", RIDE_WORDS)).toBe(true);
+    expect(hasWord("Pick up Leon", RIDE_WORDS)).toBe(true);
+    expect(hasWord("Müll rausbringen", RIDE_WORDS)).toBe(false);
+    expect(hasWord("Klassenfahrt", RIDE_WORDS)).toBe(false);
+    expect(hasWord("Riders club", RIDE_WORDS)).toBe(false);
+  });
+
+  it("takes the driver named in the event, else the owner if they drive", () => {
+    expect(findDriver(ride("Ben: Mia abholen", 2, 16), drivers)).toBe(1);
+    expect(findDriver(ride("Mia abholen", 2, 16, 0, "fährt Anna"), drivers)).toBe(0);
+    expect(findDriver(ride("Mia abholen", 0, 16), drivers)).toBe(0);
+    expect(findDriver(ride("Abholen", 2, 16), drivers)).toBeUndefined();
+  });
+
+  it("warns about a ride nobody drives", () => {
+    const a = detectRideAlerts([ride("Abholen", 2, 16)], opts);
+    expect(a).toMatchObject([{ kind: "no_driver", personIdx: 2, title: "Abholen" }]);
+  });
+
+  it("warns when the driver is busy, and names the clash", () => {
+    const busy = { ...ride("Zahnarzt", 1, 16), end: new Date(2026, 8, 11, 17) };
+    const a = detectRideAlerts([ride("Ben: Mia abholen", 2, 16, 15), busy], opts);
+    expect(a).toMatchObject([{ kind: "driver_busy", driverIdx: 1, busyWith: "Zahnarzt" }]);
+  });
+
+  it("stays quiet when the driver is free, and ignores other days, past rides and all-day events", () => {
+    const free = ride("Ben: Mia abholen", 2, 16);
+    const later = { ...ride("Zahnarzt", 1, 17), end: new Date(2026, 8, 11, 18) };
+    expect(detectRideAlerts([free, later], opts)).toEqual([]);
+    const tomorrow = {
+      ...ride("Abholen", 2, 16),
+      start: new Date(2026, 8, 12, 16),
+      end: new Date(2026, 8, 12, 17),
+    };
+    expect(detectRideAlerts([tomorrow], opts)).toEqual([]);
+    expect(
+      detectRideAlerts([ride("Abholen", 2, 9)], { ...opts, now: new Date(2026, 8, 11, 12) }),
+    ).toEqual([]);
+    expect(detectRideAlerts([{ ...ride("Abholen", 2, 0), allDay: true }], opts)).toEqual([]);
+  });
+
+  it("does not count a ride that someone else drives as the owner being busy", () => {
+    const annaDrives = ride("Anna: Ben abholen", 1, 16);
+    const benDrives = ride("Ben: Mia abholen", 2, 16);
+    expect(detectRideAlerts([annaDrives, benDrives], opts)).toEqual([]);
+  });
+
+  it("uses custom words", () => {
+    expect(detectRideAlerts([ride("Taxi Mia", 2, 16)], { ...opts, words: ["taxi"] })).toHaveLength(
+      1,
+    );
+    expect(detectRideAlerts([ride("Mia abholen", 2, 16)], { ...opts, words: ["taxi"] })).toEqual(
+      [],
+    );
+  });
+});
+
+describe("birthdayAge", () => {
+  const on = new Date(2026, 9, 16);
+  it("reads the year of birth and drops it from the title", () => {
+    expect(birthdayAge("Geburtstag Oma (1946)", on)).toEqual({ title: "Geburtstag Oma", age: 80 });
+    expect(birthdayAge("Grandma's birthday ( *1946 )", on)).toEqual({
+      title: "Grandma's birthday",
+      age: 80,
+    });
+    expect(birthdayAge("🎂 Max (2019)", on)).toEqual({ title: "🎂 Max", age: 7 });
+    expect(birthdayAge("Max *2019", on)).toEqual({ title: "Max", age: 7 });
+  });
+
+  it("leaves other years and implausible ages alone", () => {
+    expect(birthdayAge("Klassentreffen (1996)", on)).toBeNull(); // no birthday
+    expect(birthdayAge("Geburtstag Oma", on)).toBeNull(); // no year
+    expect(birthdayAge("Geburtstag Ida (2026)", on)).toBeNull(); // born this year
+    expect(birthdayAge("Geburtstag (2031)", on)).toBeNull(); // future
+    expect(birthdayAge("Birthday (1850)", on)).toBeNull(); // 176
+  });
+
+  it("counts the age in the year of the event, not today", () => {
+    expect(birthdayAge("Geburtstag Oma (1946)", new Date(2027, 0, 3))?.age).toBe(81);
   });
 });

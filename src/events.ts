@@ -118,6 +118,7 @@ export interface RawEvent {
   end: Date; // absolute end (exclusive)
   color: string;
   tentative?: boolean; // provisional event (dashed styling)
+  private?: boolean; // details withheld: title "Private", no place, no dialog
 }
 
 /** A per-day display segment derived from a RawEvent. */
@@ -295,6 +296,174 @@ export function layoutDayColumns(events: BoardEvent[]): LaidOutEvent[] {
 }
 
 /** A problem worth flagging for one day of the board. */
+/** Someone who should be on their way (see detectLate). */
+export interface LateWarning {
+  personIdx: number;
+  title: string;
+  location: string;
+  start: Date;
+}
+
+/** Places that are home anyway: an event there needs no leaving. */
+const AT_HOME = /^(zu ?hause|daheim|home|at home)$/i;
+
+/**
+ * People who should be on their way: their next timed event with a place
+ * starts within `leadMin` minutes (or started up to 10 minutes ago) and their
+ * person entity still says they are at home. One warning per person, the
+ * soonest event.
+ */
+export function detectLate(
+  raws: RawEvent[],
+  states: Array<string | undefined>,
+  now: Date,
+  leadMin: number,
+): LateWarning[] {
+  if (!(leadMin > 0)) return [];
+  const t = now.getTime();
+  const out: LateWarning[] = [];
+  states.forEach((state, idx) => {
+    if (state !== "home") return;
+    const next = raws
+      .filter((r) => {
+        const place = (r.location ?? "").trim();
+        if (r.personIdx !== idx || r.allDay || !place || AT_HOME.test(place)) return false;
+        const s = r.start.getTime();
+        return s - leadMin * 60000 <= t && t < s + 10 * 60000;
+      })
+      .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
+    if (next) {
+      out.push({
+        personIdx: idx,
+        title: next.summary,
+        location: next.location!.trim(),
+        start: next.start,
+      });
+    }
+  });
+  return out;
+}
+
+/** Words that mark a ride: someone has to drive a person somewhere or fetch them. */
+export const RIDE_WORDS = [
+  "abholen",
+  "abholung",
+  "bringen",
+  "hinbringen",
+  "fahrdienst",
+  "fahrt",
+  "pick up",
+  "pick-up",
+  "pickup",
+  "drop off",
+  "drop-off",
+  "ride",
+];
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Whole-word, case-insensitive match - "bringen" must not fire on "rausbringen". */
+export function hasWord(text: string, words: string[]): boolean {
+  const list = words.map((w) => w.trim()).filter(Boolean);
+  if (!text || list.length === 0) return false;
+  const re = new RegExp(
+    `(^|[^\\p{L}\\p{N}])(${list.map(escapeRe).join("|")})($|[^\\p{L}\\p{N}])`,
+    "iu",
+  );
+  return re.test(text);
+}
+
+export interface Driver {
+  idx: number;
+  name: string;
+}
+
+/**
+ * Who drives? A driver named in the title or description wins ("Ben: Mia
+ * abholen"); otherwise the owner of the calendar, if they drive themselves.
+ * Undefined when nobody is set - that is exactly what the day check warns about.
+ */
+export function findDriver(raw: RawEvent, drivers: Driver[]): number | undefined {
+  const text = `${raw.summary} ${raw.description ?? ""}`;
+  const named = drivers.find((d) => d.name && hasWord(text, [d.name]));
+  if (named) return named.idx;
+  return drivers.some((d) => d.idx === raw.personIdx) ? raw.personIdx : undefined;
+}
+
+export interface RideAlert {
+  kind: "no_driver" | "driver_busy";
+  personIdx: number; // whose calendar the ride is in
+  driverIdx?: number;
+  title: string;
+  start: Date;
+  busyWith?: string; // the driver's other event (driver_busy)
+}
+
+/**
+ * Rides on one day that need attention: no driver at all, or a driver who is
+ * already booked at that time. `from`/`to` bound the day; rides that are over
+ * by `now` are dropped.
+ */
+export function detectRideAlerts(
+  raws: RawEvent[],
+  opts: { words: string[]; drivers: Driver[]; from: Date; to: Date; now?: Date },
+): RideAlert[] {
+  const out: RideAlert[] = [];
+  const now = opts.now?.getTime();
+  for (const r of raws) {
+    if (r.allDay || !hasWord(r.summary, opts.words)) continue;
+    if (r.start >= opts.to || r.end <= opts.from) continue;
+    if (now !== undefined && r.end.getTime() <= now) continue;
+    const driverIdx = findDriver(r, opts.drivers);
+    if (driverIdx === undefined) {
+      out.push({ kind: "no_driver", personIdx: r.personIdx, title: r.summary, start: r.start });
+      continue;
+    }
+    const clash = raws.find(
+      (o) =>
+        o !== r &&
+        !o.allDay &&
+        o.personIdx === driverIdx &&
+        o.start < r.end &&
+        r.start < o.end &&
+        !(hasWord(o.summary, opts.words) && findDriver(o, opts.drivers) !== driverIdx),
+    );
+    if (clash) {
+      out.push({
+        kind: "driver_busy",
+        personIdx: r.personIdx,
+        driverIdx,
+        title: r.summary,
+        start: r.start,
+        busyWith: clash.summary,
+      });
+    }
+  }
+  return out.sort((a, b) => a.start.getTime() - b.start.getTime());
+}
+
+const BIRTHDAY = /geburtstag|birthday|b-?day|🎂/iu;
+const BORN_IN = /\s*\(\s*\*?\s*((?:18|19|20)\d{2})\s*\)|\s*\*\s*((?:18|19|20)\d{2})\b/u;
+
+/**
+ * A birthday with the year of birth in its title - "Grandma's birthday (1946)",
+ * "Geburtstag Oma *1946", "🎂 Max (2019)" - gives the title without the year and
+ * the age reached on `on`. A year in brackets counts only for birthday titles;
+ * "*1946" is clear enough on its own. Null when there is nothing to say.
+ */
+export function birthdayAge(title: string, on: Date): { title: string; age: number } | null {
+  const m = BORN_IN.exec(title);
+  if (!m) return null;
+  const starred = m[2] !== undefined;
+  if (!starred && !BIRTHDAY.test(title)) return null;
+  const age = on.getFullYear() - Number(m[1] ?? m[2]);
+  if (age < 1 || age > 130) return null;
+  const rest = (title.slice(0, m.index) + title.slice(m.index + m[0].length))
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return { title: rest || title, age };
+}
+
 export interface DayAlert {
   kind: "conflict" | "gap" | "empty";
   personIdx?: number; // unset for "empty" (nobody home), which spans everyone

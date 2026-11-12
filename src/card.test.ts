@@ -39,10 +39,14 @@ interface MountOpts {
   forecast?: unknown[];
   /** calendar.* entities the card may write to (create, update, delete). */
   writable?: string[];
+  /** Extra entity states, e.g. { "person.anna": "home" }. */
+  states?: Record<string, string>;
   /** Home Assistant with live calendar updates; "old" = command unknown. */
   live?: "new" | "old";
   /** The REST answer never arrives (to see what is shown before it). */
   slowApi?: boolean;
+  /** Media folder for the screensaver: what media_source/browse_media lists. */
+  media?: Array<{ media_content_id: string; media_class: string }>;
   /** Local wall-clock time the test pretends it is. */
   now?: string;
 }
@@ -73,6 +77,9 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
     };
   }
   if (opts.forecast) states["weather.forecast_home"] = { state: "sunny", attributes: {} };
+  for (const [entity, state] of Object.entries(opts.states ?? {})) {
+    states[entity] = { state, attributes: { friendly_name: entity.split(".")[1] } };
+  }
   const wsCalls: Array<Record<string, unknown>> = [];
   const apiPaths: string[] = [];
   const subs: Array<{
@@ -115,6 +122,11 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
     },
     callWS: async (msg: Record<string, unknown>) => {
       wsCalls.push(msg);
+      if (msg.type === "media_source/browse_media") return { children: opts.media ?? [] };
+      if (msg.type === "media_source/resolve_media") {
+        const id = String(msg.media_content_id);
+        return { url: `/media/local/${id.split("/").pop()}?authSig=x`, mime_type: "image/jpeg" };
+      }
       if (msg.type === "todo/item/list") {
         return { items: todos[msg.entity_id as string] ?? [] };
       }
@@ -1312,6 +1324,44 @@ describe("night screen", () => {
     expect(el.hasAttribute("night")).toBe(true);
   });
 
+  it("wakes while a motion sensor reports movement, and sleeps again after it stops", async () => {
+    const { el } = await mount(
+      { ...base, night_wake_entity: "binary_sensor.flur" },
+      { calendars, now: "2026-09-11T23:00:00", states: { "binary_sensor.flur": "off" } },
+    );
+    const card = el as unknown as {
+      hass: { states: Record<string, { state: string }> };
+      updateComplete: Promise<unknown>;
+    };
+    const motion = async (state: string) => {
+      card.hass = {
+        ...card.hass,
+        states: { ...card.hass.states, "binary_sensor.flur": { state } },
+      };
+      await card.updateComplete;
+    };
+    expect(el.hasAttribute("night")).toBe(true);
+    await motion("on");
+    expect(el.hasAttribute("night")).toBe(false);
+    await vi.advanceTimersByTimeAsync(5 * 60000); // still moving: stays awake
+    await card.updateComplete;
+    expect(el.hasAttribute("night")).toBe(false);
+    await motion("off");
+    expect(el.hasAttribute("night")).toBe(false); // a short while longer, like a touch
+    await vi.advanceTimersByTimeAsync(3 * 60000);
+    await card.updateComplete;
+    expect(el.hasAttribute("night")).toBe(true);
+  });
+
+  it("ignores motion during the day", async () => {
+    const { el, root } = await mount(
+      { ...base, night_wake_entity: ["binary_sensor.flur"] },
+      { calendars, now: "2026-09-11T10:20:00", states: { "binary_sensor.flur": "on" } },
+    );
+    expect(el.hasAttribute("night")).toBe(false);
+    expect(root.querySelector(".switch")).not.toBeNull();
+  });
+
   it("stays off without both times", async () => {
     const { el } = await mount(
       { ...base, night_end: undefined },
@@ -1403,5 +1453,312 @@ describe("live updates and instant display", () => {
     const other = { ...base, persons: [{ name: "Ben", calendar: "calendar.ben" }] };
     const { text } = await mount(other, { calendars: { "calendar.ben": [] }, slowApi: true });
     expect(text()).not.toContain("Büro");
+  });
+});
+
+describe("still at home (late_warning)", () => {
+  const persons = [
+    { name: "Anna", person: "person.anna", calendar: "calendar.anna" },
+    { name: "Ben", person: "person.ben", calendar: "calendar.ben" },
+  ];
+  const calendars = {
+    "calendar.anna": [ev("Zahnarzt", "10:30", "11:00", { location: "Praxis Dr. Meier" })],
+    "calendar.ben": [ev("Training", "10:35", "12:00", { location: "Sporthalle" })],
+  };
+  const states = { "person.anna": "home", "person.ben": "not_home" };
+  const base = {
+    persons,
+    late_warning: 20,
+    start_hour: 7,
+    end_hour: 20,
+  };
+
+  it("warns in the day view for whoever is still home", async () => {
+    const { texts } = await mount({ ...base, view: "day", views: ["day"] }, { calendars, states });
+    expect(texts(".alert.a-late")).toEqual(["🚪 Anna noch zuhause – Zahnarzt 10:30"]);
+  });
+
+  it("puts the warning into the person's row in the now view", async () => {
+    const { texts } = await mount({ ...base, view: "now", views: ["now"] }, { calendars, states });
+    expect(texts(".nrow .nlate")).toEqual(["🚪 Zahnarzt 10:30 · noch zuhause"]);
+  });
+
+  it("shows nothing without the option, or on another day", async () => {
+    const off = await mount(
+      { ...base, late_warning: 0, view: "day", views: ["day"] },
+      { calendars, states },
+    );
+    expect(off.root.querySelector(".a-late")).toBeNull();
+    const { el, root } = await mount(
+      { ...base, view: "day", views: ["day"] },
+      { calendars, states },
+    );
+    const card = el as unknown as { _day: number; updateComplete: Promise<unknown> };
+    card._day = 5; // Saturday
+    await card.updateComplete;
+    expect(root.querySelector(".a-late")).toBeNull();
+  });
+});
+
+describe("rides (driver)", () => {
+  const persons = [
+    { name: "Anna", calendar: "calendar.anna", driver: true },
+    { name: "Ben", calendar: "calendar.ben", driver: true },
+    { name: "Mia", calendar: "calendar.mia" },
+  ];
+  const calendars = {
+    "calendar.anna": [ev("Büro", "09:00", "17:00")],
+    "calendar.ben": [ev("Homeoffice", "08:00", "12:00")],
+    "calendar.mia": [
+      ev("Anna: vom Sport abholen", "16:00", "16:30"),
+      ev("Zum Training bringen", "17:00", "17:30"),
+      ev("Ben: Musikschule abholen", "18:00", "18:30"),
+    ],
+  };
+  const base = { persons, start_hour: 7, end_hour: 20 };
+
+  it("tags rides with their driver, and warns about missing or busy drivers", async () => {
+    const { texts, root } = await mount({ ...base, view: "day", views: ["day"] }, { calendars });
+    expect(texts(".eride")).toEqual(["🚗 Anna", "🚗 ?", "🚗 Ben"]);
+    expect(root.querySelector(".eride.none")?.textContent).toBe("🚗 ?");
+    expect(texts(".alert.a-ride")).toEqual([
+      "🚗 Anna ist belegt – Anna: vom Sport abholen 16:00",
+      "🚗 Mia Zum Training bringen – kein Fahrer 17:00",
+    ]);
+    const label = root.querySelector(".event[aria-label*='Training']")?.getAttribute("aria-label");
+    expect(label).toContain("kein Fahrer");
+  });
+
+  it("shows the driver in the agenda", async () => {
+    const { texts } = await mount({ ...base, view: "agenda", views: ["agenda"] }, { calendars });
+    expect(texts(".agenda-meta .eride")).toEqual(["🚗 Anna", "🚗 ?", "🚗 Ben"]);
+  });
+
+  it("does nothing while nobody is marked as a driver", async () => {
+    const plain = persons.map(({ driver: _d, ...p }) => p);
+    const { root } = await mount(
+      { ...base, persons: plain, view: "day", views: ["day"] },
+      { calendars },
+    );
+    expect(root.querySelector(".eride")).toBeNull();
+    expect(root.querySelector(".a-ride")).toBeNull();
+  });
+});
+
+describe("private events", () => {
+  const persons = [
+    { name: "Anna", calendar: "calendar.anna" },
+    { name: "Ben", calendar: "calendar.ben" },
+  ];
+  const calendars = {
+    "calendar.anna": [
+      ev("Therapie", "10:00", "11:00", { location: "Praxis Dr. Meier", description: "#privat" }),
+      ev("Büro", "12:00", "17:00"),
+    ],
+    "calendar.ben": [ev("Bewerbungsgespräch", "14:00", "15:00", { location: "Firma X" })],
+  };
+  const base = {
+    persons,
+    private_patterns: ["#privat"],
+    calendars: { "calendar.ben": { private: true } },
+    start_hour: 7,
+    end_hour: 20,
+  };
+
+  it("shows only “Private” and the time, never title or place", async () => {
+    const { text, texts } = await mount(
+      { ...base, view: "agenda", views: ["agenda"] },
+      { calendars },
+    );
+    expect(text()).not.toContain("Therapie");
+    expect(text()).not.toContain("Praxis");
+    expect(text()).not.toContain("Bewerbung");
+    expect(text()).not.toContain("Firma X");
+    expect(texts(".agenda-title")).toEqual(["🔒 Privat", "Büro", "🔒 Privat"]);
+    expect(text()).toContain("10:00–11:00");
+  });
+
+  it("opens no dialog and cannot be dragged", async () => {
+    const { root, el } = await mount(
+      { ...base, view: "day", views: ["day"] },
+      { calendars, writable: ["calendar.anna"] },
+    );
+    const priv = root.querySelector<HTMLElement>(".event[aria-label^='🔒']")!;
+    expect(priv.classList.contains("draggable")).toBe(false);
+    priv.click();
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(root.querySelector(".dialog")).toBeNull();
+    root.querySelector<HTMLElement>("[aria-label*='Büro']")!.click();
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(root.querySelector(".dialog")).not.toBeNull();
+  });
+
+  it("keeps the details out of the browser cache, and stays private when started from it", async () => {
+    await mount({ ...base, view: "agenda", views: ["agenda"] }, { calendars });
+    const stored = Object.keys(localStorage)
+      .map((k) => localStorage.getItem(k))
+      .join(" ");
+    expect(stored).toContain("Büro");
+    expect(stored).not.toContain("Therapie");
+    expect(stored).not.toContain("Praxis");
+    expect(stored).not.toContain("Bewerbung");
+    mounted.splice(0).forEach((n) => n.remove());
+    const { texts } = await mount(
+      { ...base, view: "agenda", views: ["agenda"] },
+      { calendars, slowApi: true },
+    );
+    expect(texts(".agenda-title")).toEqual(["🔒 Privat", "Büro", "🔒 Privat"]);
+  });
+});
+
+describe("photo screensaver", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = { "calendar.anna": [ev("Zahnarzt", "10:30", "11:00")] };
+  const folder = "media-source://media_source/local/fotos";
+  const media = [
+    { media_content_id: `${folder}/a.jpg`, media_class: "image" },
+    { media_content_id: `${folder}/b.jpg`, media_class: "image" },
+    { media_content_id: `${folder}/clip.mp4`, media_class: "video" },
+    { media_content_id: `${folder}/urlaub`, media_class: "directory" },
+  ];
+  const base = {
+    persons,
+    view: "day" as const,
+    views: ["day" as const],
+    screensaver_media: folder,
+    screensaver_after: 5,
+    screensaver_interval: 10,
+    start_hour: 7,
+    end_hour: 20,
+  };
+  type Card = { updateComplete: Promise<unknown> };
+  const settle = async (el: HTMLElement) => {
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(0);
+      await (el as unknown as Card).updateComplete;
+    }
+  };
+
+  it("starts after the idle time, shows photos with a clock, and moves on", async () => {
+    const { el, root, wsCalls } = await mount(base, { calendars, media });
+    expect(wsCalls.find((m) => m.type === "media_source/browse_media")).toMatchObject({
+      media_content_id: folder,
+    });
+    expect(root.querySelector(".saver")).toBeNull();
+    await vi.advanceTimersByTimeAsync(4 * 60000);
+    await settle(el);
+    expect(root.querySelector(".saver")).toBeNull(); // not yet
+    await vi.advanceTimersByTimeAsync(60000);
+    await settle(el);
+    expect(root.querySelector(".saver")).not.toBeNull();
+    expect(root.querySelector(".board")).toBeNull();
+    expect(root.querySelector(".savertime")?.textContent).toBe("10:25");
+    const first = root.querySelector<HTMLImageElement>(".saverimg")?.getAttribute("src");
+    expect(first).toMatch(/^\/media\/local\/[ab]\.jpg\?authSig=x$/);
+    await vi.advanceTimersByTimeAsync(10000);
+    await settle(el);
+    const second = root.querySelector<HTMLImageElement>(".saverimg")?.getAttribute("src");
+    expect(second).not.toBe(first);
+    // only photos are shown: two photos, so the third turn is the first again
+    const resolved = wsCalls
+      .filter((m) => m.type === "media_source/resolve_media")
+      .map((m) => String(m.media_content_id).split("/").pop());
+    expect(resolved.every((id) => id === "a.jpg" || id === "b.jpg")).toBe(true);
+  });
+
+  it("a tap brings the board back without opening what lies below", async () => {
+    const { el, root } = await mount(base, { calendars, media });
+    await vi.advanceTimersByTimeAsync(5 * 60000);
+    await settle(el);
+    const saver = root.querySelector<HTMLElement>(".saver")!;
+    saver.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true }));
+    await settle(el);
+    expect(root.querySelector(".saver")).toBeNull();
+    // the click of that same tap lands on the board and must be swallowed
+    root.querySelector<HTMLElement>("[aria-label*='Zahnarzt']")!.click();
+    await settle(el);
+    expect(root.querySelector(".dialog")).toBeNull();
+    // the next tap works as usual
+    root.querySelector<HTMLElement>("[aria-label*='Zahnarzt']")!.click();
+    await settle(el);
+    expect(root.querySelector(".dialog")).not.toBeNull();
+  });
+
+  it("can be ended with the keyboard", async () => {
+    const { el, root } = await mount(base, { calendars, media });
+    await vi.advanceTimersByTimeAsync(5 * 60000);
+    await settle(el);
+    root
+      .querySelector<HTMLElement>(".saver")!
+      .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await settle(el);
+    expect(root.querySelector(".saver")).toBeNull();
+  });
+
+  it("stays away without photos, and gives way to the night screen", async () => {
+    const empty = await mount(base, { calendars, media: [] });
+    await vi.advanceTimersByTimeAsync(10 * 60000);
+    await settle(empty.el);
+    expect(empty.root.querySelector(".saver")).toBeNull();
+    mounted.splice(0).forEach((n) => n.remove());
+    const night = await mount(
+      { ...base, night_start: "21:00", night_end: "06:30" },
+      { calendars, media, now: "2026-09-11T23:00:00" },
+    );
+    await vi.advanceTimersByTimeAsync(10 * 60000);
+    await settle(night.el);
+    expect(night.root.querySelector(".saver")).toBeNull();
+    expect(night.el.hasAttribute("night")).toBe(true);
+    // and no photos are fetched behind the night screen
+    expect(night.wsCalls.some((m) => m.type === "media_source/resolve_media")).toBe(false);
+  });
+});
+
+describe("birthdays with age", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = {
+    "calendar.anna": [
+      {
+        uid: "oma",
+        summary: "Geburtstag Oma (1946)",
+        start: { date: "2026-09-11" },
+        end: { date: "2026-09-12" },
+      },
+      ev("Klassentreffen (1996)", "18:00", "22:00"),
+    ],
+  };
+  const base = { persons, start_hour: 7, end_hour: 20 };
+
+  it("shows the age in the agenda and the now view", async () => {
+    const ag = await mount(
+      { ...base, birthday_age: true, view: "agenda", views: ["agenda"] },
+      { calendars },
+    );
+    expect(ag.texts(".agenda-title")).toEqual([
+      "Geburtstag Oma (wird 80)",
+      "Klassentreffen (1996)",
+    ]);
+    const now = await mount(
+      { ...base, birthday_age: true, view: "now", views: ["now"] },
+      { calendars },
+    );
+    expect(now.texts(".nallday")).toEqual(["Geburtstag Oma (wird 80)"]);
+  });
+
+  it("keeps the real title for editing", async () => {
+    const { root, el } = await mount(
+      { ...base, birthday_age: true, view: "agenda", views: ["agenda"] },
+      { calendars, writable: ["calendar.anna"] },
+    );
+    root.querySelector<HTMLElement>(".agenda-row")!.click();
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(root.querySelector<HTMLInputElement>(".dialog input[type=text]")?.value).toBe(
+      "Geburtstag Oma (1946)",
+    );
+  });
+
+  it("changes nothing while the option is off", async () => {
+    const { texts } = await mount({ ...base, view: "agenda", views: ["agenda"] }, { calendars });
+    expect(texts(".agenda-title")[0]).toBe("Geburtstag Oma (1946)");
   });
 });

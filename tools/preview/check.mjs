@@ -47,6 +47,7 @@ async function open({
   night = false,
   timezoneId,
   time,
+  extra = "",
 }) {
   const page = await browser.newPage({ viewport: { width, height: 900 }, locale, timezoneId });
   const errors = [];
@@ -54,7 +55,7 @@ async function open({
   const at = time ?? new Date();
   if (!time) at.setHours(10, 20, 0, 0);
   await page.clock.install({ time: at });
-  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}${writable ? "&writable=1" : ""}${swipe ? "&swipe=1" : ""}${night ? "&night=1" : ""}`;
+  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}${writable ? "&writable=1" : ""}${swipe ? "&swipe=1" : ""}${night ? "&night=1" : ""}${extra}`;
   await page.goto(url);
   await page.waitForTimeout(1500);
   return { page, errors };
@@ -424,6 +425,76 @@ for (const [view, dark, dialog, night] of [
   const found = await axe(page, null, { rules: { "color-contrast": { enabled: false } } });
   const name = `${view}${dark ? " dunkel" : ""}${dialog ? " + Dialog" : ""}${night ? " nachts" : ""}`;
   check(`axe: keine Barrierefreiheits-Fehler (${name})`, found.length === 0, found.join(", "));
+  await page.close();
+}
+
+/* --- the new warnings, rides and the photo screensaver ------------- */
+// late warning, rides and private markers in the day, now and agenda views
+for (const [view, dark] of [["day"], ["day", true], ["now"], ["agenda"]]) {
+  const { page, errors } = await open({ view, dark, extra: "&late=1&rides=1" });
+  const found = await axe(page, null, { rules: { "color-contrast": { enabled: false } } });
+  const name = `${view}${dark ? " dunkel" : ""} + Fahrten/zuhause`;
+  check(`axe: keine Barrierefreiheits-Fehler (${name})`, found.length === 0, found.join(", "));
+  check(`keine Konsolenfehler (${name})`, errors.length === 0, errors.join(" | "));
+  if (view === "day") {
+    const sel = ".alert.a-late, .alert.a-ride, .eride";
+    const n = await page.evaluate(
+      (sel) => document.querySelector("family-board-card").renderRoot.querySelectorAll(sel).length,
+      sel,
+    );
+    const contrast = await axe(
+      page,
+      { include: [{ fromShadowDom: ["family-board-card", sel] }] },
+      { runOnly: ["color-contrast"] },
+    );
+    check(
+      `Kontrast ausreichend: Warn-Chips und Fahrer (${name})`,
+      n >= 3 && contrast.length === 0,
+      `${n} Elemente; ${contrast.join(", ")}`,
+    );
+  }
+  await page.close();
+}
+
+// the slideshow: same height as the board, readable clock, ends with a key
+{
+  const { page, errors } = await open({ view: "day", extra: "&saver=1" });
+  const boardH = await page.evaluate(
+    () => document.querySelector("family-board-card").offsetHeight,
+  );
+  await page.clock.fastForward(65000);
+  await page.waitForTimeout(1500);
+  const shown = await page.evaluate(() => {
+    const el = document.querySelector("family-board-card");
+    const card = el.renderRoot.querySelector(".saver");
+    const img = el.renderRoot.querySelector(".saverimg");
+    return {
+      on: !!card,
+      h: el.offsetHeight,
+      photo: !!img && img.complete && img.naturalWidth > 0,
+    };
+  });
+  check(
+    "Bildschirmschoner startet mit Foto, so hoch wie das Board",
+    shown.on && shown.photo && Math.abs(shown.h - boardH) <= 2,
+    `an: ${shown.on}, Foto: ${shown.photo}, ${boardH}px → ${shown.h}px`,
+  );
+  const found = await axe(page, null);
+  check(
+    "axe: keine Barrierefreiheits-Fehler (Bildschirmschoner)",
+    found.length === 0,
+    found.join(", "),
+  );
+  await page.evaluate(() =>
+    document.querySelector("family-board-card").renderRoot.querySelector(".saver").focus(),
+  );
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(300);
+  const back = await page.evaluate(
+    () => !!document.querySelector("family-board-card").renderRoot.querySelector(".board"),
+  );
+  check("Enter beendet den Bildschirmschoner", back);
+  check("keine Konsolenfehler (Bildschirmschoner)", errors.length === 0, errors.join(" | "));
   await page.close();
 }
 

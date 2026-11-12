@@ -13,6 +13,7 @@ interface PersonConfig {
   color?: string;
   badges?: string[];
   hidden?: boolean;
+  driver?: boolean;
 }
 
 const VIEW_VALUES = ["now", "day", "timeline", "week", "month", "agenda"];
@@ -27,6 +28,7 @@ const PERSON_SCHEMA = [
   { name: "badges", selector: { entity: { multiple: true } } },
   { name: "color", selector: { text: {} } },
   { name: "hidden", selector: { boolean: {} } },
+  { name: "driver", selector: { boolean: {} } },
 ];
 const TASKS_FIELD = {
   name: "tasks",
@@ -162,6 +164,33 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       { name: "swipe", selector: { boolean: {} } },
       { name: "night_start", selector: { time: {} } },
       { name: "night_end", selector: { time: {} } },
+      { name: "screensaver_media", selector: { text: {} } },
+      ...(cfg.screensaver_media
+        ? [
+            {
+              name: "screensaver_after",
+              selector: {
+                number: { min: 1, max: 120, step: 1, mode: "slider", unit_of_measurement: "min" },
+              },
+            },
+            {
+              name: "screensaver_interval",
+              selector: {
+                number: { min: 5, max: 300, step: 5, mode: "slider", unit_of_measurement: "s" },
+              },
+            },
+          ]
+        : []),
+      ...(cfg.night_start
+        ? [
+            {
+              name: "night_wake_entity",
+              selector: {
+                entity: { filter: { domain: ["binary_sensor", "input_boolean"] }, multiple: true },
+              },
+            },
+          ]
+        : []),
       { name: "show_now_line", selector: { boolean: {} } },
       { name: "show_progress", selector: { boolean: {} } },
       {
@@ -241,11 +270,20 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         { name: "filter_duplicates", selector: { boolean: {} } },
         ...(views.includes("agenda") ? [{ name: "hide_past", selector: { boolean: {} } }] : []),
         { name: "tentative_patterns", selector: { text: { multiple: true } } },
+        { name: "birthday_age", selector: { boolean: {} } },
+        { name: "private_patterns", selector: { text: { multiple: true } } },
+        { name: "ride_patterns", selector: { text: { multiple: true } } },
         ...(hasWeek ? [{ name: "hide_empty_persons", selector: { boolean: {} } }] : []),
       ]),
       group(this._t("g_looks"), "mdi:palette", [
         { name: "show_focus", selector: { boolean: {} } },
         { name: "show_alerts", selector: { boolean: {} } },
+        {
+          name: "late_warning",
+          selector: {
+            number: { min: 0, max: 120, step: 5, mode: "slider", unit_of_measurement: "min" },
+          },
+        },
         ...(cfg.show_alerts
           ? [
               {
@@ -368,6 +406,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     if (!value.color) delete value.color;
     if (Array.isArray(value.badges) && value.badges.length === 0) delete value.badges;
     if (!value.hidden) delete value.hidden;
+    if (!value.driver) delete value.driver;
     // collapse a single-calendar array back to a string for tidy YAML
     if (Array.isArray(value.calendar)) {
       if (value.calendar.length === 0) delete value.calendar;
@@ -439,10 +478,15 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       label?: string | null;
       icon?: string | null;
       title_field?: string | null;
+      private?: boolean;
     },
   ): void {
     const map = { ...(this._config.calendars ?? {}) };
-    const entry = { ...(map[entity] ?? {}) } as Record<string, string>;
+    const entry = { ...(map[entity] ?? {}) } as Record<string, string | boolean>;
+    if (patch.private !== undefined) {
+      if (patch.private) entry.private = true;
+      else delete entry.private;
+    }
     for (const key of ["color", "label", "icon", "title_field"] as const) {
       const val = patch[key];
       if (val === undefined) continue;
@@ -620,6 +664,17 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
                             })}
                         />
                       </div>
+                      <label class="cal-private">
+                        <input
+                          type="checkbox"
+                          .checked=${meta.private === true}
+                          @change=${(e: Event) =>
+                            this._setCalMeta(c, {
+                              private: (e.target as HTMLInputElement).checked,
+                            })}
+                        />
+                        ${this._t("cal_private")}
+                      </label>
                     </div>
                   `;
                 })}
@@ -749,6 +804,13 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .cal-private {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+      font-size: 13px;
     }
     .cal-extra {
       display: flex;

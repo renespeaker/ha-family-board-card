@@ -19,6 +19,13 @@ import {
   layoutDayColumns,
   dragTimes,
   detectDayAlerts,
+  detectLate,
+  birthdayAge,
+  detectRideAlerts,
+  findDriver,
+  hasWord,
+  RIDE_WORDS,
+  type Driver,
   buildRrule,
   RepeatFreq,
   liveToApiEvent,
@@ -49,6 +56,7 @@ interface PersonConfig {
   color?: string; // optional override; default falls back to a palette
   badges?: string[]; // extra entities shown as chips under the person header
   hidden?: boolean; // start collapsed (person toggle can bring them back)
+  driver?: boolean; // can drive: rides (pick-up, drop-off) get assigned to them
 }
 
 export interface FamilyBoardConfig extends LovelaceCardConfig {
@@ -70,14 +78,18 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   hide_past?: boolean; // agenda: skip days before today in the current week. default false
   calendars?: Record<
     string,
-    { color?: string; label?: string; icon?: string; title_field?: string }
+    { color?: string; label?: string; icon?: string; title_field?: string; private?: boolean }
   >; // per-calendar color/label/icon and which field supplies the title
   tentative_patterns?: string[]; // mark events tentative when title matches
+  birthday_age?: boolean; // "Geburtstag Oma (1946)" shows as "Geburtstag Oma (wird 80)"
+  private_patterns?: string[]; // events whose title/description matches show only "Private" and the time
   auto_icons?: boolean; // prefix events with a matching emoji by keyword. default false
   icon_patterns?: string[]; // custom icon rules: "keyword => 🎂"
   show_focus?: boolean; // show a "now / next" focus bar per person above the views
   show_alerts?: boolean; // warn about double bookings, care gaps and "nobody home"
   gap_min?: number; // minutes a care gap must reach to be flagged. default 60, 0 = off
+  ride_patterns?: string[]; // words that mark a ride; default RIDE_WORDS
+  late_warning?: number; // warn N minutes before an event with a place when that person is still home
   drag_drop?: boolean; // drag to move / resize events in the day view. default true
   compact?: boolean; // denser spacing + smaller fonts in one switch
   map_url?: string; // location link template, {location} is replaced (URL-encoded)
@@ -106,6 +118,10 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   first_day?: "monday" | "sunday" | "today"; // week start; "today" = a rolling week. default monday
   scroll_to_now?: boolean; // auto-scroll day view to current time. default true
   swipe?: boolean; // touch: swipe left/right to page days, weeks or months. default false
+  screensaver_media?: string; // media-source://… folder: photo slideshow when nobody touches the board
+  screensaver_after?: number; // minutes without touch before the slideshow starts. default 10
+  screensaver_interval?: number; // seconds per photo. default 20
+  night_wake_entity?: string | string[]; // motion/presence sensors: "on" wakes the night screen
   night_start?: string; // "21:00": from here a calm, dimmed night screen (clock + next events)
   night_end?: string; // "06:30": ... until here. Both needed; a tap wakes the board for a while
 }
@@ -532,6 +548,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this.removeEventListener("touchcancel", this._onSwipeCancel);
     this.removeEventListener("click", this._onClickAfterSwipe, true);
     this._stopTimer();
+    if (this._saverTimer) {
+      clearInterval(this._saverTimer);
+      this._saverTimer = undefined;
+    }
     if (this._tick) {
       clearTimeout(this._tick);
       this._tick = undefined;
@@ -559,14 +579,44 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   private _onInteract = (): void => {
+    if (this._saverOn) {
+      // the touch only ends the slideshow; it must not open what lies below
+      this._eatClick = true;
+      this.requestUpdate();
+    }
     this._lastInteract = Date.now();
     // a touch at night wakes the board for a while (auto_return, at least 2 min)
     if (this._nightWindow()) {
-      const min = Math.max(Number(this._config.auto_return) || 0, 2);
-      this._wakeUntil = Date.now() + min * 60000;
+      this._wakeUntil = Date.now() + this._wakeMin * 60000;
       this.requestUpdate();
     }
   };
+
+  private get _wakeMin(): number {
+    return Math.max(Number(this._config.auto_return) || 0, 2);
+  }
+
+  /** A configured motion or presence sensor reports "on". */
+  private get _motion(): boolean {
+    const ids = this._config?.night_wake_entity;
+    const list = Array.isArray(ids) ? ids : ids ? [ids] : [];
+    return list.some((id) => this.hass?.states[id]?.state === "on");
+  }
+
+  protected willUpdate(changed: PropertyValues): void {
+    // movement in the room wakes the night screen; it stays awake while the
+    // sensor reports motion and for a while after (like a touch)
+    if (changed.has("hass")) {
+      const motion = this._motion;
+      // count the while from the last movement, also when it just stopped
+      if ((motion || this._hadMotion) && this._nightWindow()) {
+        this._wakeUntil = Date.now() + this._wakeMin * 60000;
+      }
+      this._hadMotion = motion;
+    }
+  }
+
+  private _hadMotion = false;
 
   private _wakeUntil = 0;
   private _wasNight = false;
@@ -591,7 +641,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   /** The night screen is showing: night hours, no dialog, not woken by a touch. */
   private get _night(): boolean {
-    return this._nightWindow() && !this._dialog && Date.now() >= this._wakeUntil;
+    return this._nightWindow() && !this._dialog && Date.now() >= this._wakeUntil && !this._motion;
   }
 
   /** The view whose data is needed: at night the night screen's (that of the now view). */
@@ -671,6 +721,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._maybeFetchWeather();
       this._maybeFetchCountdowns();
       this._maybeFetchTasks();
+      this._maybeLoadSaver();
     } else if (
       (changed.has("_view") || changed.has("_weekOffset") || changed.has("_monthOffset")) &&
       this.hass &&
@@ -680,6 +731,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._maybeFetch();
       this._maybeFetchCountdowns();
     }
+    // remember the board's height, so the slideshow takes the same place
+    if (!this._saverOn && !this._night && this.offsetHeight > 200) this._boardH = this.offsetHeight;
+    this._syncSaver();
     // entering or leaving the night screen needs other data, and other colours
     const night = this._night;
     this.toggleAttribute("night", night);
@@ -1048,6 +1102,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           for (const ev of events) {
             const raw = parseRawEvent(ev, idx, cal, "");
             if (!raw || this._hidden(raw.summary) || !this._allowed(raw.summary)) continue;
+            if (this._isPrivate(cal, ev)) continue; // a countdown would give the title away
             raw.summary = this._cleanTitle(raw.summary);
             const title = raw.summary.toLowerCase();
             if (pats.some((p) => title.includes(p))) found.push(raw);
@@ -1094,7 +1149,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               : HAS_EMOJI.test(r.summary)
                 ? nothing
                 : html`<span aria-hidden="true">${this._autoIcon(r.summary, true) || "⏳"}</span>`
-          }<span class="famtext">${r.summary}</span> <b>${when}</b>
+          }<span class="famtext">${this._shown(r.summary, r.start)}</span> <b>${when}</b>
         </span>`;
       })}
     </div>`;
@@ -1190,6 +1245,29 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return out.replace(/\s{2,}/g, " ").trim() || summary;
   }
 
+  /**
+   * Private: the calendar is marked `private: true`, or the title or description
+   * matches a private pattern. Checked on the event as Home Assistant sends it.
+   */
+  private _isPrivate(cal: string, ev: any): boolean {
+    if (ev?.fb_private === true || this._calMeta(cal).private === true) return true;
+    const pats = this._config.private_patterns;
+    if (!Array.isArray(pats) || pats.length === 0) return false;
+    const text = `${ev?.summary ?? ""} ${ev?.description ?? ""}`.toLowerCase();
+    return pats.some((p) => {
+      const pat = String(p).trim().toLowerCase();
+      return pat.length > 0 && text.includes(pat);
+    });
+  }
+
+  /** Only the time stays; title, place and notes are gone before anything renders. */
+  private _makePrivate(raw: RawEvent): void {
+    raw.summary = `🔒 ${this._t("private")}`;
+    delete raw.location;
+    delete raw.description;
+    raw.private = true;
+  }
+
   /** Whether an event title marks it as tentative/provisional (case-insensitive). */
   private _matchesTentative(summary: string): boolean {
     const pats = this._config.tentative_patterns;
@@ -1268,6 +1346,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           if (this._hidden(raw.summary) || !this._allowed(raw.summary)) continue;
           if (this._matchesTentative(raw.summary)) raw.tentative = true;
           raw.summary = this._cleanTitle(raw.summary);
+          if (this._isPrivate(cal, ev)) this._makePrivate(raw);
           raws.push(raw);
         }
       }
@@ -1370,7 +1449,22 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       const data = JSON.stringify({
         key: this._fetchedKey,
         at: Date.now(),
-        cals: [...this._calData],
+        // private events are stored without their details
+        cals: [...this._calData].map(([cal, evs]) => [
+          cal,
+          evs.map((ev: any) =>
+            this._isPrivate(cal, ev)
+              ? {
+                  ...ev,
+                  summary: "",
+                  location: undefined,
+                  description: undefined,
+                  uid: undefined, // some feeds build it from the title
+                  fb_private: true,
+                }
+              : ev,
+          ),
+        ]),
       });
       if (data.length < 500000) localStorage.setItem(this._cacheId, data);
     } catch (e) {
@@ -1412,11 +1506,11 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const emoji = !icon && this._config.auto_icons ? this._autoIcon(r.summary) : "";
     const starts = toLocalDate(r.start) === toLocalDate(date);
     const time = !r.allDay && starts ? formatTime(this.hass, r.start) : "";
-    const label = `${r.summary}${time ? `, ${time}` : ""} (${this._calLabel(r.calendar)})`;
+    const label = `${this._shown(r.summary, r.start)}${time ? `, ${time}` : ""} (${this._calLabel(r.calendar)})`;
     return html`<span class="famchip" style="--fc:${color}" title=${label}>
       ${icon ? html`<ha-icon .icon=${icon}></ha-icon>` : nothing}${emoji}${
         time ? html`<b>${time}</b> ` : nothing
-      }<span class="famtext">${r.summary}</span>
+      }<span class="famtext">${this._shown(r.summary, r.start)}</span>
     </span>`;
   }
 
@@ -1538,6 +1632,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     label?: string;
     icon?: string;
     title_field?: string;
+    private?: boolean;
   } {
     return (entity && this._config.calendars?.[entity]) || {};
   }
@@ -1670,8 +1765,16 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return { events, overflows };
   }
   /** Display title, with "(day X/Y)" suffix for multi-day events. */
+  /** A title as shown: with "turns 80" for birthdays when `birthday_age` is on. Display only. */
+  private _shown(title: string, start: Date): string {
+    if (this._config.birthday_age !== true) return title;
+    const b = birthdayAge(title, start);
+    return b ? `${b.title} (${this._t("turns_age").replace("{n}", String(b.age))})` : title;
+  }
+
   private _evTitle(e: BoardEvent): string {
-    const base = e.parts && e.parts > 1 ? `${e.title} (${e.part}/${e.parts})` : e.title;
+    const shown = this._shown(e.title, e.ref.start);
+    const base = e.parts && e.parts > 1 ? `${shown} (${e.part}/${e.parts})` : shown;
     const icon = this._autoIcon(e.title);
     return icon ? `${icon} ${base}` : base;
   }
@@ -1745,7 +1848,14 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       ? this._t("all_day")
       : `${formatTime(this.hass, e.ref.start)}–${formatTime(this.hass, e.ref.end)}`;
     const p = this._persons[e.personIdx];
-    return [this._evTitle(e), when, p ? this._personName(p, e.personIdx) : ""]
+    const ride = this._rideDriver(e.ref);
+    const rideText =
+      ride === undefined
+        ? ""
+        : ride === null
+          ? this._t("alert_no_driver")
+          : `${this._t("ride_by")} ${ride}`;
+    return [this._evTitle(e), when, p ? this._personName(p, e.personIdx) : "", rideText]
       .filter(Boolean)
       .join(", ");
   }
@@ -1893,6 +2003,130 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
    */
   private _swipe?: { x: number; y: number; t: number; scroll: Array<[Element, number]> };
   private _swiped = false;
+  private _eatClick = false;
+
+  /* ---- photo screensaver --------------------------------------- */
+  @state() private _saverPhotos: string[] = [];
+  @state() private _saverUrl = "";
+  private _saverKey = "";
+  private _saverIdx = 0;
+  private _saverTimer?: number;
+  private _boardH = 0;
+
+  /** The slideshow runs: photos found, nobody touched the board for a while, no dialog, not at night. */
+  private get _saverOn(): boolean {
+    if (!this._config?.screensaver_media || !this._saverPhotos.length) return false;
+    if (this._dialog || this._night) return false;
+    const after = Math.max(Number(this._config.screensaver_after ?? 10) || 10, 1);
+    return Date.now() - this._lastInteract >= after * 60000;
+  }
+
+  /** Photos of the configured media folder (images only, refreshed every hour). */
+  private async _maybeLoadSaver(): Promise<void> {
+    const media = this._config.screensaver_media;
+    if (!media) {
+      this._saverKey = "";
+      if (this._saverPhotos.length) this._saverPhotos = [];
+      return;
+    }
+    const key = `${media}|${new Date().toISOString().slice(0, 13)}`;
+    if (key === this._saverKey) return;
+    this._saverKey = key;
+    try {
+      const res: any = await this.hass.callWS({
+        type: "media_source/browse_media",
+        media_content_id: media,
+      });
+      const photos = ((res?.children ?? []) as any[])
+        .filter(
+          (c) =>
+            c?.media_content_id &&
+            (c.media_class === "image" || String(c.media_content_type ?? "").startsWith("image/")),
+        )
+        .map((c) => String(c.media_content_id));
+      // shuffle, so a long evening does not always start with the same photo
+      for (let i = photos.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [photos[i], photos[j]] = [photos[j], photos[i]];
+      }
+      this._saverPhotos = photos;
+      this._saverIdx = 0;
+    } catch (e) {
+      this._saverPhotos = [];
+    }
+  }
+
+  /** Signed URLs only live a short while, so each photo is resolved just before it shows. */
+  private async _nextPhoto(): Promise<void> {
+    const list = this._saverPhotos;
+    if (!list.length) return;
+    const id = list[this._saverIdx % list.length];
+    this._saverIdx = (this._saverIdx + 1) % list.length;
+    try {
+      const res: any = await this.hass.callWS({
+        type: "media_source/resolve_media",
+        media_content_id: id,
+      });
+      const url = String(res?.url ?? "");
+      if (!url) return;
+      const hassUrl = (this.hass as any).hassUrl;
+      this._saverUrl = url.startsWith("/") && typeof hassUrl === "function" ? hassUrl(url) : url;
+    } catch (e) {
+      // a photo that fails is skipped; the next one comes with the next turn
+    }
+  }
+
+  /** Start or stop the slideshow's own clock to match whether it shows. */
+  private _syncSaver(): void {
+    const on = this._saverOn;
+    if (on && !this._saverTimer) {
+      const sec = Math.max(Number(this._config.screensaver_interval ?? 20) || 20, 5);
+      this._nextPhoto();
+      this._saverTimer = window.setInterval(() => {
+        this._nextPhoto();
+        this.requestUpdate(); // keeps the clock on the photo current
+      }, sec * 1000);
+    } else if (!on && this._saverTimer) {
+      clearInterval(this._saverTimer);
+      this._saverTimer = undefined;
+      this._saverUrl = "";
+    }
+  }
+
+  private _renderSaver() {
+    const now = new Date();
+    const date = new Intl.DateTimeFormat(this.hass.locale?.language || undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(now);
+    const url = this._saverUrl;
+    return html`<ha-card
+      class="saver"
+      style=${this._boardH ? `height:${this._boardH}px` : ""}
+      role="button"
+      tabindex="0"
+      aria-label="${formatTime(this.hass, now)} ${date} – ${this._t("saver_close")}"
+      @keydown=${(k: KeyboardEvent) => {
+        if (k.key === "Enter" || k.key === " " || k.key === "Escape") {
+          k.preventDefault();
+          this._lastInteract = Date.now();
+          this.requestUpdate();
+        }
+      }}
+    >
+      ${
+        url
+          ? html`<div class="saverbg" style="background-image:url('${url}')"></div>
+              <img class="saverimg" src=${url} alt="" />`
+          : nothing
+      }
+      <div class="saverclock">
+        <span class="savertime">${formatTime(this.hass, now)}</span>
+        <span class="saverdate">${date}</span>
+      </div>
+    </ha-card>`;
+  }
 
   private _onSwipeStart = (e: TouchEvent): void => {
     this._swipe = undefined;
@@ -1935,8 +2169,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   /** A swipe must not end as a tap that opens "new event" on the column below. */
   private _onClickAfterSwipe = (e: Event): void => {
-    if (!this._swiped) return;
+    if (!this._swiped && !this._eatClick) return;
     this._swiped = false;
+    this._eatClick = false;
     e.stopPropagation();
     e.preventDefault();
   };
@@ -1948,6 +2183,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       // the night screen: no switcher, no bars, just the now view, dimmed
       return html`<ha-card class="nightcard">${this._renderNow()}</ha-card>`;
     }
+    if (this._saverOn) return this._renderSaver();
     const title = this._config.title ?? this._t("board_title");
     return html`
       <ha-card>
@@ -1979,7 +2215,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         </div>
         ${this._config.show_focus && this._view !== "now" ? this._renderFocus() : nothing}
         ${
-          this._config.show_alerts && (this._view === "day" || this._view === "timeline")
+          (this._config.show_alerts || this._lateOn || this._ridesOn) &&
+          (this._view === "day" || this._view === "timeline")
             ? this._renderAlerts()
             : nothing
         }
@@ -2013,6 +2250,51 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   }
 
   /** "Jetzt / als Nächstes" glance bar — one chip per (visible) person. */
+  private get _lateOn(): boolean {
+    return Number(this._config.late_warning) > 0;
+  }
+
+  /** People still at home while their next event with a place is about to start. */
+  private _lateWarnings() {
+    if (!this._lateOn) return [];
+    const states = this._persons.map((p) =>
+      p.person ? this.hass.states[p.person]?.state : undefined,
+    );
+    return detectLate(this._raw, states, new Date(), Number(this._config.late_warning)).filter(
+      (w) => !this._isOff(w.personIdx),
+    );
+  }
+
+  /** Rides are on as soon as one person is marked as a driver. */
+  private get _ridesOn(): boolean {
+    return this._persons.some((p) => p.driver === true);
+  }
+
+  private get _rideWords(): string[] {
+    const own = this._config.ride_patterns;
+    return Array.isArray(own) && own.length ? own.map(String) : RIDE_WORDS;
+  }
+
+  private get _drivers(): Driver[] {
+    return this._persons
+      .map((p, idx) => ({ idx, name: this._personName(p, idx), on: p.driver === true }))
+      .filter((d) => d.on)
+      .map(({ idx, name }) => ({ idx, name }));
+  }
+
+  /** The driver's name for a ride, null for a ride nobody drives, undefined for no ride. */
+  private _rideDriver(raw: RawEvent): string | null | undefined {
+    if (!this._ridesOn || raw.allDay || !hasWord(raw.summary, this._rideWords)) return undefined;
+    const d = findDriver(raw, this._drivers);
+    return d === undefined ? null : this._personName(this._persons[d], d);
+  }
+
+  private _rideTag(e: BoardEvent) {
+    const d = this._rideDriver(e.ref);
+    if (d === undefined) return nothing;
+    return html`<span class="eride ${d === null ? "none" : ""}">🚗 ${d ?? "?"}</span>`;
+  }
+
   /**
    * Day check: double bookings, care gaps and "nobody home" for the shown day.
    * Background bands (after-school care and friends) are left out - they run
@@ -2025,15 +2307,64 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       (e) => e.day === day && persons.includes(e.personIdx) && !this._isBackground(e),
     );
     const now = new Date();
-    const alerts = detectDayAlerts(segments, {
-      persons,
-      gapMin: Math.max(0, this._config.gap_min ?? 60),
-      nowMin: this._isRealToday(day) ? now.getHours() * 60 + now.getMinutes() : undefined,
-    });
-    if (alerts.length === 0) return nothing;
+    const alerts = this._config.show_alerts
+      ? detectDayAlerts(segments, {
+          persons,
+          gapMin: Math.max(0, this._config.gap_min ?? 60),
+          nowMin: this._isRealToday(day) ? now.getHours() * 60 + now.getMinutes() : undefined,
+        })
+      : [];
+    // "still at home" is about right now, so only on today's page
+    const late = this._isRealToday(day) ? this._lateWarnings() : [];
+    const from = this._dateForDay(day);
+    const rides = this._ridesOn
+      ? detectRideAlerts(
+          this._raw.filter((r) => !this._isOff(r.personIdx)),
+          {
+            words: this._rideWords,
+            drivers: this._drivers,
+            from,
+            to: addDays(from, 1),
+            now: this._isRealToday(day) ? now : undefined,
+          },
+        )
+      : [];
+    if (alerts.length === 0 && late.length === 0 && rides.length === 0) return nothing;
     const icon = { conflict: "\u26a0\ufe0f", gap: "\u23f3", empty: "\ud83c\udfe0" };
     return html`
       <div class="alerts">
+        ${late.map(
+          (w) => html`
+            <div class="alert a-late" title=${w.location}>
+              <span>🚪</span>
+              <span>
+                <b>${this._personName(this._persons[w.personIdx], w.personIdx)}</b>
+                ${this._t("alert_late")} – ${w.title}
+                <small>${formatTime(this.hass, w.start)}</small>
+              </span>
+            </div>
+          `,
+        )}
+        ${rides.map((r) => {
+          const owner = this._personName(this._persons[r.personIdx], r.personIdx);
+          const driver =
+            r.driverIdx === undefined
+              ? ""
+              : this._personName(this._persons[r.driverIdx], r.driverIdx);
+          return html`
+            <div class="alert a-ride" title=${r.busyWith ?? r.title}>
+              <span>🚗</span>
+              <span>
+                ${
+                  r.kind === "no_driver"
+                    ? html`<b>${owner}</b> ${r.title} – ${this._t("alert_no_driver")}`
+                    : html`<b>${driver}</b> ${this._t("alert_driver_busy")} – ${r.title}`
+                }
+                <small>${formatTime(this.hass, r.start)}</small>
+              </span>
+            </div>
+          `;
+        })}
         ${alerts.map((a) => {
           const who =
             a.personIdx === undefined
@@ -2104,12 +2435,13 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   current
                     ? html`<span class="fnow">
                         <span class="fdot" style="background:${c}"></span>${icon(current)}
-                        ${current.summary}
+                        ${this._shown(current.summary, current.start)}
                         <small>${this._t("until")} ${formatTime(this.hass, current.end)}</small>
                       </span>`
                     : next
                       ? html`<span class="fnext">
-                          ${this._t("focus_next")}: ${icon(next)} ${next.summary}
+                          ${this._t("focus_next")}: ${icon(next)}
+                          ${this._shown(next.summary, next.start)}
                           <small>${formatCountdown(this.hass, next.start)}</small>
                         </span>`
                       : html`<span class="ffree">${this._t("focus_free")}</span>`
@@ -2157,6 +2489,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       month: "long",
     }).format(now);
     const icon = (r: RawEvent) => (this._config.auto_icons ? this._autoIcon(r.summary) : "");
+    const late = this._lateWarnings();
     return html`
       <div class="now">
         <div class="nowhead">
@@ -2192,19 +2525,21 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   <div class="nname">
                     ${name}${st ? html`<span class="nstat">${this._statusLabel(st.state)}</span>` : nothing}
                   </div>
-                  ${allDay.map((r) => html`<span class="nallday">${icon(r)} ${r.summary}</span>`)}
+                  ${allDay.map((r) => html`<span class="nallday">${icon(r)} ${this._shown(r.summary, r.start)}</span>`)}
                   ${
                     current
                       ? html`<div class="ncur">
                           <span class="ndot" aria-hidden="true"></span>
-                          <span class="ntitle">${icon(current)} ${current.summary}</span>
+                          <span class="ntitle"
+                            >${icon(current)} ${this._shown(current.summary, current.start)}</span
+                          >
                           <span class="nuntil"
                             >${this._t("until")} ${formatTime(this.hass, current.end)}</span
                           >
                           <div
                             class="nprog"
                             role="progressbar"
-                            aria-label=${current.summary}
+                            aria-label=${this._shown(current.summary, current.start)}
                             aria-valuenow=${Math.round(pct)}
                             aria-valuemin="0"
                             aria-valuemax="100"
@@ -2214,10 +2549,19 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                         </div>`
                       : html`<div class="ncur nfree">${this._t("focus_free")}</div>`
                   }
+                  ${(() => {
+                    const w = late.find((x) => x.personIdx === i);
+                    return w
+                      ? html`<div class="nlate">
+                          🚪 ${w.title} ${formatTime(this.hass, w.start)} · ${this._t("alert_late")}
+                        </div>`
+                      : nothing;
+                  })()}
                   ${
                     next
                       ? html`<div class="nnext">
-                          ${this._t("focus_next")}: ${icon(next)} ${next.summary}
+                          ${this._t("focus_next")}: ${icon(next)}
+                          ${this._shown(next.summary, next.start)}
                           <b>${this._nextLabel(next.start)}</b>
                         </div>`
                       : nothing
@@ -2522,7 +2866,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           <span class="etitle"
                             >${this._calIconEl(e)}${e.continuesBefore ? "« " : ""}${this._evTitle(
                               e,
-                            )}</span
+                            )}${h > 32 || dragging ? nothing : this._rideTag(e)}</span
                           >
                           ${
                             h > 32 || dragging
@@ -2530,7 +2874,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                                   >${formatMinutes(this.hass, sMin)}–${formatMinutes(
                                     this.hass,
                                     eMin,
-                                  )}</span
+                                  )}${this._rideTag(e)}</span
                                 >`
                               : nothing
                           }
@@ -3033,7 +3377,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               e,
             )}${e.continuesAfter ? " »" : ""}</span
           >
-          <span class="agenda-meta">${name}${e.location ? ` · ${e.location}` : ""}</span>
+          <span class="agenda-meta"
+            >${name}${e.location ? ` · ${e.location}` : ""}${this._rideTag(e)}</span
+          >
           ${
             current && this._progressOn
               ? html`<span class="agenda-prog"
@@ -3207,6 +3553,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
 
   private _openEvent(e: BoardEvent): void {
     const raw: RawEvent = e.ref;
+    if (raw.private) return; // nothing to show, and editing would overwrite the real title
     const cal = raw.calendar;
     const canUpdate = this._canUpdate(cal) && !!raw.uid;
     const canDelete = this._canDelete(cal) && !!raw.uid;
@@ -3312,6 +3659,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     return (
       this._config.drag_drop !== false &&
       !e.allDay &&
+      !e.ref.private &&
       !e.ref.rrule &&
       !!e.ref.uid &&
       this._canUpdate(e.ref.calendar) &&
@@ -3747,6 +4095,28 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     .alert.a-conflict {
       border-color: color-mix(in srgb, var(--error-color, #db4437) 55%, transparent);
       background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent);
+    }
+    .alert.a-late {
+      border-color: color-mix(in srgb, var(--error-color, #db4437) 70%, transparent);
+      background: color-mix(in srgb, var(--error-color, #db4437) 18%, transparent);
+      font-weight: 600;
+    }
+    .alert.a-ride {
+      border-color: color-mix(in srgb, var(--warning-color, #ffa600) 60%, transparent);
+      background: color-mix(in srgb, var(--warning-color, #ffa600) 16%, transparent);
+    }
+    .eride {
+      margin-left: 6px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .eride.none {
+      color: var(--error-color, #db4437);
+    }
+    .nlate {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--error-color, #db4437);
     }
     .alert.a-gap {
       border-color: color-mix(in srgb, var(--warning-color, #ffa600) 60%, transparent);
@@ -4952,6 +5322,62 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     /* night screen: dark, dimmed, calm - for the hours nobody looks closely.
        Colours set outright (no opacity), so it stays dark on any theme and
        any page behind the card. */
+    ha-card.saver {
+      display: block;
+      position: relative;
+      overflow: hidden;
+      height: 100%;
+      min-height: 60vh;
+      background: #000;
+      cursor: pointer;
+    }
+    .saverbg {
+      position: absolute;
+      inset: -40px;
+      background-size: cover;
+      background-position: center;
+      filter: blur(28px) brightness(0.55);
+    }
+    .saverimg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      animation: saverin 1.2s ease;
+    }
+    @keyframes saverin {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    .saverclock {
+      position: absolute;
+      left: 24px;
+      bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      color: #fff;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+    }
+    .savertime {
+      font-size: 64px;
+      font-weight: 700;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .saverdate {
+      font-size: 20px;
+      margin-top: 6px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .saverimg {
+        animation: none;
+      }
+    }
     :host([night]) ha-card {
       --ha-card-background: #000;
       --card-background-color: #000;
@@ -5534,7 +5960,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.32.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.33.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );
