@@ -32,6 +32,48 @@ export function daysBetween(from: Date, to: Date): number {
 }
 
 /**
+ * Events pushed by `calendar/event/subscribe` carry start/end as plain ISO
+ * strings plus `all_day`; the REST API wraps them as {dateTime} / {date}.
+ * Bring a pushed event into the REST shape, so one parser serves both.
+ */
+export function liveToApiEvent(ev: any): any {
+  if (!ev || typeof ev.start !== "string") return ev;
+  const wrap = (v: string) =>
+    ev.all_day === true || /^\d{4}-\d{2}-\d{2}$/.test(v) ? { date: v } : { dateTime: v };
+  return {
+    ...ev,
+    start: wrap(ev.start),
+    end: wrap(typeof ev.end === "string" ? ev.end : ev.start),
+  };
+}
+
+export type RepeatFreq = "" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+
+/**
+ * RRULE for a new series: "FREQ=WEEKLY", optionally ending on `until`
+ * (a local date, "YYYY-MM-DD", inclusive). RFC 5545 wants UNTIL in the same
+ * kind as the start: a plain date for all-day events, otherwise a UTC moment -
+ * here the end of that local day, so the last occurrence that day still counts.
+ */
+export function buildRrule(freq: RepeatFreq, until: string, allDay: boolean): string {
+  if (!freq) return "";
+  let rule = `FREQ=${freq}`;
+  if (until) {
+    if (allDay) {
+      rule += `;UNTIL=${until.replace(/-/g, "")}`;
+    } else {
+      const [y, m, d] = until.split("-").map(Number);
+      const end = new Date(y, m - 1, d, 23, 59, 59);
+      rule += `;UNTIL=${end
+        .toISOString()
+        .replace(/[-:]/g, "")
+        .replace(/\.\d{3}/, "")}`;
+    }
+  }
+  return rule;
+}
+
+/**
  * Compute new start/end for a drag (move) or resize gesture.
  * `deltaMin` is the raw dragged offset in minutes; the result snaps to the
  * `gridMin` raster (absolute, from midnight of the event's day) and keeps a

@@ -25,6 +25,9 @@ const EN: Dict = {
   l_max_columns: "Max. columns per day",
   l_first_day: "Week starts on",
   l_scroll_to_now: "Auto-scroll to now",
+  l_swipe: "Swipe to page",
+  l_night_start: "Night screen from",
+  l_night_end: "Night screen until",
   l_day_offset: "Start on (days from today)",
   l_slim_header: "Slim header",
   l_color_by: "Color by",
@@ -45,6 +48,8 @@ const EN: Dict = {
   l_gap_min: "Flag a gap from (min., 0 = off)",
   l_drag_drop: "Move events by dragging (day view)",
   l_family_calendars: "Family calendars",
+  l_countdowns: "Countdowns",
+  l_countdown_days: "Countdowns look ahead",
   l_weather_entity: "Weather entity",
   l_show_weather: "Show weather",
   l_hide_empty_persons: "Week: hide persons without events",
@@ -64,6 +69,9 @@ const EN: Dict = {
 
   /* ---- helper texts ---------------------------------------------- */
   h_scroll_to_now: "Day view to the current time, timeline to the now line, agenda to today",
+  h_swipe: "Touch screens: swipe left or right for the next or previous day, week or month",
+  h_night_start: "Wall tablet: a dark, dimmed clock with the next events; a tap wakes the board",
+  h_night_end: "Morning: back to the normal board",
   h_day_offset:
     "0 = today, 1 = tomorrow, -1 = yesterday. For a display that should show the day ahead",
   h_slim_header:
@@ -82,6 +90,9 @@ const EN: Dict = {
   h_col_min_width: "Below this the board scrolls horizontally",
   h_family_calendars:
     "Calendars for everyone – holidays, bin collection, school holidays. Shown above the people, never counted as a double booking",
+  h_countdowns:
+    'Now view: words like holiday or birthday - matching events show as "in 12 days" chips',
+  h_countdown_days: "How many days ahead countdowns are shown (default 60)",
   h_weather_entity: "Daily forecast in the header (HA location)",
   h_auto_icons: "e.g. doctor → 🩺, sport → 🏃, birthday → 🎂 (titles with emoji stay untouched)",
   h_icon_patterns: "Own rules, e.g. “Grandma => 👵”",
@@ -106,6 +117,7 @@ const EN: Dict = {
   o_calendar: "Calendar",
   o_monday: "Monday",
   o_sunday: "Sunday",
+  o_today: "Today (rolling week)",
 
   /* ---- group titles ---------------------------------------------- */
   g_views: "🗓️ Views",
@@ -169,6 +181,9 @@ const DE: Dict = {
   l_max_columns: "Max. Spalten pro Tag",
   l_first_day: "Wochenstart",
   l_scroll_to_now: "Auto-Scroll zu jetzt",
+  l_swipe: "Wischen zum Blättern",
+  l_night_start: "Nachtbildschirm ab",
+  l_night_end: "Nachtbildschirm bis",
   l_day_offset: "Beginnt bei (Tage ab heute)",
   l_slim_header: "Schlanker Kopfbereich",
   l_color_by: "Einfärben nach",
@@ -189,6 +204,8 @@ const DE: Dict = {
   l_gap_min: "Lücke melden ab (Min., 0 = aus)",
   l_drag_drop: "Termine per Ziehen verschieben (Tagesansicht)",
   l_family_calendars: "Familien-Kalender",
+  l_countdowns: "Countdowns",
+  l_countdown_days: "Countdowns schauen voraus",
   l_weather_entity: "Wetter-Entität",
   l_show_weather: "Wetter anzeigen",
   l_hide_empty_persons: "Woche: Personen ohne Termine ausblenden",
@@ -207,6 +224,11 @@ const DE: Dict = {
   l_map_url: "Karten-Link (Vorlage)",
 
   h_scroll_to_now: "Tag zur aktuellen Uhrzeit, Zeitstrahl zur Jetzt-Linie, Agenda zu heute",
+  h_swipe:
+    "Touchscreens: nach links oder rechts wischen für den nächsten oder vorigen Tag, Woche oder Monat",
+  h_night_start:
+    "Wandtablet: dunkle, gedimmte Uhr mit den nächsten Terminen; Antippen weckt das Board",
+  h_night_end: "Morgens: zurück zum normalen Board",
   h_day_offset:
     "0 = heute, 1 = morgen, -1 = gestern. Für Anzeigen, die den kommenden Tag zeigen sollen",
   h_slim_header:
@@ -226,6 +248,9 @@ const DE: Dict = {
   h_col_min_width: "Darunter wird horizontal gescrollt",
   h_family_calendars:
     "Kalender für alle – Feiertage, Müllabfuhr, Schulferien. Erscheinen über den Personen und zählen nie als Doppelbuchung",
+  h_countdowns:
+    'Jetzt-Ansicht: Stichworte wie Urlaub oder Geburtstag - passende Termine erscheinen als "in 12 Tagen"-Chips',
+  h_countdown_days: "Wie viele Tage voraus Countdowns erscheinen (Standard 60)",
   h_weather_entity: "Tages-Vorhersage im Kopf (HA-Standort)",
   h_auto_icons: "z. B. Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂 (Titel mit Emoji bleiben unberührt)",
   h_icon_patterns: "eigene Regeln, z. B. „Oma => 👵“",
@@ -248,6 +273,7 @@ const DE: Dict = {
   o_calendar: "Kalender",
   o_monday: "Montag",
   o_sunday: "Sonntag",
+  o_today: "Heute (rollende Woche)",
 
   g_views: "🗓️ Ansichten",
   g_layout: "📐 Layout & Größe",

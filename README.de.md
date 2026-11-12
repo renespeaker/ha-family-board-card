@@ -18,7 +18,8 @@
 <td valign="top"><b>Auf dem Handy</b> – die Tagesansicht auf kleinem Bildschirm<br><img src="docs/preview-phone.png" alt="Family Board Card – Auf dem Handy"></td>
 </tr>
 <tr>
-<td colspan="2" valign="top"><b>Dunkles Design</b> – folgt deinem Home-Assistant-Theme<br><img src="docs/preview-dark.png" alt="Family Board Card – Dunkles Design"></td>
+<td valign="top"><b>Dunkles Design</b> – folgt deinem Home-Assistant-Theme<br><img src="docs/preview-dark.png" alt="Family Board Card – Dunkles Design"></td>
+<td valign="top"><b>Nachtbildschirm</b> – ruhig und gedimmt von `night_start` bis `night_end`; Antippen weckt das Board<br><img src="docs/preview-night.png" alt="Family Board Card – Nachtbildschirm"></td>
 </tr>
 </table>
 
@@ -33,22 +34,23 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Startet auch an einem anderen Tag** – `day_offset` verschiebt Tages- und Zeitstrahl-Ansicht um N Tage (`1` = morgen). Gedacht für Anzeigen, die den kommenden Tag zeigen sollen – etwa ein E-Paper-Display im Flur.
 - **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
 - **„Jetzt / als Nächstes"-Leiste** – optionale Glanz-Zeile über den Ansichten: pro Person auf einen Blick, was gerade läuft (mit Puls-Punkt) oder als Nächstes ansteht (inkl. Countdown) – ideal fürs Wandtablet.
-- **Jetzt-Ansicht** – ein ruhiger Überblick über die ganze Karte fürs Wandtablet oder ein kleines Display: große Uhr und Datum, pro Person was gerade läuft (mit Fortschritt), ganztägige Termine von heute und was als Nächstes kommt („in 25 Min.", „16:30", „Morgen 08:00"). Opt-in: `now` in `views` aufnehmen oder `view: now` setzen. Zusammen mit `auto_return` kehrt das Tablet immer dorthin zurück.
+- **Jetzt-Ansicht** – ein ruhiger Überblick über die ganze Karte fürs Wandtablet oder ein kleines Display: große Uhr und Datum, pro Person was gerade läuft (mit Fortschritt), ganztägige Termine von heute und was als Nächstes kommt („in 25 Min.", „16:30", „Morgen 08:00"). Opt-in: `now` in `views` aufnehmen oder `view: now` setzen. Zusammen mit `auto_return` kehrt das Tablet immer dorthin zurück. Mit `night_start` / `night_end` wird das Wandtablet nachts zum ruhigen, dunklen Nachtbildschirm – große Uhr und was morgen als Erstes ansteht – und Antippen weckt es. Mit `countdowns` (Stichworte wie `urlaub`, `geburtstag`) erscheinen passende kommende Termine als Chips – „🏖️ Urlaub in 12 Tagen“, bis `countdown_days` (Standard 60) Tage voraus.
 - **Barrierearm** – komplett per Tastatur bedienbar (Pfeiltasten in den Tab-Leisten, der Fokus springt in den Dialog und bleibt dort bis Esc), Screenreader lesen Termine mit Titel, Uhrzeit und Person vor. In jeder Ansicht mit axe-core geprüft.
 - **Auto-Symbole** – optional bekommt jeder Termin per Stichwort ein passendes Emoji (Arzt → 🩺, Sport → 🏃, Geburtstag → 🎂, Schule → 🎒 …); eigene Regeln möglich. Titel, die schon ein Emoji haben, bleiben unberührt.
 - **Zeitstrahl-Ansicht** – Personen als Zeilen links, die Zeit läuft horizontal: Termine als Balken auf einem Zeitstrahl (Gantt-Stil); überlappende Termine stapeln sich in Unterzeilen.
 - **Ansichten wählbar** – im Editor festlegen, welche Umschalter (Jetzt/Tag/Zeitstrahl/Woche/Monat/Agenda) erscheinen.
-- **Wochen-Navigation** – vor/zurück blättern, ein Klick auf den Datumsbereich springt zurück zu „heute".
+- **Wochen-Navigation** – vor/zurück blättern, ein Klick auf den Datumsbereich springt zurück zu „heute". Mit `swipe: true` blättert auf Touchscreens auch Wischen: einen Tag in Tagesansicht und Zeitstrahl, eine Woche in Woche und Agenda, einen Monat in der Monatsansicht. Wo das Board selbst seitlich scrollt (ein breiter Zeitstrahl auf dem Handy), gewinnt das Scrollen.
 - **Theme-aware** – übernimmt Farben und Schrift des aktiven Dashboard-Themes (nutzt durchgehend HA-CSS-Variablen).
 - **Konfigurierbar** – Zeitraster 15/30/60 min, Tagesfenster, Wochenende ein/aus, Einfärben nach Person oder Ort, Auto-Aktualisierung.
 - **Drag & Drop** – in der Tagesansicht Termine per Ziehen verschieben (Uhrzeit) und am unteren Rand die Dauer ändern; rastet aufs Zeitraster und schreibt direkt in den Kalender zurück – **nur** bei schreibbaren Kalendern, Einzeltermine (keine Serien).
-- **Termine verwalten** – anlegen/bearbeiten/löschen direkt in der Karte, **aber nur** bei Kalendern, die das unterstützen (Local Calendar, CalDAV …). Schreibgeschützte Kalender (z. B. ICS-Abos) werden automatisch erkannt und nur angezeigt. Wiederkehrende Termine: Wahl **„nur dieser / dieser und folgende"**.
+- **Termine verwalten** – anlegen/bearbeiten/löschen direkt in der Karte, **aber nur** bei Kalendern, die das unterstützen (Local Calendar, CalDAV …). Schreibgeschützte Kalender (z. B. ICS-Abos) werden automatisch erkannt und nur angezeigt. Neue Termine lassen sich wiederholen (**jeden Tag, jede Woche, jeden Monat oder jedes Jahr**, optional bis zu einem Datum) – „jeden Dienstag Fußball" ist ein einziger Eintrag. Wiederkehrende Termine: beim Bearbeiten Wahl **„nur dieser / dieser und folgende"**.
 - **Mehrere Kalender pro Person** – z. B. Arbeit + privat in einer Spalte (im Editor auswählbar).
 - **Familien-Kalender** – Kalender, die allen gehören (Feiertage, Schulferien, Müllabfuhr), kommen in `family_calendars`. Ihre Termine erscheinen als Band über den Personen in Tag, Zeitstrahl und Jetzt-Ansicht, unter dem Wochentag in der Woche, in den Monatszellen und in der Agenda – und zählen nie als Doppelbuchung. Symbol und Farbe kommen aus der `calendars:`-Zuordnung (z. B. `mdi:trash-can`).
 - **Robuste Termin-Logik** – Ganztags-Events (Ende exklusiv), über Mitternacht laufende und mehrtägige Termine werden korrekt auf die Tage aufgeteilt; Zeitzonen werden berücksichtigt.
 - **Mehrsprachig & lokalisiert** – Texte in Deutsch/Englisch, Wochentage und Uhrzeiten (12/24 h) aus der HA-Locale; relative Tage („Heute/Morgen").
 - **Alltags-Politur** – vergangene Termine ausgegraut, Einfärben auch nach Kalender, Ort direkt in der Karten-App öffnen, störende Termine per Muster ausblenden.
 - **Live-Fortschritt & Countdown** – laufende Termine zeigen einen Fortschrittsbalken (abschaltbar), kommende in der Agenda ein „in 20 Min."; aktualisiert minütlich.
+- **Live-Updates, Sofort-Start** – ab Home Assistant 2026.5 abonniert das Board seine Kalender: Ein auf dem Handy angelegter Termin erscheint sofort auf dem Wandtablet, ohne auf die Aktualisierung zu warten. Nach dem Neuladen stehen die zuletzt bekannten Termine sofort da, bis die frischen geladen sind (pro Board im Browser, höchstens einen Tag alt). Ältere Home-Assistant-Versionen aktualisieren wie bisher.
 - **Wetter** – Tagesvorhersage aus einer `weather.*`-Entität (HA-Standort, nicht die Termin-Adresse): Symbol mit Höchst-/Tiefstwert im Kopf von Tag, Zeitstrahl und Agenda, Symbol + Höchstwert am Wochentag in der Wochenansicht, Symbol in den Monatszellen.
 - **Dichte Tage bleiben lesbar** – überlappen mehr Termine als `max_columns` erlaubt, werden die zusätzlichen Spalten zu einem „+N"-Chip zusammengefasst (Klick öffnet die Agenda) statt zu unlesbar schmalen Streifen zu schrumpfen.
 - **Lange Termine als Hintergrund-Band** – Dauertermine (z. B. OGS/Betreuung, „Freispiel") ab einer einstellbaren Länge laufen als dezentes Vollbreiten-Band hinter der Spalte, statt die kurzen Stunden nebeneinander zu quetschen. So bekommen die eigentlichen Termine die volle Breite.
@@ -68,7 +70,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Kompakt-Modus** – ein Schalter (`compact`) für kleinere Schriften und engere Abstände, statt drei Regler einzeln zu justieren.
 - **Personen beim Start ausgeblendet** – `hidden: true` pro Person; die Spalte startet eingeklappt und ein Klick auf den Kopf holt sie zurück.
 
-> Status: **v0.31 – vollständige Familien-Tagesplanung: 6 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
+> Status: **v0.32 – vollständige Familien-Tagesplanung: 6 Ansichten, Schreibzugriff, Auto-Layout (Trim/Fit/Full-Height), Hintergrund-Bänder, Badges, Kiosk-Modus, mobil optimiert, Karte und Editor vollständig lokalisiert.**
 
 ## Installation (HACS)
 
@@ -147,6 +149,8 @@ persons:
 | `radius`        | number  | –       | Ecken-Radius der Termin-Blöcke in px (setzt `--fb-radius`) |
 | `past_opacity`  | number  | –       | Deckkraft vergangener Termine in % (setzt `--fb-past-opacity`) |
 | `show_progress` | boolean | `true`  | Fortschrittsbalken am laufenden Termin |
+| `countdowns`    | Liste   | –       | Jetzt-Ansicht: Stichworte (z. B. `[urlaub, geburtstag]`); kommende Termine mit passendem Titel erscheinen als „in 12 Tagen“-Chips |
+| `countdown_days`| number  | `60`    | Wie viele Tage voraus Countdowns schauen |
 | `family_calendars` | Liste | –     | `calendar.*`-Entitäten für alle (Feiertage, Müllabfuhr …), erscheinen über den Personen |
 | `weather_entity`| string  | –       | `weather.*`-Entität für die Tages-Vorhersage (HA-Standort) |
 | `show_weather`  | boolean | `true`* | Wetter in den Ansichten anzeigen (*wirkt nur, wenn `weather_entity` gesetzt) |
@@ -161,9 +165,11 @@ persons:
 | `tentative_patterns` | Liste | –    | Termine mit passendem Titel-Muster als vorläufig (gestrichelt/transparent) markieren |
 | `day_offset`    | number  | `0`     | Tag-/Zeitstrahl-Ansicht startet um N Tage versetzt: `1` = morgen, `-1` = gestern. Der Versatz überspringt korrekt die Wochengrenze und bleibt auch nach `auto_return` erhalten (für E-Paper- und Info-Displays) |
 | `slim_header`   | boolean | `false` | Schlanker Kopf: Wochentage wandern auf die Navigationszeile, Avatar steht neben dem Namen – spart rund 40 px Höhe |
-| `first_day`     | string  | `monday`| Wochenstart: `monday` oder `sunday` |
+| `first_day`     | string  | `monday`| Wochenstart: `monday`, `sunday` oder `today` – eine rollende Woche: heute und die nächsten sechs Tage, so zeigt das Wandtablet am Sonntag schon die neue Woche (das Monatsraster bleibt bei Montag) |
+| `night_start` / `night_end` | Uhrzeit | – | Nachtbildschirm zwischen diesen Zeiten (z. B. `"21:00"` / `"06:30"`): dunkle, gedimmte Uhr mit dem, was als Nächstes kommt; Antippen weckt das Board für `auto_return` Minuten (mindestens 2). Beide nötig |
+| `swipe`         | boolean | `false` | Touchscreens: nach links/rechts wischen für nächsten/vorigen Tag, Woche oder Monat (in den Profilen Wandtablet und Handy schon an) |
 | `scroll_to_now` | boolean | `true`  | Beim Laden automatisch zu „jetzt“ scrollen: Tagesansicht zur aktuellen Uhrzeit, Zeitstrahl horizontal zur Jetzt-Linie, Agenda zum heutigen Abschnitt (hat heute keine Termine, zum nächsten Tag mit Terminen) |
-| `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen |
+| `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen. Ab Home Assistant 2026.5 kommen Änderungen ohnehin live – das ist das Sicherheitsnetz |
 
 Jede `calendar.*`-Entität funktioniert – egal ob `local_calendar` (lokal, ohne Cloud), Google oder CalDAV. Home Assistant liefert alle einheitlich.
 

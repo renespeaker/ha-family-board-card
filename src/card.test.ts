@@ -37,6 +37,12 @@ interface MountOpts {
   lang?: string;
   /** weather.forecast_home daily forecast, as weather.get_forecasts returns it. */
   forecast?: unknown[];
+  /** calendar.* entities the card may write to (create, update, delete). */
+  writable?: string[];
+  /** Home Assistant with live calendar updates; "old" = command unknown. */
+  live?: "new" | "old";
+  /** The REST answer never arrives (to see what is shown before it). */
+  slowApi?: boolean;
   /** Local wall-clock time the test pretends it is. */
   now?: string;
 }
@@ -53,7 +59,10 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   for (const entity of Object.keys(calendars)) {
     states[entity] = {
       state: "on",
-      attributes: { friendly_name: entity.split(".")[1], supported_features: 0 },
+      attributes: {
+        friendly_name: entity.split(".")[1],
+        supported_features: opts.writable?.includes(entity) ? 7 : 0,
+      },
     };
   }
   for (const entity of Object.keys(todos)) {
@@ -66,6 +75,11 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   if (opts.forecast) states["weather.forecast_home"] = { state: "sunny", attributes: {} };
   const wsCalls: Array<Record<string, unknown>> = [];
   const apiPaths: string[] = [];
+  const subs: Array<{
+    msg: Record<string, unknown>;
+    push: (events: unknown[] | null) => void;
+    unsubscribed: boolean;
+  }> = [];
   const el = document.createElement("family-board-card") as HTMLElement & {
     setConfig(c: unknown): void;
     hass: unknown;
@@ -75,8 +89,28 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   el.hass = {
     locale: { language: opts.lang ?? "de", time_format: "24" },
     states,
+    connection: opts.live
+      ? {
+          subscribeMessage: async (
+            cb: (m: { events: unknown[] | null }) => void,
+            msg: Record<string, unknown>,
+          ) => {
+            if (opts.live === "old") throw new Error("Unknown command.");
+            const sub = {
+              msg,
+              push: (events: unknown[] | null) => cb({ events }),
+              unsubscribed: false,
+            };
+            subs.push(sub);
+            return async () => {
+              sub.unsubscribed = true;
+            };
+          },
+        }
+      : undefined,
     callApi: async (_method: string, path: string) => {
       apiPaths.push(path);
+      if (opts.slowApi) return new Promise(() => undefined);
       return calendars[path.split("?")[0].replace("calendars/", "")] ?? [];
     },
     callWS: async (msg: Record<string, unknown>) => {
@@ -103,6 +137,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
     root,
     wsCalls,
     apiPaths,
+    subs,
     text: () => (root.textContent ?? "").replace(/\s+/g, " ").trim(),
     all: (sel: string) => [...root.querySelectorAll(sel)],
     texts: (sel: string) =>
@@ -112,6 +147,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
 
 afterEach(() => {
   mounted.splice(0).forEach((el) => el.remove());
+  localStorage.clear();
   vi.useRealTimers();
 });
 
@@ -925,5 +961,447 @@ describe("auto icons", () => {
       { calendars },
     );
     expect(texts(".agenda-title")).toEqual(["🍽️ Mittagessen", "😴 Mittagsschlaf"]);
+  });
+});
+
+describe("new recurring events", () => {
+  type Card = HTMLElement & {
+    _openCreate(idx: number, day: number, startMin?: number): void;
+    updateComplete: Promise<unknown>;
+  };
+  const persons = [{ name: "Mia", calendar: "calendar.mia" }];
+
+  async function openDialog(now = "2026-09-11T10:20:00", day = 4) {
+    const m = await mount(
+      { persons, view: "day", views: ["day"], start_hour: 7, end_hour: 20 },
+      { calendars: { "calendar.mia": [] }, writable: ["calendar.mia"], now },
+    );
+    const el = m.el as unknown as Card;
+    el._openCreate(0, day, 16 * 60);
+    await el.updateComplete;
+    const q = <T extends Element>(sel: string) => m.root.querySelector(sel) as T;
+    return { ...m, el, q };
+  }
+
+  it("saves a weekly series with its last day", async () => {
+    const { el, q, wsCalls } = await openDialog();
+    const select = q<HTMLSelectElement>(".dialog select");
+    select.value = "WEEKLY";
+    select.dispatchEvent(new Event("change"));
+    await el.updateComplete;
+    const until = q<HTMLInputElement>('.dialog input[type="date"]');
+    until.value = "2026-12-18";
+    until.dispatchEvent(new Event("input"));
+    q<HTMLInputElement>(".dialog input[type=text]").value = "Fußball";
+    q<HTMLInputElement>(".dialog input[type=text]").dispatchEvent(new Event("input"));
+    await el.updateComplete;
+    q<HTMLButtonElement>(".dialog button.primary").click();
+    await vi.advanceTimersByTimeAsync(0);
+    const create = wsCalls.find((c) => c.type === "calendar/event/create") as {
+      event: Record<string, string>;
+    };
+    // 18 Dec, end of the day in Berlin (CET) = 22:59:59 UTC
+    expect(create.event.rrule).toBe("FREQ=WEEKLY;UNTIL=20261218T225959Z");
+    expect(create.event.summary).toBe("Fußball");
+  });
+
+  it("creates a single event when repeat stays on never", async () => {
+    const { el, q, wsCalls } = await openDialog();
+    q<HTMLButtonElement>(".dialog button.primary").click();
+    await vi.advanceTimersByTimeAsync(0);
+    await el.updateComplete;
+    const create = wsCalls.find((c) => c.type === "calendar/event/create") as {
+      event: Record<string, string>;
+    };
+    expect(create.event.rrule).toBeUndefined();
+  });
+
+  it("refuses a series that would end before it starts", async () => {
+    const { el, q, wsCalls, text } = await openDialog();
+    const select = q<HTMLSelectElement>(".dialog select");
+    select.value = "DAILY";
+    select.dispatchEvent(new Event("change"));
+    await el.updateComplete;
+    const until = q<HTMLInputElement>('.dialog input[type="date"]');
+    until.value = "2026-09-01";
+    until.dispatchEvent(new Event("input"));
+    await el.updateComplete;
+    q<HTMLButtonElement>(".dialog button.primary").click();
+    await el.updateComplete;
+    expect(wsCalls.some((c) => c.type === "calendar/event/create")).toBe(false);
+    expect(text()).toContain("Die Serie kann nicht vor ihrem Beginn enden.");
+  });
+
+  it("proposes the clicked wall-clock time even on the day the clocks go back", async () => {
+    // Sunday 25 Oct 2026: 25 hours long; the 16:00 slot must stay 16:00
+    const { q } = await openDialog("2026-10-25T10:00:00", 6);
+    const start = q<HTMLInputElement>('.dialog input[type="datetime-local"]');
+    expect(start.value).toBe("2026-10-25T16:00");
+  });
+});
+
+describe("swipe to page", () => {
+  type Card = HTMLElement & {
+    _day: number;
+    _weekOffset: number;
+    _monthOffset: number;
+    updateComplete: Promise<unknown>;
+  };
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = { "calendar.anna": [ev("Büro", "09:00", "17:00")] };
+
+  /**
+   * A touch gesture from (x0, y0) to (x1, y1) on the given element; `between`
+   * runs while the finger is down (e.g. the browser scrolling something).
+   */
+  function swipe(
+    target: Element,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    between?: () => void,
+  ) {
+    const touch = (type: string, x: number, y: number, down: boolean) => {
+      const ev = new Event(type, { bubbles: true, composed: true });
+      const point = { clientX: x, clientY: y };
+      Object.defineProperty(ev, "touches", { value: down ? [point] : [] });
+      Object.defineProperty(ev, "changedTouches", { value: [point] });
+      target.dispatchEvent(ev);
+    };
+    touch("touchstart", x0, y0, true);
+    between?.();
+    touch("touchend", x1, y1, false);
+  }
+
+  async function board(extra: Partial<FamilyBoardConfig> = {}) {
+    const m = await mount(
+      {
+        persons,
+        view: "day",
+        views: ["day", "week", "month"],
+        start_hour: 7,
+        end_hour: 20,
+        swipe: true,
+        ...extra,
+      },
+      { calendars },
+    );
+    return { ...m, el: m.el as unknown as Card };
+  }
+
+  it("pages to the next and previous day in the day view", async () => {
+    const { el, root } = await board();
+    expect(el._day).toBe(4); // Friday 11 Sep
+    swipe(root.querySelector(".col") as Element, 300, 200, 150, 210);
+    expect(el._day).toBe(5);
+    swipe(root.querySelector(".col") as Element, 150, 200, 300, 190);
+    expect(el._day).toBe(4);
+  });
+
+  it("skips hidden weekend days into the next week", async () => {
+    const { el, root } = await board({ show_weekends: false });
+    swipe(root.querySelector(".col") as Element, 300, 200, 150, 200);
+    expect([el._weekOffset, el._day]).toEqual([1, 0]); // Monday of next week
+  });
+
+  it("pages weeks in the week view and months in the month view", async () => {
+    const { el, root } = await board({ view: "week" });
+    swipe(root.querySelector(".wcell") as Element, 150, 200, 300, 200);
+    expect(el._weekOffset).toBe(-1);
+    const m = await board({ view: "month" });
+    swipe(m.root.querySelector(".monthgrid") as Element, 300, 200, 100, 200);
+    expect(m.el._monthOffset).toBe(1);
+  });
+
+  it("does nothing when switched off, for scrolls, taps or a drag on an event", async () => {
+    const off = await board({ swipe: false });
+    swipe(off.root.querySelector(".col") as Element, 300, 200, 150, 200);
+    expect(off.el._day).toBe(4);
+
+    const { el, root } = await board();
+    const col = root.querySelector(".col") as Element;
+    swipe(col, 300, 200, 200, 500); // 100 px sideways, 300 down: a scroll
+    swipe(col, 300, 200, 270, 200); // too short: a tap
+    const scroller = root.querySelector(".board") as HTMLElement;
+    swipe(col, 300, 200, 100, 200, () => (scroller.scrollLeft = 120)); // the browser scrolled
+    expect(el._day).toBe(4);
+  });
+
+  it("leaves dragging an event alone, but pages over events that only open on tap", async () => {
+    // read-only calendar: the event only opens on tap, so a swipe over it pages
+    const ro = await board();
+    swipe(ro.root.querySelector(".event, .band") as Element, 300, 200, 100, 200);
+    expect(ro.el._day).toBe(5);
+    // writable calendar: the event is draggable, the gesture belongs to it
+    const m = await mount(
+      { persons, view: "day", views: ["day"], start_hour: 7, end_hour: 20, swipe: true },
+      {
+        calendars: { "calendar.anna": [ev("Arzt", "10:00", "11:00")] },
+        writable: ["calendar.anna"],
+      },
+    );
+    const el = m.el as unknown as Card;
+    swipe(m.root.querySelector(".event.draggable") as Element, 300, 200, 100, 200);
+    expect(el._day).toBe(4);
+  });
+});
+
+describe("rolling week (first_day: today)", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = {
+    "calendar.anna": [
+      ev("Büro", "09:00", "17:00"),
+      {
+        uid: "mo",
+        summary: "Zahnarzt",
+        start: { dateTime: "2026-09-14T10:00:00" },
+        end: { dateTime: "2026-09-14T11:00:00" },
+      },
+    ],
+  };
+  const name = (n: Element) => (n.textContent ?? "").replace(/\s+/g, " ").trim();
+
+  it("starts the week view today and reaches into next week", async () => {
+    const { all, text, apiPaths } = await mount(
+      { persons, view: "week", views: ["week"], first_day: "today" },
+      { calendars },
+    );
+    expect(name(all(".wday")[0])).toMatch(/^Freitag, 11\. September/);
+    expect(name(all(".wday")[6])).toMatch(/^Donnerstag, 17\. September/);
+    // Monday the 14th belongs to next calendar week, but is in the rolling one
+    expect(text()).toContain("Zahnarzt");
+    const q = new URLSearchParams(apiPaths[0].split("?")[1]);
+    expect(new Date(q.get("start") as string).getDate()).toBe(11);
+    expect(new Date(q.get("end") as string).getDate()).toBe(18);
+  });
+
+  it("puts today first in the day tabs", async () => {
+    const { texts } = await mount(
+      { persons, view: "day", views: ["day"], first_day: "today", start_hour: 7, end_hour: 20 },
+      { calendars },
+    );
+    expect(texts(".tabs [role=tab]")).toEqual(["Fr", "Sa", "So", "Mo", "Di", "Mi", "Do"]);
+    expect(texts(".tabs [aria-selected=true]")).toEqual(["Fr"]);
+  });
+
+  it("keeps the month grid on Monday columns", async () => {
+    const { texts } = await mount(
+      { persons, view: "month", views: ["month"], first_day: "today" },
+      { calendars },
+    );
+    expect(texts(".mhcell")[0]).toBe("Mo");
+  });
+});
+
+describe("countdowns (now view)", () => {
+  const at = (summary: string, day: string, extra: Record<string, unknown> = {}) => ({
+    uid: `${summary}-${day}`,
+    summary,
+    start: { date: day },
+    end: { date: day },
+    ...extra,
+  });
+  const calendars = {
+    "calendar.anna": [
+      ev("Büro", "09:00", "17:00"),
+      at("Urlaub Ostsee", "2026-09-23"),
+      at("Urlaub Harz", "2026-09-01"), // already over
+      at("Zahnarzt", "2026-09-15"), // no keyword
+      at("Urlaub geheim", "2026-09-20"), // hidden by hide_patterns
+    ],
+    "calendar.familie": [at("Geburtstag Oma", "2026-09-12")],
+  };
+  const base = {
+    persons: [{ name: "Anna", calendar: "calendar.anna" }],
+    family_calendars: ["calendar.familie"],
+    countdowns: ["urlaub", "geburtstag"],
+    hide_patterns: ["geheim"],
+  };
+
+  it("shows coming matching events with the days left, soonest first", async () => {
+    const { texts } = await mount({ ...base, view: "now", views: ["now"] }, { calendars });
+    expect(texts(".cdchip")).toEqual(["🎂Geburtstag Oma morgen", "🏖️Urlaub Ostsee in 12 Tagen"]);
+  });
+
+  it("looks ahead countdown_days with a request of its own", async () => {
+    const { apiPaths } = await mount(
+      { ...base, view: "now", views: ["now"], countdown_days: 30 },
+      { calendars },
+    );
+    const long = apiPaths
+      .map((p) => new URLSearchParams(p.split("?")[1]))
+      .filter((q) => new Date(q.get("end") as string).getMonth() === 9); // reaches October
+    expect(long.length).toBeGreaterThan(0);
+    expect(new Date(long[0].get("end") as string).getDate()).toBe(12); // 11 Sep + 31 days
+  });
+
+  it("costs nothing outside the now view or without keywords", async () => {
+    const day = await mount(
+      { ...base, view: "day", views: ["day", "now"], start_hour: 7, end_hour: 20 },
+      { calendars },
+    );
+    expect(day.root.querySelector(".cdchip")).toBeNull();
+    const plain = await mount(
+      { persons: base.persons, view: "now", views: ["now"] },
+      { calendars },
+    );
+    expect(plain.root.querySelector(".cdband")).toBeNull();
+    expect(day.apiPaths.concat(plain.apiPaths).every((p) => !p.includes("2026-10"))).toBe(true);
+  });
+});
+
+describe("night screen", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = {
+    "calendar.anna": [
+      {
+        uid: "fr",
+        summary: "Frühdienst",
+        start: { dateTime: "2026-09-14T06:00:00" }, // Monday: next week
+        end: { dateTime: "2026-09-14T14:00:00" },
+      },
+    ],
+  };
+  const base = {
+    persons,
+    view: "day" as const,
+    views: ["day" as const, "week" as const],
+    start_hour: 7,
+    end_hour: 20,
+    night_start: "21:00",
+    night_end: "06:30",
+  };
+
+  it("shows the calm night screen in the night hours, whatever the view", async () => {
+    // Sunday night in the day view: the week ends at midnight, the night screen
+    // still has to find Monday's early shift
+    const { el, root, text, apiPaths } = await mount(base, {
+      calendars,
+      now: "2026-09-13T23:00:00",
+    });
+    // asked from today on, past the end of the week
+    const q = new URLSearchParams(apiPaths[apiPaths.length - 1].split("?")[1]);
+    expect(new Date(q.get("start") as string).getDate()).toBe(13);
+    expect(new Date(q.get("end") as string).getDate()).toBe(21);
+    expect(el.hasAttribute("night")).toBe(true);
+    expect(root.querySelector(".nightcard .now")).not.toBeNull();
+    expect(root.querySelector(".switch")).toBeNull();
+    // what comes first tomorrow
+    expect(text()).toContain("Frühdienst");
+    expect(text()).toContain("Morgen 06:00");
+  });
+
+  it("also after midnight, and not during the day", async () => {
+    const late = await mount(base, { calendars, now: "2026-09-12T02:00:00" });
+    expect(late.el.hasAttribute("night")).toBe(true);
+    const day = await mount(base, { calendars, now: "2026-09-11T10:20:00" });
+    expect(day.el.hasAttribute("night")).toBe(false);
+    expect(day.root.querySelector(".switch")).not.toBeNull();
+  });
+
+  it("wakes on a touch and falls asleep again after a while", async () => {
+    const { el, root } = await mount(base, { calendars, now: "2026-09-11T23:00:00" });
+    const card = el as unknown as { updateComplete: Promise<unknown> };
+    el.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await card.updateComplete;
+    expect(el.hasAttribute("night")).toBe(false);
+    expect(root.querySelector(".board")).not.toBeNull();
+    await vi.advanceTimersByTimeAsync(3 * 60000); // the minute tick re-checks
+    await card.updateComplete;
+    expect(el.hasAttribute("night")).toBe(true);
+  });
+
+  it("stays off without both times", async () => {
+    const { el } = await mount(
+      { ...base, night_end: undefined },
+      { calendars, now: "2026-09-11T23:00:00" },
+    );
+    expect(el.hasAttribute("night")).toBe(false);
+  });
+});
+
+describe("live updates and instant display", () => {
+  const persons = [{ name: "Anna", calendar: "calendar.anna" }];
+  const calendars = { "calendar.anna": [ev("Büro", "09:00", "17:00")] };
+  const base = { persons, view: "agenda" as const, views: ["agenda" as const] };
+
+  it("subscribes to the shown range and takes pushed changes at once", async () => {
+    const { subs, text, el } = await mount(base, { calendars, live: "new" });
+    expect(subs).toHaveLength(1);
+    expect(subs[0].msg).toMatchObject({
+      type: "calendar/event/subscribe",
+      entity_id: "calendar.anna",
+    });
+    expect(new Date(subs[0].msg.start as string).getDate()).toBe(7); // Monday of the week
+    // someone adds an appointment on the phone; HA pushes the new list
+    subs[0].push([
+      {
+        summary: "Büro",
+        start: "2026-09-11T09:00:00+02:00",
+        end: "2026-09-11T17:00:00+02:00",
+        all_day: false,
+      },
+      {
+        summary: "Zahnarzt",
+        start: "2026-09-11T15:00:00+02:00",
+        end: "2026-09-11T16:00:00+02:00",
+        all_day: false,
+      },
+    ]);
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(text()).toContain("Zahnarzt");
+    expect(text()).toContain("15:00");
+  });
+
+  it("keeps the board when a push says the calendar could not be read", async () => {
+    const { subs, text, el } = await mount(base, { calendars, live: "new" });
+    subs[0].push(null);
+    await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    expect(text()).toContain("Büro");
+  });
+
+  it("works as before on a Home Assistant without live updates", async () => {
+    const { text, subs } = await mount(base, { calendars, live: "old" });
+    expect(subs).toHaveLength(0);
+    expect(text()).toContain("Büro");
+  });
+
+  it("unsubscribes when the board leaves the screen, and when the range changes", async () => {
+    const { subs, el, root } = await mount(base, { calendars, live: "new" });
+    (root.querySelectorAll("button.nav")[1] as HTMLButtonElement).click(); // next week
+    for (let i = 0; i < 4; i++) {
+      await vi.advanceTimersByTimeAsync(0);
+      await (el as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+    }
+    expect(subs[0].unsubscribed).toBe(true);
+    expect(subs).toHaveLength(2);
+    el.remove();
+    expect(subs[1].unsubscribed).toBe(true);
+  });
+
+  it("shows the last known events at once while the fresh answer is on its way", async () => {
+    await mount(base, { calendars }); // a first visit fills the cache
+    mounted.splice(0).forEach((n) => n.remove());
+    const { text } = await mount(base, { calendars, slowApi: true });
+    expect(text()).toContain("Büro");
+  });
+
+  it("keeps a cache per board, so two boards on one dashboard both start instantly", async () => {
+    const ben = { ...base, persons: [{ name: "Ben", calendar: "calendar.ben" }] };
+    const both = { ...calendars, "calendar.ben": [ev("Training", "18:00", "19:30")] };
+    await mount(base, { calendars: both });
+    await mount(ben, { calendars: both });
+    mounted.splice(0).forEach((n) => n.remove());
+    const { text } = await mount(base, { calendars: both, slowApi: true });
+    expect(text()).toContain("Büro");
+  });
+
+  it("does not show cached events of another board", async () => {
+    await mount(base, { calendars });
+    mounted.splice(0).forEach((n) => n.remove());
+    const other = { ...base, persons: [{ name: "Ben", calendar: "calendar.ben" }] };
+    const { text } = await mount(other, { calendars: { "calendar.ben": [] }, slowApi: true });
+    expect(text()).not.toContain("Büro");
   });
 });

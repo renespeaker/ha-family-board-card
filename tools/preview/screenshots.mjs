@@ -54,17 +54,18 @@ const SHOTS = [
   ["agenda", "view=agenda", 560, 900],
   ["phone", "view=day", 400, 820],
   ["dark", "view=now&dark=1", 1100, 520],
+  ["night", "view=day&night=1", 1100, 520, "2026-10-07T23:10:00+02:00"],
 ];
 
 for (const lang of ["en", "de"]) {
-  for (const [name, query, width, height] of SHOTS) {
+  for (const [name, query, width, height, time = NOW] of SHOTS) {
     const page = await browser.newPage({
       viewport: { width, height },
       deviceScaleFactor: 2,
       locale: lang === "de" ? "de-DE" : "en-US",
       timezoneId: "Europe/Berlin",
     });
-    await page.clock.install({ time: new Date(NOW) });
+    await page.clock.install({ time: new Date(time) });
     await page.goto(`http://127.0.0.1:${PORT}/tools/preview/index.html?${query}&lang=${lang}`);
     await page.waitForTimeout(1500);
     const file = `docs/preview-${name}${lang === "en" ? "-en" : ""}.png`;

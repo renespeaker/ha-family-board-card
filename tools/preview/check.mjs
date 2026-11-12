@@ -42,6 +42,9 @@ async function open({
   width = 1400,
   locale = "de-DE",
   slim = false,
+  writable = false,
+  swipe = false,
+  night = false,
   timezoneId,
   time,
 }) {
@@ -51,7 +54,7 @@ async function open({
   const at = time ?? new Date();
   if (!time) at.setHours(10, 20, 0, 0);
   await page.clock.install({ time: at });
-  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}`;
+  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}${writable ? "&writable=1" : ""}${swipe ? "&swipe=1" : ""}${night ? "&night=1" : ""}`;
   await page.goto(url);
   await page.waitForTimeout(1500);
   return { page, errors };
@@ -72,6 +75,40 @@ for (const locale of ["de-DE", "en-US"]) {
     });
     check(`Dialog ohne Überlauf (${locale}, ${width}px)`, overflow <= 0, `${overflow}px`);
     check(`keine Konsolenfehler (${locale}, ${width}px)`, errors.length === 0, errors.join(" | "));
+    await page.close();
+  }
+}
+
+/* --- the new-event dialog with a series still fits ------------------ */
+for (const locale of ["de-DE", "en-US"]) {
+  for (const width of [1400, 400]) {
+    const { page, errors } = await open({ width, locale, writable: true });
+    await page.evaluate(async () => {
+      const el = document.querySelector("family-board-card");
+      el._openCreate(0, el._day, 16 * 60);
+      await el.updateComplete;
+      const sel = el.renderRoot.querySelector(".dialog select");
+      sel.value = "WEEKLY";
+      sel.dispatchEvent(new Event("change"));
+      await el.updateComplete;
+    });
+    const r = await page.evaluate(() => {
+      const d = document.querySelector("family-board-card").renderRoot.querySelector(".dialog");
+      return {
+        overflow: d.scrollWidth - d.clientWidth,
+        until: !!d.querySelector('input[type="date"]'),
+      };
+    });
+    check(
+      `Serien-Dialog ohne Überlauf (${locale}, ${width}px)`,
+      r.overflow <= 0 && r.until,
+      `${r.overflow}px${r.until ? "" : ", kein Bis-Feld"}`,
+    );
+    check(
+      `keine Konsolenfehler (Serie, ${locale}, ${width}px)`,
+      errors.length === 0,
+      errors.join(" | "),
+    );
     await page.close();
   }
 }
@@ -130,8 +167,15 @@ for (const [locale, lang] of [
 ]) {
   const { page } = await open({ view: "timeline", lang, locale });
   const h = await page.evaluate(() => {
-    const span = document.querySelector("family-board-card").renderRoot.querySelector(".tlnow span");
-    return span ? { text: span.textContent.trim(), lines: Math.round(span.getBoundingClientRect().height / 14) } : null;
+    const span = document
+      .querySelector("family-board-card")
+      .renderRoot.querySelector(".tlnow span");
+    return span
+      ? {
+          text: span.textContent.trim(),
+          lines: Math.round(span.getBoundingClientRect().height / 14),
+        }
+      : null;
   });
   check(
     `Zeitstrahl-Uhrzeit einzeilig (${lang})`,
@@ -151,7 +195,10 @@ for (const [locale, lang] of [
     if (!today) return { ok: false, why: "kein Heute-Abschnitt" };
     const offset =
       today.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
-    return { ok: Math.abs(box.scrollTop - offset) < 8, why: `scrollTop=${Math.round(box.scrollTop)} heute=${Math.round(offset)}` };
+    return {
+      ok: Math.abs(box.scrollTop - offset) < 8,
+      why: `scrollTop=${Math.round(box.scrollTop)} heute=${Math.round(offset)}`,
+    };
   });
   check("Agenda scrollt auf heute", landed.ok, landed.why);
   await page.close();
@@ -235,14 +282,17 @@ for (const [view, sel, width] of [
   ["month", ".mcell", 1400],
   ["month", ".mcell", 400],
   ["day", ".famband", 400],
+  ["now", ".cdband", 400],
 ]) {
   const { page } = await open({ view, width });
   const fit = await page.evaluate((sel) => {
     const root = document.querySelector("family-board-card").renderRoot;
-    const cells = [...root.querySelectorAll(sel)].filter((c) => c.querySelector(".famchip"));
+    const cells = [...root.querySelectorAll(sel)].filter((c) =>
+      c.querySelector(".famchip, .cdchip"),
+    );
     const bad = cells.filter((c) => {
       const box = c.getBoundingClientRect();
-      return [...c.querySelectorAll(".famchip")].some((chip) => {
+      return [...c.querySelectorAll(".famchip, .cdchip")].some((chip) => {
         const r = chip.getBoundingClientRect();
         // the chip box leaves the cell, or its text spills out of the chip
         // (an ellipsis clips inside the chip and is fine)
@@ -263,6 +313,66 @@ for (const [view, sel, width] of [
   await page.close();
 }
 
+/* --- swipe: pages where nothing scrolls, never fights a scroll ------- */
+{
+  // a real touch gesture through Chrome's input pipeline, so the browser
+  // itself decides whether it is a scroll (that is the point of the check)
+  const touchSwipe = async (page, x0, y0, x1, y1) => {
+    const cdp = await page.context().newCDPSession(page);
+    const point = (x, y) => [{ x, y, id: 1 }];
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(x0, y0) });
+    for (let i = 1; i <= 8; i++) {
+      const x = x0 + ((x1 - x0) * i) / 8;
+      const y = y0 + ((y1 - y0) * i) / 8;
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x, y) });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForTimeout(300);
+  };
+  const state = (page, scroller) =>
+    page.evaluate((scroller) => {
+      const el = document.querySelector("family-board-card");
+      const box = el.renderRoot.querySelector(scroller);
+      return { day: el._day, week: el._weekOffset, scrolled: Math.round(box?.scrollLeft ?? 0) };
+    }, scroller);
+  for (const [view, width, scroller, expectPage] of [
+    ["day", 1400, ".board", true], // nothing scrolls sideways: the swipe pages
+    ["week", 1400, ".weekwrap", true],
+    ["timeline", 400, ".tlwrap", false], // the timeline scrolls sideways: scrolling wins
+  ]) {
+    const page = await browser.newPage({
+      viewport: { width, height: 900 },
+      hasTouch: true,
+      isMobile: width < 600,
+    });
+    const at = new Date();
+    at.setHours(10, 20, 0, 0);
+    await page.clock.install({ time: at });
+    await page.goto(`http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&swipe=1`);
+    await page.waitForTimeout(1500);
+    // across the grid itself, right to left, inside the viewport
+    const y = await page.evaluate((scroller) => {
+      const r = document
+        .querySelector("family-board-card")
+        .renderRoot.querySelector(scroller)
+        .getBoundingClientRect();
+      return Math.round(Math.min(r.top + r.height * 0.6, innerHeight - 40));
+    }, scroller);
+    const before = await state(page, scroller);
+    await touchSwipe(page, width * 0.75, y, width * 0.2, y);
+    const after = await state(page, scroller);
+    const paged = after.day !== before.day || after.week !== before.week;
+    check(
+      expectPage
+        ? `Wischen blättert (${view}, ${width}px)`
+        : `Wischen lässt seitliches Scrollen in Ruhe (${view}, ${width}px)`,
+      expectPage ? paged : !paged && after.scrolled !== before.scrolled,
+      `Tag ${before.day}→${after.day}, Woche ${before.week}→${after.week}, scrollLeft ${before.scrolled}→${after.scrolled}`,
+    );
+    await page.close();
+  }
+}
+
 /* --- accessibility: axe-core over every view ------------------------ */
 // Structure, roles, names and ARIA must be clean everywhere. Colour contrast
 // is checked separately below: most of it comes from the user's HA theme and
@@ -281,7 +391,7 @@ const axe = (page, context, options) =>
       [context, options],
     ),
   );
-for (const [view, dark, dialog] of [
+for (const [view, dark, dialog, night] of [
   ["now"],
   ["day"],
   ["timeline"],
@@ -290,8 +400,21 @@ for (const [view, dark, dialog] of [
   ["agenda"],
   ["day", true],
   ["day", false, true],
+  ["day", false, false, true],
 ]) {
-  const { page } = await open({ view, dark });
+  const { page } = await open(
+    night
+      ? {
+          view,
+          night: true,
+          time: (() => {
+            const d = new Date();
+            d.setHours(23, 10, 0, 0);
+            return d;
+          })(),
+        }
+      : { view, dark },
+  );
   if (dialog) {
     await page.evaluate(() =>
       document.querySelector("family-board-card").renderRoot.querySelector(".event").click(),
@@ -299,7 +422,7 @@ for (const [view, dark, dialog] of [
     await page.waitForTimeout(300);
   }
   const found = await axe(page, null, { rules: { "color-contrast": { enabled: false } } });
-  const name = `${view}${dark ? " dunkel" : ""}${dialog ? " + Dialog" : ""}`;
+  const name = `${view}${dark ? " dunkel" : ""}${dialog ? " + Dialog" : ""}${night ? " nachts" : ""}`;
   check(`axe: keine Barrierefreiheits-Fehler (${name})`, found.length === 0, found.join(", "));
   await page.close();
 }
@@ -332,7 +455,9 @@ for (const dark of [false, true]) {
   const active = () =>
     page.evaluate(() => {
       const a = document.querySelector("family-board-card").renderRoot.activeElement;
-      return a ? { tag: a.tagName, text: a.textContent.trim(), inDialog: !!a.closest(".dialog") } : {};
+      return a
+        ? { tag: a.tagName, text: a.textContent.trim(), inDialog: !!a.closest(".dialog") }
+        : {};
     });
   await page.keyboard.press("Tab");
   const first = await active();
@@ -369,12 +494,21 @@ for (const dark of [false, true]) {
   await page.keyboard.press("Escape");
   await page.waitForTimeout(300);
   const back = await active();
-  check("Fokus kehrt nach Escape zum Termin zurück", back.tag === "DIV" && !back.inDialog, back.text);
+  check(
+    "Fokus kehrt nach Escape zum Termin zurück",
+    back.tag === "DIV" && !back.inDialog,
+    back.text,
+  );
   await page.close();
 }
 
 /* --- nothing may scroll sideways out of the card -------------------- */
-for (const [view, width] of [["day", 400], ["agenda", 400], ["week", 400], ["month", 400]]) {
+for (const [view, width] of [
+  ["day", 400],
+  ["agenda", 400],
+  ["week", 400],
+  ["month", 400],
+]) {
   const { page } = await open({ view, width });
   const bleed = await page.evaluate(() => {
     const el = document.querySelector("family-board-card");
@@ -386,5 +520,7 @@ for (const [view, width] of [["day", 400], ["agenda", 400], ["week", 400], ["mon
 
 await browser.close();
 server.close();
-console.log(failures.length ? `\n${failures.length} Prüfung(en) fehlgeschlagen` : "\nalles in Ordnung");
+console.log(
+  failures.length ? `\n${failures.length} Prüfung(en) fehlgeschlagen` : "\nalles in Ordnung",
+);
 process.exit(failures.length ? 1 : 0);
