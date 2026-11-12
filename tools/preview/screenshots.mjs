@@ -44,7 +44,7 @@ const browser = await chromium.launch({
   env: { ...process.env, FONTCONFIG_FILE: FONTS },
 });
 
-// name, query, viewport width, viewport height
+// name, query, viewport width, viewport height, [time], [ms to wind on]
 const SHOTS = [
   ["day", "view=day&alerts=1&late=1&rides=1", 1400, 900],
   ["now", "view=now", 1100, 520],
@@ -55,10 +55,13 @@ const SHOTS = [
   ["phone", "view=day", 400, 820],
   ["dark", "view=now&dark=1", 1100, 520],
   ["night", "view=day&night=1", 1100, 520, "2026-10-07T23:10:00+02:00"],
+  ["rides", "view=day&alerts=1&rides=1", 1400, 900, "2026-10-07T14:20:00+02:00"],
+  // the slideshow starts after a minute without touch: wind the clock on
+  ["saver", "view=now&saver=1", 1100, 520, NOW, 65000],
 ];
 
 for (const lang of ["en", "de"]) {
-  for (const [name, query, width, height, time = NOW] of SHOTS) {
+  for (const [name, query, width, height, time = NOW, wait = 0] of SHOTS) {
     const page = await browser.newPage({
       viewport: { width, height },
       deviceScaleFactor: 2,
@@ -66,8 +69,16 @@ for (const lang of ["en", "de"]) {
       timezoneId: "Europe/Berlin",
     });
     await page.clock.install({ time: new Date(time) });
+    // the slideshow shuffles its photos: fix the dice so every run shows the same one
+    await page.addInitScript(() => {
+      Math.random = () => 0.42;
+    });
     await page.goto(`http://127.0.0.1:${PORT}/tools/preview/index.html?${query}&lang=${lang}`);
     await page.waitForTimeout(1500);
+    if (wait) {
+      await page.clock.fastForward(wait);
+      await page.waitForTimeout(1500);
+    }
     const file = `docs/preview-${name}${lang === "en" ? "-en" : ""}.png`;
     // the card itself, cut to the viewport so tall views stay a sensible size
     const box = await page.locator("family-board-card").boundingBox();

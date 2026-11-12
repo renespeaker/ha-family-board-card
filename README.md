@@ -21,6 +21,10 @@
 <td valign="top"><b>Dark mode</b> – follows your Home Assistant theme<br><img src="docs/preview-dark-en.png" alt="Family Board Card – Dark mode"></td>
 <td valign="top"><b>Night screen</b> – calm and dim from `night_start` to `night_end`; a tap wakes the board<br><img src="docs/preview-night-en.png" alt="Family Board Card – Night screen"></td>
 </tr>
+<tr>
+<td valign="top"><b>Rides</b> – who drives whom: “🚗 Ben” on the pick-up, and a warning when the driver is busy<br><img src="docs/preview-rides-en.png" alt="Family Board Card – Rides"></td>
+<td valign="top"><b>Photo screensaver</b> – family photos from a Media folder with a large clock; a tap brings the board back<br><img src="docs/preview-saver-en.png" alt="Family Board Card – Photo screensaver"></td>
+</tr>
 </table>
 
 A family calendar — a “who is where, when” board — for [Home Assistant](https://www.home-assistant.io/). People are columns across the top (with the avatar from their `person.*` entity), time runs down the left. The card shows at a glance which activities happen at the same time in different places — for up to 10 people.
