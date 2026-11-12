@@ -37,6 +37,8 @@ interface MountOpts {
   lang?: string;
   /** weather.forecast_home daily forecast, as weather.get_forecasts returns it. */
   forecast?: unknown[];
+  /** calendar.* entities the card may write to (create, update, delete). */
+  writable?: string[];
   /** Local wall-clock time the test pretends it is. */
   now?: string;
 }
@@ -53,7 +55,10 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   for (const entity of Object.keys(calendars)) {
     states[entity] = {
       state: "on",
-      attributes: { friendly_name: entity.split(".")[1], supported_features: 0 },
+      attributes: {
+        friendly_name: entity.split(".")[1],
+        supported_features: opts.writable?.includes(entity) ? 7 : 0,
+      },
     };
   }
   for (const entity of Object.keys(todos)) {
@@ -925,5 +930,81 @@ describe("auto icons", () => {
       { calendars },
     );
     expect(texts(".agenda-title")).toEqual(["🍽️ Mittagessen", "😴 Mittagsschlaf"]);
+  });
+});
+
+describe("new recurring events", () => {
+  type Card = HTMLElement & {
+    _openCreate(idx: number, day: number, startMin?: number): void;
+    updateComplete: Promise<unknown>;
+  };
+  const persons = [{ name: "Mia", calendar: "calendar.mia" }];
+
+  async function openDialog(now = "2026-09-11T10:20:00", day = 4) {
+    const m = await mount(
+      { persons, view: "day", views: ["day"], start_hour: 7, end_hour: 20 },
+      { calendars: { "calendar.mia": [] }, writable: ["calendar.mia"], now },
+    );
+    const el = m.el as unknown as Card;
+    el._openCreate(0, day, 16 * 60);
+    await el.updateComplete;
+    const q = <T extends Element>(sel: string) => m.root.querySelector(sel) as T;
+    return { ...m, el, q };
+  }
+
+  it("saves a weekly series with its last day", async () => {
+    const { el, q, wsCalls } = await openDialog();
+    const select = q<HTMLSelectElement>(".dialog select");
+    select.value = "WEEKLY";
+    select.dispatchEvent(new Event("change"));
+    await el.updateComplete;
+    const until = q<HTMLInputElement>('.dialog input[type="date"]');
+    until.value = "2026-12-18";
+    until.dispatchEvent(new Event("input"));
+    q<HTMLInputElement>(".dialog input[type=text]").value = "Fußball";
+    q<HTMLInputElement>(".dialog input[type=text]").dispatchEvent(new Event("input"));
+    await el.updateComplete;
+    q<HTMLButtonElement>(".dialog button.primary").click();
+    await vi.advanceTimersByTimeAsync(0);
+    const create = wsCalls.find((c) => c.type === "calendar/event/create") as {
+      event: Record<string, string>;
+    };
+    // 18 Dec, end of the day in Berlin (CET) = 22:59:59 UTC
+    expect(create.event.rrule).toBe("FREQ=WEEKLY;UNTIL=20261218T225959Z");
+    expect(create.event.summary).toBe("Fußball");
+  });
+
+  it("creates a single event when repeat stays on never", async () => {
+    const { el, q, wsCalls } = await openDialog();
+    q<HTMLButtonElement>(".dialog button.primary").click();
+    await vi.advanceTimersByTimeAsync(0);
+    await el.updateComplete;
+    const create = wsCalls.find((c) => c.type === "calendar/event/create") as {
+      event: Record<string, string>;
+    };
+    expect(create.event.rrule).toBeUndefined();
+  });
+
+  it("refuses a series that would end before it starts", async () => {
+    const { el, q, wsCalls, text } = await openDialog();
+    const select = q<HTMLSelectElement>(".dialog select");
+    select.value = "DAILY";
+    select.dispatchEvent(new Event("change"));
+    await el.updateComplete;
+    const until = q<HTMLInputElement>('.dialog input[type="date"]');
+    until.value = "2026-09-01";
+    until.dispatchEvent(new Event("input"));
+    await el.updateComplete;
+    q<HTMLButtonElement>(".dialog button.primary").click();
+    await el.updateComplete;
+    expect(wsCalls.some((c) => c.type === "calendar/event/create")).toBe(false);
+    expect(text()).toContain("Die Serie kann nicht vor ihrem Beginn enden.");
+  });
+
+  it("proposes the clicked wall-clock time even on the day the clocks go back", async () => {
+    // Sunday 25 Oct 2026: 25 hours long; the 16:00 slot must stay 16:00
+    const { q } = await openDialog("2026-10-25T10:00:00", 6);
+    const start = q<HTMLInputElement>('.dialog input[type="datetime-local"]');
+    expect(start.value).toBe("2026-10-25T16:00");
   });
 });

@@ -19,6 +19,8 @@ import {
   layoutDayColumns,
   dragTimes,
   detectDayAlerts,
+  buildRrule,
+  RepeatFreq,
 } from "./events";
 import {
   localize,
@@ -128,6 +130,8 @@ interface DialogState {
   end: string;
   recurring?: boolean; // event is part of a recurring series
   recurrenceRange: "" | "THISANDFUTURE"; // scope for edit/delete of a series
+  repeat: RepeatFreq; // new events only: make it a series ("" = once)
+  repeatUntil: string; // last day of the series ("YYYY-MM-DD"), "" = open-ended
   calendarOptions?: string[]; // when a person has several writable calendars
   busy?: boolean;
   error?: string;
@@ -2816,7 +2820,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (writable.length === 0) return;
     const base = startOfDay(this._dateForDay(day));
     const sMin = startMin ?? Math.max(this._startMin, 9 * 60);
-    const start = new Date(base.getTime() + sMin * 60000);
+    // wall-clock minutes, not ms after midnight: on the day the clocks change
+    // that would propose 8:00 or 10:00 for a 9:00 slot
+    const start = new Date(base);
+    start.setHours(0, sMin, 0, 0);
     const end = new Date(start.getTime() + 60 * 60000);
     this._dialog = {
       mode: "create",
@@ -2832,6 +2839,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       start: toLocalInput(start),
       end: toLocalInput(end),
       recurrenceRange: "",
+      repeat: "",
+      repeatUntil: "",
     };
   }
 
@@ -2848,6 +2857,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       recurrence_id: raw.recurrence_id,
       recurring: !!(raw.recurrence_id || raw.rrule),
       recurrenceRange: "",
+      repeat: "",
+      repeatUntil: "",
       canUpdate,
       canDelete,
       summary: raw.summary,
@@ -2901,6 +2912,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       ev.dtstart = new Date(d.start).toISOString();
       ev.dtend = new Date(d.end).toISOString();
     }
+    const rrule = d.mode === "create" ? buildRrule(d.repeat, d.repeatUntil, d.allDay) : "";
+    if (rrule) ev.rrule = rrule;
     return ev;
   }
 
@@ -2910,6 +2923,9 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     if (isNaN(s.getTime()) || isNaN(e.getTime())) return this._t("err_invalid");
     if (e.getTime() < s.getTime()) return this._t("err_end_before");
     if (!d.allDay && e.getTime() === s.getTime()) return this._t("err_end_equal");
+    if (d.repeat && d.repeatUntil && d.repeatUntil < d.start.slice(0, 10)) {
+      return this._t("err_until_before");
+    }
     return null;
   }
 
@@ -3157,6 +3173,45 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               />
             </label>
           </div>
+
+          ${
+            d.mode === "create" && !readOnly
+              ? html`<div class="row">
+                  <label class="fld">
+                    <span>${this._t("field_repeat")}</span>
+                    <select
+                      .value=${d.repeat}
+                      @change=${(e: Event) =>
+                        this._dlgField(
+                          "repeat",
+                          (e.target as HTMLSelectElement).value as RepeatFreq,
+                        )}
+                    >
+                      ${(["", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"] as RepeatFreq[]).map(
+                        (f) =>
+                          html`<option value=${f} ?selected=${d.repeat === f}>
+                            ${this._t(`repeat_${f.toLowerCase() || "none"}`)}
+                          </option>`,
+                      )}
+                    </select>
+                  </label>
+                  ${
+                    d.repeat
+                      ? html`<label class="fld">
+                          <span>${this._t("field_repeat_until")}</span>
+                          <input
+                            type="date"
+                            .value=${d.repeatUntil}
+                            min=${d.start.slice(0, 10)}
+                            @input=${(e: Event) =>
+                              this._dlgField("repeatUntil", (e.target as HTMLInputElement).value)}
+                          />
+                        </label>`
+                      : nothing
+                  }
+                </div>`
+              : nothing
+          }
 
           <label class="fld">
             <span>

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { formatWeekRange } from "./localize";
 import {
   addDays,
+  buildRrule,
   daysBetween,
   detectDayAlerts,
   parseRawEvent,
@@ -456,5 +457,22 @@ describe("daylight saving time", () => {
           new Date(2026, 9, 31),
         ),
     );
+  });
+});
+
+describe("buildRrule", () => {
+  it("is empty for a single event", () => {
+    expect(buildRrule("", "2026-12-18", false)).toBe("");
+  });
+  it("repeats without end when no last day is given", () => {
+    expect(buildRrule("WEEKLY", "", false)).toBe("FREQ=WEEKLY");
+  });
+  it("ends an all-day series on a plain date", () => {
+    expect(buildRrule("YEARLY", "2030-05-01", true)).toBe("FREQ=YEARLY;UNTIL=20300501");
+  });
+  it("ends a timed series at the end of that local day, in UTC", () => {
+    // Berlin: winter UTC+1, summer UTC+2
+    expect(buildRrule("DAILY", "2026-12-18", false)).toBe("FREQ=DAILY;UNTIL=20261218T225959Z");
+    expect(buildRrule("DAILY", "2026-07-01", false)).toBe("FREQ=DAILY;UNTIL=20260701T215959Z");
   });
 });

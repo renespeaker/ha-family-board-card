@@ -31,6 +31,32 @@ export function daysBetween(from: Date, to: Date): number {
   return Math.round((b.getTime() - a.getTime()) / DAY_MS);
 }
 
+export type RepeatFreq = "" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+
+/**
+ * RRULE for a new series: "FREQ=WEEKLY", optionally ending on `until`
+ * (a local date, "YYYY-MM-DD", inclusive). RFC 5545 wants UNTIL in the same
+ * kind as the start: a plain date for all-day events, otherwise a UTC moment -
+ * here the end of that local day, so the last occurrence that day still counts.
+ */
+export function buildRrule(freq: RepeatFreq, until: string, allDay: boolean): string {
+  if (!freq) return "";
+  let rule = `FREQ=${freq}`;
+  if (until) {
+    if (allDay) {
+      rule += `;UNTIL=${until.replace(/-/g, "")}`;
+    } else {
+      const [y, m, d] = until.split("-").map(Number);
+      const end = new Date(y, m - 1, d, 23, 59, 59);
+      rule += `;UNTIL=${end
+        .toISOString()
+        .replace(/[-:]/g, "")
+        .replace(/\.\d{3}/, "")}`;
+    }
+  }
+  return rule;
+}
+
 /**
  * Compute new start/end for a drag (move) or resize gesture.
  * `deltaMin` is the raw dragged offset in minutes; the result snaps to the

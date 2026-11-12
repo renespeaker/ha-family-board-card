@@ -42,6 +42,7 @@ async function open({
   width = 1400,
   locale = "de-DE",
   slim = false,
+  writable = false,
   timezoneId,
   time,
 }) {
@@ -51,7 +52,7 @@ async function open({
   const at = time ?? new Date();
   if (!time) at.setHours(10, 20, 0, 0);
   await page.clock.install({ time: at });
-  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}`;
+  const url = `http://127.0.0.1:${PORT}/tools/preview/index.html?view=${view}&lang=${lang}&alerts=1${dark ? "&dark=1" : ""}${slim ? "&slim=1" : ""}${writable ? "&writable=1" : ""}`;
   await page.goto(url);
   await page.waitForTimeout(1500);
   return { page, errors };
@@ -72,6 +73,33 @@ for (const locale of ["de-DE", "en-US"]) {
     });
     check(`Dialog ohne Überlauf (${locale}, ${width}px)`, overflow <= 0, `${overflow}px`);
     check(`keine Konsolenfehler (${locale}, ${width}px)`, errors.length === 0, errors.join(" | "));
+    await page.close();
+  }
+}
+
+/* --- the new-event dialog with a series still fits ------------------ */
+for (const locale of ["de-DE", "en-US"]) {
+  for (const width of [1400, 400]) {
+    const { page, errors } = await open({ width, locale, writable: true });
+    await page.evaluate(async () => {
+      const el = document.querySelector("family-board-card");
+      el._openCreate(0, el._day, 16 * 60);
+      await el.updateComplete;
+      const sel = el.renderRoot.querySelector(".dialog select");
+      sel.value = "WEEKLY";
+      sel.dispatchEvent(new Event("change"));
+      await el.updateComplete;
+    });
+    const r = await page.evaluate(() => {
+      const d = document.querySelector("family-board-card").renderRoot.querySelector(".dialog");
+      return { overflow: d.scrollWidth - d.clientWidth, until: !!d.querySelector('input[type="date"]') };
+    });
+    check(
+      `Serien-Dialog ohne Überlauf (${locale}, ${width}px)`,
+      r.overflow <= 0 && r.until,
+      `${r.overflow}px${r.until ? "" : ", kein Bis-Feld"}`,
+    );
+    check(`keine Konsolenfehler (Serie, ${locale}, ${width}px)`, errors.length === 0, errors.join(" | "));
     await page.close();
   }
 }

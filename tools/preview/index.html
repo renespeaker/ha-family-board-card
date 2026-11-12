@@ -93,7 +93,7 @@ const hass = {
   states:{
     "person.anna":person("Anna","home"), "person.ben":person("Ben","not_home"),
     "person.mia":person("Mia","home"),   "person.leon":person("Leon","home"),
-    "calendar.anna":{state:"on",attributes:{friendly_name:"Anna",supported_features:0}},
+    "calendar.anna":{state:"on",attributes:{friendly_name:"Anna",supported_features:Q.has("writable")?7:0}},
     "calendar.ben":{state:"on",attributes:{friendly_name:"Ben",supported_features:0}},
     "calendar.mia":{state:"on",attributes:{friendly_name:"Mia",supported_features:0}},
     "calendar.leon":{state:"on",attributes:{friendly_name:"Leon",supported_features:0}},
