@@ -187,6 +187,34 @@ persons:
 
 Every `calendar.*` entity works – no matter whether `local_calendar` (local, no cloud), Google or CalDAV. Home Assistant delivers them all in the same shape.
 
+## One shared calendar, separate person columns
+
+Set `title_prefix` on each person to keep only events whose original title starts
+with that literal text (case-insensitive, ignoring leading whitespace). The prefix
+must be followed by punctuation, whitespace or the end of the title: `Lea` matches
+`Lea: Piano`, but not `Leander`. This is not a regular expression.
+The visual editor exposes this optional field for each person.
+
+```yaml
+type: custom:family-board-card
+view: week
+persons:
+  - name: Philipp
+    calendar: calendar.familie
+    title_prefix: Philipp
+  - name: Noah
+    calendar: calendar.familie
+    title_prefix: Noah
+  - name: Lea
+    calendar: calendar.familie
+    title_prefix: Lea
+```
+
+Filtering applies before display-title replacements and to every view, including
+live updates. It does not modify source events. Leave the prefix unset to show
+all events as before. New events must include the prefix to appear in that
+person's column. Family calendars remain unaffected.
+
 ## Styling (theme / card-mod)
 
 The card picks up the theme's colors and fonts automatically. For fine-tuning there are additional CSS variables you can override in your **theme** or via **card-mod**:

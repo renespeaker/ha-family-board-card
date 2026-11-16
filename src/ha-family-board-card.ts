@@ -52,6 +52,7 @@ interface PersonConfig {
   name?: string;
   person?: string; // person.* entity -> avatar (entity_picture) + live status
   calendar?: string | string[];
+  title_prefix?: string; // literal, case-insensitive prefix followed by a word boundary
   tasks?: string | string[]; // todo.* list(s) whose due items show on the board // calendar.* entity/entities -> events
   color?: string; // optional override; default falls back to a palette
   badges?: string[]; // extra entities shown as chips under the person header
@@ -1337,6 +1338,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         for (const ev of this._calData.get(cal) ?? []) {
           const raw = parseRawEvent(ev, idx, cal, color);
           if (!raw) continue;
+          if (p.title_prefix?.trim()) {
+            const title = raw.summary.trimStart().toLocaleLowerCase();
+            const prefix = p.title_prefix.trim().toLocaleLowerCase();
+            if (!title.startsWith(prefix) || /^[\p{L}\p{N}_]/u.test(title.slice(prefix.length)))
+              continue;
+          }
           // optional per-calendar override: take the title from another
           // field (school feeds often hide the subject in `description`)
           if (tf) {

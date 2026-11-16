@@ -357,6 +357,33 @@ describe("event clean-up", () => {
     expect(texts(".agenda-row")[0]).toContain("Unterricht");
   });
 
+  it("partitions a shared calendar by literal person prefixes with word boundaries", async () => {
+    const calendars = {
+      "calendar.family": [
+        ev(" lea: Piano", "09:00", "10:00"),
+        ev("Noah Swimming", "10:00", "11:00"),
+        ev("Leander Tennis", "11:00", "12:00"),
+        ev("Visit Lea", "12:00", "13:00"),
+      ],
+    };
+    const { texts } = await mount(
+      {
+        ...base,
+        persons: [
+          { name: "Lea", calendar: "calendar.family", title_prefix: "Lea" },
+          { name: "Noah", calendar: "calendar.family", title_prefix: "Noah" },
+        ],
+      },
+      { calendars },
+    );
+    const rows = texts(".agenda-row");
+    expect(rows).toHaveLength(2);
+    expect(rows.join(" ")).toContain("Piano");
+    expect(rows.join(" ")).toContain("Swimming");
+    expect(rows.join(" ")).not.toContain("Leander");
+    expect(rows.join(" ")).not.toContain("Visit");
+  });
+
   it("shows the same event from two calendars once when asked", async () => {
     const shared = ev("Kino", "18:00", "20:00");
     const calendars = { "calendar.anna": [shared], "calendar.ben": [{ ...shared, uid: "other" }] };
