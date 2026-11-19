@@ -29,7 +29,7 @@
     "custom-card-helpers": "^2.1.0",
     "happy-dom": "^21.0.4",
     "playwright-core": "^1.65.1",
-    "prettier": "^3.9.10",
+    "prettier": "^3.10.1",
     "rollup": "^4.68.3",
     "tslib": "^2.9.1",
     "typescript": "^6.0.3",
