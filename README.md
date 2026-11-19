@@ -125,7 +125,7 @@ persons:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `persons` | list | – | 1–10 people with `name`, `person`, `calendar` (string **or list**), optionally `color`, `badges` (entities as chips) `hidden` (starts collapsed) and `driver` (drives: rides get assigned to them) |
+| `persons` | list | – | 1–10 people with `name`, `person`, `calendar` (string **or list**), optionally `color`, `badges` (entities as chips), `hidden` (starts collapsed), `driver` (drives: rides get assigned to them) and `title_prefix` (only events whose title starts with it – for one shared calendar, see below) |
 | `persons[].tasks` | string/list | – | `todo.*` list(s) of this person; tasks due today and overdue ones appear as chips (day view + agenda). Without it the card queries no list at all |
 | `hide_empty_persons` | boolean | `false` | Week view: hide people without events in that week |
 | `show_alerts` | boolean | `false` | Day check above the day/timeline views: double bookings, care gaps and “nobody home” as chips |
@@ -186,6 +186,34 @@ persons:
 | `refresh_interval` | number | `300` | Auto refresh of the events in seconds (0 = off); additionally when the tablet wakes up. On Home Assistant 2026.5+ changes arrive live anyway – this is the safety net |
 
 Every `calendar.*` entity works – no matter whether `local_calendar` (local, no cloud), Google or CalDAV. Home Assistant delivers them all in the same shape.
+
+## One shared calendar, separate person columns
+
+Set `title_prefix` on each person to keep only events whose original title starts
+with that literal text (case-insensitive, ignoring leading whitespace). The prefix
+must be followed by punctuation, whitespace or the end of the title: `Lea` matches
+`Lea: Piano`, but not `Leander`. This is not a regular expression.
+The visual editor exposes this optional field for each person.
+
+```yaml
+type: custom:family-board-card
+view: week
+persons:
+  - name: Philipp
+    calendar: calendar.familie
+    title_prefix: Philipp
+  - name: Noah
+    calendar: calendar.familie
+    title_prefix: Noah
+  - name: Lea
+    calendar: calendar.familie
+    title_prefix: Lea
+```
+
+Filtering applies before display-title replacements and to every view, including
+live updates. It does not modify source events. Leave the prefix unset to show
+all events as before. New events must include the prefix to appear in that
+person's column. Family calendars remain unaffected.
 
 ## Styling (theme / card-mod)
 

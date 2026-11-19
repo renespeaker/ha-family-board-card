@@ -125,7 +125,7 @@ persons:
 
 | Option          | Typ     | Default | Beschreibung |
 |-----------------|---------|---------|--------------|
-| `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color`, `badges` (Entitäten als Chips) `hidden` (startet eingeklappt) und `driver` (fährt: Fahrten werden ihr zugeordnet) |
+| `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color`, `badges` (Entitäten als Chips), `hidden` (startet eingeklappt), `driver` (fährt: Fahrten werden ihr zugeordnet) und `title_prefix` (nur Termine, deren Titel damit beginnt – für einen gemeinsamen Kalender, siehe unten) |
 | `persons[].tasks` | String/Liste | – | `todo.*`-Liste(n) dieser Person; heute fällige und überfällige Aufgaben erscheinen als Chips (Tagesansicht + Agenda). Ohne Angabe fragt die Karte keine Liste ab |
 | `hide_empty_persons` | boolean | `false` | Wochenansicht: Personen ohne Termine in der Woche ausblenden |
 | `show_alerts`   | boolean | `false` | Tages-Check über Tag/Zeitstrahl: Doppelbuchungen, Betreuungslücken und „niemand zuhause" als Chips |
@@ -186,6 +186,36 @@ persons:
 | `refresh_interval` | number | `300` | Auto-Aktualisierung der Termine in Sekunden (0 = aus); zusätzlich bei Tablet-Aufwachen. Ab Home Assistant 2026.5 kommen Änderungen ohnehin live – das ist das Sicherheitsnetz |
 
 Jede `calendar.*`-Entität funktioniert – egal ob `local_calendar` (lokal, ohne Cloud), Google oder CalDAV. Home Assistant liefert alle einheitlich.
+
+## Ein gemeinsamer Kalender, getrennte Spalten
+
+Führt die Familie nur einen gemeinsamen Kalender, in dem die Titel mit dem
+Namen beginnen („Lea: Klavier“), bekommt jede Person `title_prefix`. Dann zeigt
+ihre Spalte nur Termine, deren ursprünglicher Titel mit genau diesem Text
+beginnt – ohne Rücksicht auf Groß-/Kleinschreibung und führende Leerzeichen.
+Danach muss ein Satzzeichen, ein Leerzeichen oder das Titelende folgen: `Lea`
+passt zu `Lea: Klavier`, aber nicht zu `Leander`. Es ist kein regulärer
+Ausdruck. Im visuellen Editor ist das Feld pro Person einstellbar.
+
+```yaml
+type: custom:family-board-card
+view: week
+persons:
+  - name: Philipp
+    calendar: calendar.familie
+    title_prefix: Philipp
+  - name: Noah
+    calendar: calendar.familie
+    title_prefix: Noah
+  - name: Lea
+    calendar: calendar.familie
+    title_prefix: Lea
+```
+
+Der Filter greift vor den Titel-Ersetzungen und in jeder Ansicht, auch bei
+Live-Updates. Die Termine im Kalender bleiben unverändert. Ohne Präfix zeigt
+die Spalte wie bisher alle Termine. Neue Termine brauchen das Präfix, um in der
+Spalte der Person zu erscheinen. Familien-Kalender sind nicht betroffen.
 
 ## Aussehen anpassen (Theme / card-mod)
 
