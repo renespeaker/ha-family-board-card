@@ -55,7 +55,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Mehrere Kalender pro Person** – z. B. Arbeit + privat in einer Spalte (im Editor auswählbar).
 - **Familien-Kalender** – Kalender, die allen gehören (Feiertage, Schulferien, Müllabfuhr), kommen in `family_calendars`. Ihre Termine erscheinen als Band über den Personen in Tag, Zeitstrahl und Jetzt-Ansicht, unter dem Wochentag in der Woche, in den Monatszellen und in der Agenda – und zählen nie als Doppelbuchung. Symbol und Farbe kommen aus der `calendars:`-Zuordnung (z. B. `mdi:trash-can`).
 - **Robuste Termin-Logik** – Ganztags-Events (Ende exklusiv), über Mitternacht laufende und mehrtägige Termine werden korrekt auf die Tage aufgeteilt; Zeitzonen werden berücksichtigt.
-- **Mehrsprachig & lokalisiert** – Texte in Deutsch/Englisch, Wochentage und Uhrzeiten (12/24 h) aus der HA-Locale; relative Tage („Heute/Morgen").
+- **Mehrsprachig & lokalisiert** – Texte in Deutsch, Englisch, Niederländisch, Französisch und Spanisch, Wochentage und Uhrzeiten (12/24 h) aus der HA-Locale; relative Tage („Heute/Morgen").
 - **Alltags-Politur** – vergangene Termine ausgegraut, Einfärben auch nach Kalender, Ort direkt in der Karten-App öffnen, störende Termine per Muster ausblenden.
 - **Live-Fortschritt & Countdown** – laufende Termine zeigen einen Fortschrittsbalken (abschaltbar), kommende in der Agenda ein „in 20 Min."; aktualisiert minütlich.
 - **Live-Updates, Sofort-Start** – ab Home Assistant 2026.5 abonniert das Board seine Kalender: Ein auf dem Handy angelegter Termin erscheint sofort auf dem Wandtablet, ohne auf die Aktualisierung zu warten. Nach dem Neuladen stehen die zuletzt bekannten Termine sofort da, bis die frischen geladen sind (pro Board im Browser, höchstens einen Tag alt). Ältere Home-Assistant-Versionen aktualisieren wie bisher.
@@ -234,9 +234,9 @@ Die [Family Task Card](https://github.com/renespeaker/ha-family-task-card) ist d
 
 ## Sprachen
 
-Karte **und** visueller Editor sprechen **Deutsch und Englisch**. Die Sprache folgt deinem Home-Assistant-Benutzerprofil; alles, was eine Übersetzung nicht abdeckt, fällt auf Englisch zurück. Datum, Wochentage und das Zeitformat (12/24 h) kommen über `Intl` aus der HA-Locale.
+Karte **und** visueller Editor sprechen **Deutsch, Englisch, Niederländisch, Französisch und Spanisch**. Die Sprache folgt deinem Home-Assistant-Benutzerprofil; alles, was eine Übersetzung nicht abdeckt, fällt auf Englisch zurück. Datum, Wochentage und das Zeitformat (12/24 h) kommen über `Intl` aus der HA-Locale.
 
-Noch eine Sprache? Ein Dictionary in [`src/localize.ts`](src/localize.ts) (Karte) und [`src/editor-i18n.ts`](src/editor-i18n.ts) (Editor) ergänzen – beides sind einfache Key/Value-Objekte, Pull Requests willkommen.
+Noch eine Sprache? Ein Dictionary in [`src/localize.ts`](src/localize.ts) (Karte) und [`src/editor-i18n.ts`](src/editor-i18n.ts) (Editor) ergänzen – beides sind einfache Key/Value-Objekte, Pull Requests willkommen. Ein Test prüft, dass jede Sprache jeden Text hat, damit eine neue Sprache auch bei neuen Funktionen vollständig bleibt.
 
 ## Entwicklung
 
@@ -254,7 +254,7 @@ Schneller Loop gegen die laufende HA-Instanz: `dist/ha-family-board-card.js` nac
 Getestet wird auf zwei Ebenen:
 
 - **Logik** – die fehleranfälligen Teile (Splitting über Mitternacht, Ganztags-Exklusivität, Zeitzonen, Überlappungs-Layout, Konflikterkennung) liegen isoliert in [`src/events.ts`](src/events.ts), abgedeckt von [`src/events.test.ts`](src/events.test.ts).
-- **Karte & Editor** – [`src/card.test.ts`](src/card.test.ts) und [`src/editor.test.ts`](src/editor.test.ts) rendern die Karte gegen ein nachgebautes Home Assistant (happy-dom) und prüfen, was am Ende wirklich auf dem Schirm steht: Tages-Check, Agenda-Gruppierung, Filter, Personen-Toggle und die Zweisprachigkeit von Karte und Editor.
+- **Karte & Editor** – [`src/card.test.ts`](src/card.test.ts) und [`src/editor.test.ts`](src/editor.test.ts) rendern die Karte gegen ein nachgebautes Home Assistant (happy-dom) und prüfen, was am Ende wirklich auf dem Schirm steht: Tages-Check, Agenda-Gruppierung, Filter, Personen-Toggle und die Sprachen von Karte und Editor.
 
 `npm test` führt beides aus, ohne Browser.
 

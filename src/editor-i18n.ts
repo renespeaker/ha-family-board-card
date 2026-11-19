@@ -359,7 +359,565 @@ const DE: Dict = {
   cal_hint_3: "als Termin-Titel.",
 };
 
-const TABLE: Record<string, Dict> = { en: EN, de: DE };
+const NL: Dict = {
+  /* ---- field labels ---------------------------------------------- */
+  l_title: "Kaarttitel",
+  l_refresh_interval: "Automatisch vernieuwen (sec., 0 = uit)",
+  l_view: "Standaardweergave",
+  l_views: "Beschikbare weergaves (wisselaar)",
+  l_time_grid: "Tijdraster",
+  l_start_hour: "Startuur",
+  l_end_hour: "Einduur",
+  l_hour_height: "Hoogte per uur",
+  l_hour_width: "Tijdlijn: breedte per uur",
+  l_fit_height: "Auto-fit: pas de dag aan zodat deze zonder scrollen past",
+  l_full_height: "Volledige hoogte: rek uit tot de onderkant van het scherm",
+  l_trim_hours: "Lege randuren automatisch verbergen",
+  l_col_min_width: "Min. kolombreedte per persoon",
+  l_background_hours: "Lange afspraken als achtergrondband tonen vanaf (uur)",
+  l_max_columns: "Max. kolommen per dag",
+  l_first_day: "Week begint op",
+  l_scroll_to_now: "Automatisch scrollen naar nu",
+  l_swipe: "Vegen om te bladeren",
+  l_night_start: "Nachtscherm vanaf",
+  l_night_end: "Nachtscherm tot",
+  l_night_wake_entity: "Wakker worden bij beweging",
+  l_screensaver_media: "Foto-screensaver (mediamap)",
+  l_screensaver_after: "Foto's na (min. zonder aanraking)",
+  l_screensaver_interval: "Seconden per foto",
+  l_day_offset: "Start op (dagen vanaf vandaag)",
+  l_slim_header: "Smalle koptekst",
+  l_color_by: "Kleuren op basis van",
+  l_show_weekends: "Weekend tonen",
+  l_show_now_line: "Nu-lijn",
+  l_dim_past: "Afgelopen afspraken dimmen",
+  l_show_progress: "Voortgangsbalk tonen",
+  l_hide_patterns: "Afspraken verbergen",
+  l_show_patterns: "Toon alleen afspraken met",
+  l_replace_patterns: "Titels vervangen",
+  l_filter_duplicates: "Dubbele afspraken samenvoegen",
+  l_hide_past: "Agenda: verberg voorbije dagen",
+  l_tentative_patterns: "Markeren als voorlopig",
+  l_auto_icons: "Automatische iconen op trefwoord",
+  l_icon_patterns: "Eigen icoonregels",
+  l_show_focus: "“Nu / straks”-balk",
+  l_show_alerts: "Dagcheck (dubbele boekingen, gaten, niemand thuis)",
+  l_gap_min: "Meld een gat vanaf (min., 0 = uit)",
+  l_late_warning: "Waarschuw als nog thuis (min. vooraf, 0 = uit)",
+  l_drag_drop: "Afspraken verplaatsen door te slepen (dagweergave)",
+  l_family_calendars: "Gezinsagenda's",
+  l_countdowns: "Aftellers (countdowns)",
+  l_countdown_days: "Aftellers kijken vooruit",
+  l_weather_entity: "Weer-entiteit",
+  l_show_weather: "Weer tonen",
+  l_hide_empty_persons: "Week: verberg personen zonder afspraken",
+  l_auto_return: "Terug naar startweergave na inactiviteit (min., 0 = uit)",
+  l_event_size: "Tekstgrootte afspraken",
+  l_radius: "Hoekradius van de blokken",
+  l_past_opacity: "Dekking van afgelopen afspraken",
+  l_name: "Weergavenaam",
+  l_person: "Persoon (avatar & status)",
+  l_calendar: "Agenda's (meerdere mogelijk)",
+  l_tasks: "Takenlijsten (openstaande punten verschijnen op het bord)",
+  l_color: "Eigen kleur (hex, optioneel)",
+  l_badges: "Badges (bijv. batterij, sensoren)",
+  l_hidden: "Verborgen bij opstarten",
+  l_driver: "Rijdt (ophalen, wegbrengen)",
+  l_ride_patterns: "Woorden voor ritten",
+  l_private_patterns: "Privé-afspraken",
+  l_birthday_age: "Verjaardagen met leeftijd",
+  l_compact: "Compacte weergave",
+  l_map_url: "Kaartlink (sjabloon)",
+
+  /* ---- helper texts ---------------------------------------------- */
+  h_scroll_to_now: "Dagweergave naar huidige tijd, tijdlijn naar de nu-lijn, agenda naar vandaag",
+  h_swipe: "Touchscreens: veeg naar links of rechts voor de volgende of vorige dag, week of maand",
+  h_night_start:
+    "Wandtablet: een donkere, gedimde klok met de eerstvolgende afspraken; tik om te wekken",
+  h_night_end: "Ochtend: terug naar het normale bord",
+  h_screensaver_media:
+    "Een map uit Media, bijv. media-source://media_source/local/photos – een diavoorstelling met klok na een tijdje zonder aanraking; een tik brengt het bord terug",
+  h_night_wake_entity:
+    "Bewegings- of aanwezigheidssensor: zodra deze “aan” meldt, wordt het bord wakker zoals na een tik",
+  h_day_offset:
+    "0 = vandaag, 1 = morgen, -1 = gisteren. Voor een scherm dat de komende dag moet tonen",
+  h_slim_header:
+    "Weekdagknoppen schuiven naar de navigatieregel en de avatar staat naast de naam – bespaart circa 40 px",
+  h_hide_patterns: "Tekstpatronen, bijv. “Pauze” – overeenkomsten worden verborgen",
+  h_show_patterns: "Allow-list: alleen afspraken waarvan de titel een van de patronen bevat",
+  h_replace_patterns: "bijv. “Mentoruur => Les” (zonder => wordt de tekst verwijderd)",
+  h_tentative_patterns: "Overeenkomsten worden gestippeld / semi-transparant weergegeven",
+  h_filter_duplicates: "Dezelfde afspraak in meerdere agenda's wordt slechts één keer getoond",
+  h_hide_past:
+    "De lijst begint bij vandaag. Terugbladeren naar een eerdere week toont nog steeds alles",
+  h_auto_return: "Kiosk: springt na X minuten zonder aanraking terug naar “vandaag”",
+  h_background_hours:
+    "0 = uit. Lange (bijna) dagvullende afspraken (BSO, opvang …) als subtiele band",
+  h_fit_height: "Comprimeert de dag totdat alles zonder scrollen zichtbaar is",
+  h_full_height: "Voor paneelweergave / wandtablet",
+  h_trim_hours: "Toont alleen de uren waarin daadwerkelijk afspraken staan",
+  h_col_min_width: "Hieronder scrollt het bord horizontaal",
+  h_family_calendars:
+    "Agenda's voor iedereen – feestdagen, afvalkalender, schoolvakanties. Worden boven de personen getoond en tellen nooit als dubbele boeking",
+  h_countdowns:
+    'Nu-weergave: woorden zoals vakantie of verjaardag - passende afspraken verschijnen als "over 12 dagen"-chips',
+  h_countdown_days: "Hoeveel dagen vooruit aftellers worden getoond (standaard 60)",
+  h_weather_entity: "Dagelijkse verwachting in de koptekst (HA-locatie)",
+  h_auto_icons:
+    "bijv. dokter → 🩺, sport → 🏃, verjaardag → 🎂 (titels met emoji blijven ongewijzigd)",
+  h_icon_patterns: "Eigen regels, bijv. “Oma => 👵”",
+  h_show_focus: "Compacte balk boven de weergaves: wat is er nu bezig / wat komt hierna",
+  h_show_alerts:
+    "Chips boven de dag- en tijdlijnweergave: één persoon dubbel geboekt, een onbeheerd gat tussen twee afspraken of iedereen tegelijk van huis",
+  h_gap_min:
+    "Hoe lang een gat tussen twee afspraken van een persoon moet zijn voordat het een waarschuwing waard is",
+  h_late_warning:
+    "Een afspraak met locatie begint bijna en de persoon-entiteit meldt nog thuis: waarschuwing in de dagcheck en nu-weergave",
+  h_drag_drop:
+    "Alleen bij schrijfbare agenda's; sleep om te verplaatsen, onderrand wijzigt de duur",
+  h_views: "Welke wisselaars bovenaan verschijnen",
+  h_tasks:
+    "Openstaande taken voor vandaag – en achterstallige – verschijnen als chips. Afvinken doe je in je taken-app of de Family Task Card",
+  h_badges: "Kleine chips onder de persoonskop; klikken opent details",
+  h_color: "Laat leeg voor de paletkleur",
+  h_hidden: "Kolom start ingeklapt; een klik op de kop haalt hem terug",
+  h_driver:
+    "Ritten zoals “Mia ophalen” krijgen een bestuurder; de dagcheck waarschuwt als niemand rijdt of de bestuurder bezet is",
+  h_ride_patterns: "Leeg = ophalen, brengen, rit, pick up, drop off …",
+  h_birthday_age: "“Verjaardag Oma (1946)” of “Max *2019” wordt “… (wordt 80)”",
+  h_private_patterns:
+    "Tekst in titel of beschrijving, bijv. “#privé” – toont alleen “Privé” en de tijd",
+  h_compact: "Kleinere lettertypes en krappere afstanden met één schakelaar",
+  h_map_url: "{location} wordt vervangen, bijv. https://maps.apple.com/?q={location}",
+
+  /* ---- option labels --------------------------------------------- */
+  o_person: "Persoon",
+  o_location: "Locatie",
+  o_calendar: "Agenda",
+  o_monday: "Maandag",
+  o_sunday: "Zondag",
+  o_today: "Vandaag (rollende week)",
+
+  /* ---- group titles ---------------------------------------------- */
+  g_views: "🗓 Weergaves",
+  g_layout: "📐 Indeling & grootte",
+  g_filters: "🧹 Filters & opruimen",
+  g_looks: "🎨 Uiterlijk (finetuning)",
+  g_kiosk: "🖥 Kiosk & extra's",
+
+  /* ---- wizard ----------------------------------------------------- */
+  w_title: "👨‍👩‍👧‍👦 Welkom bij het gezinsbord!",
+  w_text:
+    "Klaar in twee klikken – de kaart herkent je gezin automatisch op basis van de persoons- en agenda-entiteiten in je Home Assistant.",
+  w_detect: "✨ Stap 1: personen automatisch herkennen",
+  w_hint:
+    "Optioneel daarna: kies een profiel (hieronder) of stel de details in per groep. Natuurlijk kun je personen ook handmatig toevoegen:",
+  w_empty: "＋ Leeg starten",
+
+  /* ---- presets ---------------------------------------------------- */
+  p_tablet: "🖥 Wandtablet",
+  p_tablet_title: "Volledig scherm, auto-fit, terug naar vandaag",
+  p_phone: "📱 Telefoon",
+  p_phone_title: "Agenda als startweergave, compacte kolommen",
+  p_reset: "🧩 Standaard",
+  p_reset_title: "Indelingsinstellingen herstellen",
+
+  /* ---- sections & controls ---------------------------------------- */
+  s_persons: "Personen",
+  s_calendars: "Agenda's (kleur & label)",
+  s_settings: "Instellingen",
+  b_add_person: "＋ Persoon toevoegen",
+  b_detect: "✨ Automatisch herkennen",
+  b_up: "Omhoog",
+  b_down: "Omlaag",
+  b_remove: "Verwijderen",
+  b_auto: "Automatisch",
+  ph_label: "Eigen label",
+  ph_icon: "Icoon, bijv. mdi:school",
+  ph_title_field: "Titel uit veld (bijv. description)",
+  cal_private: "Privé – toon alleen “Privé” en de tijd",
+  person_n: "Persoon",
+  cal_hint_1:
+    "Kleuren werken bij “Kleuren op basis van: agenda”, labels in het afspraakvenster. Icoon = mdi-icoon vóór de titel. “Titel uit veld” gebruikt bijv.",
+  cal_hint_2: "in plaats van",
+  cal_hint_3: "als afspraaktitel.",
+};
+
+const FR: Dict = {
+  /* ---- field labels ---------------------------------------------- */
+  l_title: "Titre de la carte",
+  l_refresh_interval: "Actualisation auto (sec., 0 = désactivé)",
+  l_view: "Vue par défaut",
+  l_views: "Vues disponibles (sélecteur)",
+  l_time_grid: "Grille horaire",
+  l_start_hour: "Heure de début",
+  l_end_hour: "Heure de fin",
+  l_hour_height: "Hauteur par heure",
+  l_hour_width: "Chronologie : largeur par heure",
+  l_fit_height: "Ajustement auto : compresser la journée pour éviter le défilement",
+  l_full_height: "Pleine hauteur : étirer jusqu'en bas de l'écran",
+  l_trim_hours: "Masquer les heures vides aux extrémités",
+  l_col_min_width: "Largeur min. de colonne par personne",
+  l_background_hours: "Afficher les événements longs en bande de fond dès (h)",
+  l_max_columns: "Colonnes max. par jour",
+  l_first_day: "La semaine commence le",
+  l_scroll_to_now: "Défilement auto vers l'heure actuelle",
+  l_swipe: "Glisser pour changer de page",
+  l_night_start: "Écran de nuit à partir de",
+  l_night_end: "Écran de nuit jusqu'à",
+  l_night_wake_entity: "Réveil par mouvement",
+  l_screensaver_media: "Économiseur d'écran photo (dossier média)",
+  l_screensaver_after: "Photos après (min sans contact)",
+  l_screensaver_interval: "Secondes par photo",
+  l_day_offset: "Commencer à (jours à partir d'aujourd'hui)",
+  l_slim_header: "En-tête compact",
+  l_color_by: "Colorer par",
+  l_show_weekends: "Afficher le week-end",
+  l_show_now_line: "Ligne de l'heure actuelle",
+  l_dim_past: "Estomper les événements passés",
+  l_show_progress: "Afficher la barre de progression",
+  l_hide_patterns: "Masquer les événements",
+  l_show_patterns: "Afficher uniquement les événements contenant",
+  l_replace_patterns: "Remplacer les titres",
+  l_filter_duplicates: "Fusionner les doublons",
+  l_hide_past: "Agenda : masquer les jours passés",
+  l_tentative_patterns: "Marquer comme provisoire",
+  l_auto_icons: "Icônes auto par mot-clé",
+  l_icon_patterns: "Règles d'icônes personnalisées",
+  l_show_focus: "Barre « En cours / à suivre »",
+  l_show_alerts: "Bilan du jour (doublons, creux, personne à la maison)",
+  l_gap_min: "Signaler un creux dès (min, 0 = désactivé)",
+  l_late_warning: "Avertir si encore à la maison (min avant, 0 = désactivé)",
+  l_drag_drop: "Déplacer les événements par glisser-déposer (vue jour)",
+  l_family_calendars: "Calendriers familiaux",
+  l_countdowns: "Comptes à rebours",
+  l_countdown_days: "Horizon des comptes à rebours",
+  l_weather_entity: "Entité météo",
+  l_show_weather: "Afficher la météo",
+  l_hide_empty_persons: "Semaine : masquer les personnes sans événement",
+  l_auto_return: "Retour à la vue initiale après inactivité (min, 0 = désactivé)",
+  l_event_size: "Taille de police des événements",
+  l_radius: "Rayon des coins des blocs",
+  l_past_opacity: "Opacité des événements passés",
+  l_name: "Nom d'affichage",
+  l_person: "Personne (avatar et statut)",
+  l_calendar: "Calendriers (plusieurs possibles)",
+  l_tasks: "Listes de tâches (les échéances apparaissent sur le tableau)",
+  l_color: "Couleur personnalisée (hex, optionnel)",
+  l_badges: "Badges (ex. batterie, capteurs)",
+  l_hidden: "Masqué au démarrage",
+  l_driver: "Conduit (chercher, déposer)",
+  l_ride_patterns: "Mots pour les trajets",
+  l_private_patterns: "Événements privés",
+  l_birthday_age: "Anniversaires avec âge",
+  l_compact: "Disposition compacte",
+  l_map_url: "Lien de carte (modèle)",
+
+  /* ---- helper texts ---------------------------------------------- */
+  h_scroll_to_now:
+    "Vue jour sur l'heure actuelle, chronologie sur la ligne actuelle, agenda sur aujourd'hui",
+  h_swipe:
+    "Écrans tactiles : glisser à gauche ou à droite pour le jour, la semaine ou le mois suivant/précédent",
+  h_night_start:
+    "Tablette murale : horloge sombre et tamisée avec les prochains événements ; toucher réveille le tableau",
+  h_night_end: "Matin : retour au tableau normal",
+  h_screensaver_media:
+    "Un dossier de Média, ex. media-source://media_source/local/photos – diaporama avec horloge après un temps sans contact ; toucher ramène le tableau",
+  h_night_wake_entity:
+    "Capteur de mouvement ou présence : lorsqu'il passe à « on », le tableau se réveille comme après un appui",
+  h_day_offset:
+    "0 = aujourd'hui, 1 = demain, -1 = hier. Pour un écran devant afficher le jour suivant",
+  h_slim_header:
+    "Les boutons des jours remontent sur la ligne de navigation et l'avatar se place à côté du nom – économise environ 40 px",
+  h_hide_patterns: "Motifs de texte, ex. « Récréation » – les correspondances sont masquées",
+  h_show_patterns:
+    "Liste blanche : uniquement les événements dont le titre contient l'un des motifs",
+  h_replace_patterns: "ex. « Vie de classe => Cours » (sans => le texte est supprimé)",
+  h_tentative_patterns: "Les correspondances sont affichées en pointillés / translucides",
+  h_filter_duplicates:
+    "Un même événement présent dans plusieurs calendriers n'est affiché qu'une fois",
+  h_hide_past:
+    "La liste commence aujourd'hui. Revenir à une semaine précédente affiche toujours tout",
+  h_auto_return: "Kiosque : revient à « aujourd'hui » après X minutes sans contact",
+  h_background_hours: "0 = désactivé. Événements longs (garderie…) affichés en bande discrète",
+  h_fit_height: "Compresse la journée jusqu'à ce que tout soit visible sans défiler",
+  h_full_height: "Pour vue panneau / tablette murale",
+  h_trim_hours: "Affiche uniquement les heures contenant réellement des événements",
+  h_col_min_width: "En dessous de cette valeur, le tableau défile horizontalement",
+  h_family_calendars:
+    "Calendriers pour tous – jours fériés, poubelles, vacances scolaires. Affichés au-dessus des personnes, jamais comptés comme doublons",
+  h_countdowns:
+    'Vue actuelle : mots comme vacances ou anniversaire - les événements correspondants s\'affichent en puces "dans 12 jours"',
+  h_countdown_days: "Nombre de jours à l'avance pour l'affichage des comptes à rebours (défaut 60)",
+  h_weather_entity: "Prévisions du jour dans l'en-tête (emplacement HA)",
+  h_auto_icons:
+    "ex. médecin → 🩺, sport → 🏃, anniversaire → 🎂 (les titres avec emoji restent intacts)",
+  h_icon_patterns: "Règles perso, ex. « Mamie => 👵 »",
+  h_show_focus: "Barre compacte au-dessus des vues : ce qui est en cours / ce qui suit",
+  h_show_alerts:
+    "Puces au-dessus des vues jour et chronologie : personne réservée deux fois, créneau sans surveillance entre deux événements, ou tout le monde absent en même temps",
+  h_gap_min:
+    "Durée minimale d'un creux entre deux événements d'une personne avant de déclencher une alerte",
+  h_late_warning:
+    "Un événement avec lieu commence bientôt et l'entité personne indique toujours à la maison : alerte dans le bilan du jour et la vue actuelle",
+  h_drag_drop:
+    "Calendriers modifiables uniquement ; glisser pour déplacer, bord inférieur pour changer la durée",
+  h_views: "Quels sélecteurs apparaissent en haut",
+  h_tasks:
+    "Les tâches ouvertes dues aujourd'hui – et en retard – s'affichent en puces. Les cocher se fait dans votre application todo ou la Family Task Card",
+  h_badges: "Petites puces sous l'en-tête de la personne ; cliquer ouvre les détails",
+  h_color: "Laisser vide pour utiliser la couleur de la palette",
+  h_hidden: "La colonne démarre réduite ; un clic sur l'en-tête la rétablit",
+  h_driver:
+    "Les trajets comme « chercher Mia » reçoivent un conducteur ; le bilan du jour avertit si personne ne conduit ou si le conducteur est occupé",
+  h_ride_patterns: "Vide = chercher, déposer, trajet, pick up, drop off …",
+  h_birthday_age: "« Anniversaire Mamie (1946) » ou « Max *2019 » s'affiche « … (aura 80 ans) »",
+  h_private_patterns:
+    "Texte dans le titre ou la description, ex. « #privé » – affiche uniquement « Privé » et l'heure",
+  h_compact: "Polices plus petites et espacements réduits en un seul bouton",
+  h_map_url: "{location} est remplacé, ex. https://maps.apple.com/?q={location}",
+
+  /* ---- option labels --------------------------------------------- */
+  o_person: "Personne",
+  o_location: "Lieu",
+  o_calendar: "Calendrier",
+  o_monday: "Lundi",
+  o_sunday: "Dimanche",
+  o_today: "Aujourd'hui (semaine glissante)",
+
+  /* ---- group titles ---------------------------------------------- */
+  g_views: "🗓 Vues",
+  g_layout: "📐 Disposition et taille",
+  g_filters: "🧹 Filtres et nettoyage",
+  g_looks: "🎨 Apparence (réglages fins)",
+  g_kiosk: "🖥 Kiosque et extras",
+
+  /* ---- wizard ----------------------------------------------------- */
+  w_title: "👨‍👩‍👧‍👦 Bienvenue sur le tableau familial !",
+  w_text:
+    "Prêt en deux clics – la carte détecte automatiquement votre famille à partir des entités personne et calendrier de votre Home Assistant.",
+  w_detect: "✨ Étape 1 : détecter les personnes automatiquement",
+  w_hint:
+    "Ensuite, en option : choisissez un profil (ci-dessous) ou affinez les réglages dans les groupes. Vous pouvez aussi ajouter des personnes manuellement :",
+  w_empty: "＋ Démarrer à vide",
+
+  /* ---- presets ---------------------------------------------------- */
+  p_tablet: "🖥 Tablette murale",
+  p_tablet_title: "Plein écran, ajustement auto, retour à aujourd'hui",
+  p_phone: "📱 Téléphone",
+  p_phone_title: "Agenda comme vue de départ, colonnes compactes",
+  p_reset: "🧩 Défaut",
+  p_reset_title: "Réinitialiser les paramètres de disposition",
+
+  /* ---- sections & controls ---------------------------------------- */
+  s_persons: "Personnes",
+  s_calendars: "Calendriers (couleur et libellé)",
+  s_settings: "Paramètres",
+  b_add_person: "＋ Ajouter une personne",
+  b_detect: "✨ Détecter automatiquement",
+  b_up: "Monter",
+  b_down: "Descendre",
+  b_remove: "Supprimer",
+  b_auto: "Automatique",
+  ph_label: "Libellé personnalisé",
+  ph_icon: "Icône, ex. mdi:school",
+  ph_title_field: "Titre depuis le champ (ex. description)",
+  cal_private: "Privé – afficher uniquement « Privé » et l'heure",
+  person_n: "Personne",
+  cal_hint_1:
+    "Les couleurs s'appliquent avec « Colorer par : calendrier », les libellés dans la boîte de dialogue. Icône = icône mdi devant le titre. « Titre depuis le champ » utilise ex.",
+  cal_hint_2: "au lieu de",
+  cal_hint_3: "comme titre d'événement.",
+};
+
+const ES: Dict = {
+  /* ---- field labels ---------------------------------------------- */
+  l_title: "Título de la tarjeta",
+  l_refresh_interval: "Actualización automática (seg., 0 = desactivado)",
+  l_view: "Vista predeterminada",
+  l_views: "Vistas disponibles (selector)",
+  l_time_grid: "Cuadrícula de tiempo",
+  l_start_hour: "Hora de inicio",
+  l_end_hour: "Hora de fin",
+  l_hour_height: "Altura por hora",
+  l_hour_width: "Línea de tiempo: ancho por hora",
+  l_fit_height: "Autoajuste: comprimir el día para que quepa sin desplazar",
+  l_full_height: "Altura completa: estirar hasta el borde inferior de la pantalla",
+  l_trim_hours: "Ocultar horas vacías en los extremos",
+  l_col_min_width: "Ancho mín. de columna por persona",
+  l_background_hours: "Mostrar eventos largos como banda de fondo desde (h)",
+  l_max_columns: "Máx. de columnas por día",
+  l_first_day: "La semana empieza el",
+  l_scroll_to_now: "Desplazamiento automático a ahora",
+  l_swipe: "Deslizar para pasar página",
+  l_night_start: "Pantalla nocturna desde",
+  l_night_end: "Pantalla nocturna hasta",
+  l_night_wake_entity: "Despertar con movimiento",
+  l_screensaver_media: "Salvapantallas de fotos (carpeta multimedia)",
+  l_screensaver_after: "Fotos tras (min sin tocar)",
+  l_screensaver_interval: "Segundos por foto",
+  l_day_offset: "Empezar en (días desde hoy)",
+  l_slim_header: "Encabezado compacto",
+  l_color_by: "Colorear por",
+  l_show_weekends: "Mostrar fin de semana",
+  l_show_now_line: "Línea de hora actual",
+  l_dim_past: "Atenuar eventos pasados",
+  l_show_progress: "Mostrar barra de progreso",
+  l_hide_patterns: "Ocultar eventos",
+  l_show_patterns: "Mostrar solo eventos que coincidan con",
+  l_replace_patterns: "Reemplazar títulos",
+  l_filter_duplicates: "Combinar eventos duplicados",
+  l_hide_past: "Agenda: ocultar días pasados",
+  l_tentative_patterns: "Marcar como provisional",
+  l_auto_icons: "Iconos automáticos por palabra clave",
+  l_icon_patterns: "Reglas de iconos personalizadas",
+  l_show_focus: "Barra «Ahora / próximo»",
+  l_show_alerts: "Revisión del día (dobles reservas, huecos, nadie en casa)",
+  l_gap_min: "Marcar un hueco desde (min, 0 = desactivado)",
+  l_late_warning: "Avisar si sigue en casa (min antes, 0 = desactivado)",
+  l_drag_drop: "Mover eventos arrastrando (vista diaria)",
+  l_family_calendars: "Calendarios familiares",
+  l_countdowns: "Cuentas atrás",
+  l_countdown_days: "Días de antelación en cuentas atrás",
+  l_weather_entity: "Entidad meteorológica",
+  l_show_weather: "Mostrar el tiempo",
+  l_hide_empty_persons: "Semana: ocultar personas sin eventos",
+  l_auto_return: "Volver a la vista inicial tras inactividad (min, 0 = desactivado)",
+  l_event_size: "Tamaño de fuente de eventos",
+  l_radius: "Radio de las esquinas de los bloques",
+  l_past_opacity: "Opacidad de eventos pasados",
+  l_name: "Nombre para mostrar",
+  l_person: "Persona (avatar y estado)",
+  l_calendar: "Calendarios (varios posibles)",
+  l_tasks: "Listas de tareas (las pendientes aparecen en el panel)",
+  l_color: "Color personalizado (hex, opcional)",
+  l_badges: "Insignias (p. ej., batería, sensores)",
+  l_hidden: "Oculto al iniciar",
+  l_driver: "Conduce (recogidas, llevadas)",
+  l_ride_patterns: "Palabras para trayectos",
+  l_private_patterns: "Eventos privados",
+  l_birthday_age: "Cumpleaños con edad",
+  l_compact: "Diseño compacto",
+  l_map_url: "Enlace de mapa (plantilla)",
+
+  /* ---- helper texts ---------------------------------------------- */
+  h_scroll_to_now: "Vista diaria a la hora actual, línea de tiempo a la línea actual, agenda a hoy",
+  h_swipe:
+    "Pantallas táctiles: desliza a izquierda o derecha para el día, semana o mes siguiente o anterior",
+  h_night_start:
+    "Tablet de pared: reloj oscuro y atenuado con los próximos eventos; un toque despierta el panel",
+  h_night_end: "Mañana: vuelta al panel normal",
+  h_screensaver_media:
+    "Una carpeta de Medios, p. ej., media-source://media_source/local/photos – presentación con reloj tras un tiempo sin tocar; un toque devuelve el panel",
+  h_night_wake_entity:
+    "Sensor de movimiento o presencia: cuando reporta «on», el panel se despierta como tras un toque",
+  h_day_offset:
+    "0 = hoy, 1 = mañana, -1 = ayer. Para una pantalla que deba mostrar el día siguiente",
+  h_slim_header:
+    "Los botones de días suben a la barra de navegación y el avatar se sitúa junto al nombre – ahorra unos 40 px",
+  h_hide_patterns: "Patrones de texto, p. ej., «Recreo» – las coincidencias se ocultan",
+  h_show_patterns: "Lista permitida: solo eventos cuyo título contenga uno de los patrones",
+  h_replace_patterns: "p. ej., «Tutoría => Clase» (sin => el texto se elimina)",
+  h_tentative_patterns: "Las coincidencias se dibujan con línea discontinua / translúcidas",
+  h_filter_duplicates: "El mismo evento en varios calendarios se muestra solo una vez",
+  h_hide_past: "La lista empieza hoy. Al retroceder a una semana anterior se sigue mostrando todo",
+  h_auto_return: "Quiosco: vuelve a «hoy» tras X minutos sin tocar la pantalla",
+  h_background_hours:
+    "0 = desactivado. Eventos largos (comedor, extraescolares…) como una banda sutil",
+  h_fit_height: "Comprime el día hasta que todo sea visible sin desplazarse",
+  h_full_height: "Para vista de panel / tablet de pared",
+  h_trim_hours: "Muestra solo las horas que realmente contienen eventos",
+  h_col_min_width: "Por debajo de este valor, el panel se desplaza horizontalmente",
+  h_family_calendars:
+    "Calendarios para todos – festivos, recogida de basura, vacaciones escolares. Se muestran sobre las personas y nunca cuentan como doble reserva",
+  h_countdowns:
+    'Vista actual: palabras como vacaciones o cumpleaños - los eventos coincidentes se muestran como etiquetas "en 12 días"',
+  h_countdown_days: "Cuántos días hacia adelante se muestran las cuentas atrás (por defecto 60)",
+  h_weather_entity: "Pronóstico diario en el encabezado (ubicación de HA)",
+  h_auto_icons:
+    "p. ej., médico → 🩺, deporte → 🏃, cumpleaños → 🎂 (los títulos con emoji no se modifican)",
+  h_icon_patterns: "Reglas propias, p. ej., «Abuela => 👵»",
+  h_show_focus: "Barra compacta sobre las vistas: qué está en curso / qué viene después",
+  h_show_alerts:
+    "Etiquetas sobre las vistas de día y línea de tiempo: una persona con doble reserva, un hueco sin supervisar entre dos eventos o todos fuera a la vez",
+  h_gap_min:
+    "Cuánto debe durar un hueco entre dos eventos de una persona para que merezca una advertencia",
+  h_late_warning:
+    "Un evento con ubicación empieza pronto y la entidad de la persona aún indica en casa: aviso en la revisión del día y en la vista actual",
+  h_drag_drop:
+    "Solo calendarios editables; arrastrar para mover, el borde inferior cambia la duración",
+  h_views: "Qué selectores aparecen en la parte superior",
+  h_tasks:
+    "Las tareas pendientes para hoy – y las atrasadas – aparecen como etiquetas. Marcarlas como completadas se hace en tu app de tareas o en la Family Task Card",
+  h_badges:
+    "Pequeñas etiquetas bajo el encabezado de la persona; al hacer clic se abren los detalles",
+  h_color: "Dejar vacío para usar el color de la paleta",
+  h_hidden: "La columna inicia plegada; un clic en el encabezado la vuelve a mostrar",
+  h_driver:
+    "Trayectos como «recoger a Mia» reciben un conductor; la revisión del día avisa si nadie conduce o si el conductor está ocupado",
+  h_ride_patterns: "Vacío = recoger, llevar, trayecto, pick up, drop off …",
+  h_birthday_age: "«Cumpleaños de la abuela (1946)» o «Max *2019» se muestra como «… (cumple 80)»",
+  h_private_patterns:
+    "Texto en el título o descripción, p. ej., «#privado» – muestra solo «Privado» y la hora",
+  h_compact: "Fuentes más pequeñas y espaciado más ajustado con un solo interruptor",
+  h_map_url: "Se sustituye {location}, p. ej., https://maps.apple.com/?q={location}",
+
+  /* ---- option labels --------------------------------------------- */
+  o_person: "Persona",
+  o_location: "Ubicación",
+  o_calendar: "Calendario",
+  o_monday: "Lunes",
+  o_sunday: "Domingo",
+  o_today: "Hoy (semana continua)",
+
+  /* ---- group titles ---------------------------------------------- */
+  g_views: "🗓 Vistas",
+  g_layout: "📐 Diseño y tamaño",
+  g_filters: "🧹 Filtros y limpieza",
+  g_looks: "🎨 Apariencia (ajustes finos)",
+  g_kiosk: "🖥 Quiosco y extras",
+
+  /* ---- wizard ----------------------------------------------------- */
+  w_title: "👨‍👩‍👧‍👦 ¡Bienvenido al panel familiar!",
+  w_text:
+    "Listo en dos clics – la tarjeta detecta a tu familia automáticamente a partir de las entidades de persona y calendario de tu Home Assistant.",
+  w_detect: "✨ Paso 1: detectar personas automáticamente",
+  w_hint:
+    "Opcionalmente después: elige un perfil (abajo) o ajusta los detalles en los grupos. Por supuesto, también puedes añadir personas manualmente:",
+  w_empty: "＋ Empezar vacío",
+
+  /* ---- presets ---------------------------------------------------- */
+  p_tablet: "🖥 Tablet de pared",
+  p_tablet_title: "Pantalla completa, autoajuste, volver a hoy",
+  p_phone: "📱 Teléfono",
+  p_phone_title: "Agenda como vista inicial, columnas compactas",
+  p_reset: "🧩 Predeterminado",
+  p_reset_title: "Restablecer los ajustes de diseño",
+
+  /* ---- sections & controls ---------------------------------------- */
+  s_persons: "Personas",
+  s_calendars: "Calendarios (color y etiqueta)",
+  s_settings: "Ajustes",
+  b_add_person: "＋ Añadir persona",
+  b_detect: "✨ Detectar automáticamente",
+  b_up: "Subir",
+  b_down: "Bajar",
+  b_remove: "Eliminar",
+  b_auto: "Automático",
+  ph_label: "Etiqueta personalizada",
+  ph_icon: "Icono, p. ej., mdi:school",
+  ph_title_field: "Título desde campo (p. ej., description)",
+  cal_private: "Privado – mostrar solo «Privado» y la hora",
+  person_n: "Persona",
+  cal_hint_1:
+    "Los colores se aplican con «Colorear por: calendario», las etiquetas en el diálogo del evento. Icono = icono mdi delante del título. «Título desde campo» usa p. ej.",
+  cal_hint_2: "en lugar de",
+  cal_hint_3: "como título del evento.",
+};
+
+const TABLE: Record<string, Dict> = { en: EN, de: DE, nl: NL, fr: FR, es: ES };
+/** Every shipped language, for the completeness test. */
+export const EDITOR_STRINGS: Readonly<Record<string, Dict>> = TABLE;
 
 /** Translate an editor key for the given two-letter language, EN as fallback. */
 export function et(lang: string, key: string): string {

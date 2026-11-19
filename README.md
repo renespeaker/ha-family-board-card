@@ -55,7 +55,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Several calendars per person** – e.g. work + private in one column (selectable in the editor).
 - **Family calendars** – calendars that belong to everyone (public holidays, school holidays, bin collection) go into `family_calendars`. Their events appear as a band above the people in the day, timeline and now views, under the weekday in the week view, in the month cells and in the agenda – and never count as a double booking. Icon and color come from the `calendars:` mapping (e.g. `mdi:trash-can`).
 - **Robust event logic** – all-day events (exclusive end), events across midnight and multi-day events are split onto the correct days; time zones are respected.
-- **Multilingual & localized** – texts in English/German, weekday names and clock format (12/24 h) from the HA locale; relative days (“Today/Tomorrow”).
+- **Multilingual & localized** – texts in English, German, Dutch, French and Spanish, weekday names and clock format (12/24 h) from the HA locale; relative days (“Today/Tomorrow”).
 - **Everyday polish** – past events dimmed, coloring by calendar, open a location straight in the maps app, hide noisy events by pattern.
 - **Live progress & countdown** – running events show a progress bar (can be turned off), upcoming ones show “in 20 min” in the agenda; updates every minute.
 - **Live updates, instant start** – on Home Assistant 2026.5 or newer the board subscribes to its calendars: an appointment added on a phone appears on the wall tablet right away, without waiting for the refresh. After a reload the last known events show at once while the fresh ones load (kept per board in the browser, at most a day old). Older Home Assistant versions keep refreshing as before.
@@ -234,9 +234,9 @@ The [Family Task Card](https://github.com/renespeaker/ha-family-task-card) is th
 
 ## Languages
 
-The card and the visual editor ship with **English and German**. The language follows your Home Assistant user profile; everything not covered by a translation falls back to English. Dates, weekday names and the clock format (12/24 h) come from the HA locale via `Intl`, so they are correct in every language.
+The card and the visual editor ship with **English, German, Dutch, French and Spanish**. The language follows your Home Assistant user profile; everything not covered by a translation falls back to English. Dates, weekday names and the clock format (12/24 h) come from the HA locale via `Intl`, so they are correct in every language.
 
-Want another language? Add a dictionary to [`src/localize.ts`](src/localize.ts) (card) and [`src/editor-i18n.ts`](src/editor-i18n.ts) (editor) — both are plain key/value objects, pull requests welcome.
+Want another language? Add a dictionary to [`src/localize.ts`](src/localize.ts) (card) and [`src/editor-i18n.ts`](src/editor-i18n.ts) (editor) — both are plain key/value objects, pull requests welcome. A test makes sure every language has every text, so a new language stays complete when features are added.
 
 ## Development
 
@@ -254,7 +254,7 @@ Fast loop against a running HA instance: copy `dist/ha-family-board-card.js` to 
 Testing happens on two levels:
 
 - **Logic** – the error-prone parts (splitting across midnight, all-day exclusivity, time zones, overlap layout, conflict detection) live isolated in [`src/events.ts`](src/events.ts), covered by [`src/events.test.ts`](src/events.test.ts).
-- **Card & editor** – [`src/card.test.ts`](src/card.test.ts) and [`src/editor.test.ts`](src/editor.test.ts) render the card against a stand-in Home Assistant (happy-dom) and check what actually ends up on screen: the day check, agenda grouping, filters, the person toggle and the bilingual card and editor.
+- **Card & editor** – [`src/card.test.ts`](src/card.test.ts) and [`src/editor.test.ts`](src/editor.test.ts) render the card against a stand-in Home Assistant (happy-dom) and check what actually ends up on screen: the day check, agenda grouping, filters, the person toggle and the languages of card and editor.
 
 `npm test` runs both, no browser required.
 
@@ -269,12 +269,12 @@ In the day view, clicking an empty spot in a person's column opens the create di
 - [x] Create/edit/delete events, only for writable calendars
 - [x] Person editor in the visual config editor
 - [x] Week navigation & side-by-side layout of overlapping events
-- [x] i18n (EN/DE) + locale time format
+- [x] i18n (EN/DE/NL/FR/ES) + locale time format
 - [x] Kiosk / wall tablet mode (`full_height`, `fit_height`, `auto_return`, touch targets)
 - [x] Mobile layout (compact columns, swipeable)
 - [x] Drag & drop to move events
 - [x] Available in the official HACS store
-- [x] Localized visual editor (EN/DE)
+- [x] Localized visual editor (EN/DE/NL/FR/ES)
 - [x] Conflict detection (double bookings, pick-up gaps, “nobody home”)
 - [x] Drag & drop in the timeline view
 
