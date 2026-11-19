@@ -7,6 +7,7 @@ import { langOf, localize } from "./localize";
 import { et } from "./editor-i18n";
 
 interface PersonConfig {
+  title_prefix?: string;
   name?: string;
   person?: string;
   calendar?: string | string[];
@@ -25,6 +26,7 @@ const PERSON_SCHEMA = [
   { name: "name", selector: { text: {} } },
   { name: "person", selector: { entity: { filter: { domain: "person" } } } },
   { name: "calendar", selector: { entity: { filter: { domain: "calendar" }, multiple: true } } },
+  { name: "title_prefix", selector: { text: {} } },
   { name: "badges", selector: { entity: { multiple: true } } },
   { name: "color", selector: { text: {} } },
   { name: "hidden", selector: { boolean: {} } },
