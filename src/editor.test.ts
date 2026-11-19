@@ -71,7 +71,7 @@ describe("editor language", () => {
   });
 
   it("falls back to English for a language we do not ship", async () => {
-    const fr = await mountEditor({}, "fr");
+    const fr = await mountEditor({}, "it");
     expect(fr.settings.computeLabel({ name: "view" })).toBe("Default view");
   });
 
