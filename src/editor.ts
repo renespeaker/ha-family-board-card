@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing } from "lit";
 import { property, state } from "lit/decorators.js";
 import type { HomeAssistant, LovelaceCardEditor } from "custom-card-helpers";
-import { autoDetectPersons, FALLBACK_COLORS } from "./ha-family-board-card";
+import { autoDetectPersons, PALETTES, paletteOf, STYLES } from "./ha-family-board-card";
 import type { FamilyBoardConfig } from "./ha-family-board-card";
 import { langOf, localize } from "./localize";
 import { et } from "./editor-i18n";
@@ -507,11 +507,118 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     return (this.hass.states[entity]?.attributes?.friendly_name as string | undefined) || entity;
   }
 
+  /* ---- look: style, person colours, theme colours ----------------- */
+  private _setLook(key: string, value?: string): void {
+    const cfg = { ...this._config, persons: this._persons } as Record<string, unknown>;
+    const isDefault =
+      !value ||
+      (key === "style" && value === "classic") ||
+      (key === "palette" && value === "default");
+    if (isDefault) delete cfg[key];
+    else cfg[key] = value;
+    this._emit(cfg as unknown as FamilyBoardConfig);
+  }
+
+  /** A tiny board in the given style: header line, two people, three events. */
+  private _styleTile(style: string) {
+    const on = (this._config.style ?? "classic") === style;
+    const cols = paletteOf({ palette: this._config.palette, style });
+    return html`
+      <button
+        class="look ${on ? "on" : ""}"
+        data-style=${style}
+        aria-pressed=${on ? "true" : "false"}
+        @click=${() => this._setLook("style", style)}
+      >
+        <span class="mini mini-${style}" aria-hidden="true">
+          <span class="mini-top"></span>
+          <span class="mini-ev" style="--c:${cols[0]};top:12px;height:12px"></span>
+          <span class="mini-ev r" style="--c:${cols[1]};top:16px;height:16px"></span>
+          <span class="mini-ev" style="--c:${cols[0]};top:28px;height:8px"></span>
+        </span>
+        <span class="look-name">${this._t(`st_${style}`)}</span>
+      </button>
+    `;
+  }
+
+  private _colorRow(key: string, choices: string[]) {
+    const current = (this._config as Record<string, unknown>)[key] as string | undefined;
+    return html`
+      <div class="color-row">
+        <span class="color-label">${this._t(`l_${key}`)}</span>
+        <div class="swatches">
+          ${choices.map(
+            (c) =>
+              html`<button
+                class="swatch ${current?.toLowerCase() === c.toLowerCase() ? "on" : ""}"
+                style="background:${c}"
+                title=${c}
+                aria-label=${`${this._t(`l_${key}`)} ${c}`}
+                @click=${() => this._setLook(key, c)}
+              ></button>`,
+          )}
+          <button
+            class="swatch none ${!current ? "on" : ""}"
+            title=${this._t("b_auto")}
+            aria-label=${`${this._t(`l_${key}`)} ${this._t("b_auto")}`}
+            @click=${() => this._setLook(key)}
+          >
+            A
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderLook() {
+    const palette = this._config.palette ?? "default";
+    return html`
+      <div class="section-title">${this._t("s_look")}</div>
+      <div class="looks">${STYLES.map((s) => this._styleTile(s))}</div>
+      <div class="palettes">
+        ${Object.entries(PALETTES).map(
+          ([name, cols]) => html`
+            <button
+              class="pal ${palette === name ? "on" : ""}"
+              aria-pressed=${palette === name ? "true" : "false"}
+              @click=${() => this._setLook("palette", name)}
+            >
+              <span class="pal-dots" aria-hidden="true"
+                >${cols.slice(0, 5).map((c) => html`<i style="background:${c}"></i>`)}</span
+              >
+              ${this._t(`pal_${name}`)}
+            </button>
+          `,
+        )}
+      </div>
+      ${this._colorRow("accent_color", [
+        "#03a9f4",
+        "#2563eb",
+        "#7c3aed",
+        "#db2777",
+        "#ea580c",
+        "#16a34a",
+        "#0f766e",
+      ])}
+      ${this._colorRow("now_color", ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7"])}
+      ${this._colorRow("background_color", [
+        "#ffffff",
+        "#f8f5ee",
+        "#fdf2f8",
+        "#eef6ff",
+        "#f0fdf4",
+        "#1c1c1e",
+        "#0f172a",
+      ])}
+      <div class="hint">${this._t("look_hint")}</div>
+    `;
+  }
+
   /* ---- render ------------------------------------------------------ */
   private _swatches(current: string | undefined, pick: (c?: string) => void) {
     return html`
       <div class="swatches">
-        ${FALLBACK_COLORS.map(
+        ${paletteOf(this._config).map(
           (c) => html`
             <button
               class="swatch ${current?.toLowerCase() === c ? "on" : ""}"
@@ -562,6 +669,8 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         </button>
       </div>
 
+      ${this._renderLook()}
+
       <div class="section-title">${this._t("s_persons")}</div>
       <div class="persons">
         ${persons.map(
@@ -570,7 +679,9 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
               <div class="person-head">
                 <span
                   class="pdot"
-                  style="background:${p.color || FALLBACK_COLORS[idx % FALLBACK_COLORS.length]}"
+                  style="background:${
+                    p.color || paletteOf(this._config)[idx % paletteOf(this._config).length]
+                  }"
                 ></span>
                 <span class="pidx">${p.name || `${this._t("person_n")} ${idx + 1}`}</span>
                 <div class="ptools">
@@ -758,6 +869,121 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     }
     .presets button:hover {
       border-color: var(--primary-color);
+    }
+    .looks {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .look {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 6px;
+      border: 2px solid var(--divider-color);
+      border-radius: 10px;
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color);
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+    }
+    .look.on,
+    .pal.on {
+      border-color: var(--primary-color);
+    }
+    .mini {
+      position: relative;
+      width: 100%;
+      height: 42px;
+      border-radius: 6px;
+      background: var(--secondary-background-color, #f5f5f5);
+      overflow: hidden;
+    }
+    .mini-top {
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 7px;
+      background: var(--divider-color);
+    }
+    .mini-ev {
+      position: absolute;
+      left: 8%;
+      width: 40%;
+      border-left: 3px solid var(--c);
+      border-radius: 3px;
+      background: color-mix(in srgb, var(--c) 32%, transparent);
+    }
+    .mini-ev.r {
+      left: 54%;
+    }
+    .mini-paper .mini-ev {
+      border-radius: 0;
+      background: color-mix(in srgb, var(--c) 16%, transparent);
+    }
+    .mini-paper {
+      background: #f8f5ee;
+    }
+    .mini-bold .mini-ev {
+      background: var(--c);
+      border-radius: 5px;
+    }
+    .mini-pastel .mini-ev {
+      border-radius: 8px;
+      border-left: none;
+      background: color-mix(in srgb, var(--c) 40%, #fff);
+    }
+    .mini-glass {
+      background: linear-gradient(135deg, #0ea5e9, #8b5cf6 55%, #f97316);
+    }
+    .mini-glass .mini-ev {
+      background: rgba(255, 255, 255, 0.55);
+    }
+    .mini-contrast .mini-ev {
+      background: transparent;
+      outline: 2px solid var(--c);
+      outline-offset: -2px;
+      border-left: none;
+    }
+    .palettes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .pal {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px 4px 6px;
+      border: 2px solid var(--divider-color);
+      border-radius: 999px;
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color);
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+    }
+    .pal-dots {
+      display: inline-flex;
+    }
+    .pal-dots i {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-left: -3px;
+      border: 1.5px solid var(--card-background-color, #fff);
+    }
+    .color-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 10px;
+    }
+    .color-label {
+      font-size: 12.5px;
+      color: var(--secondary-text-color);
     }
     .section-title {
       font-weight: 600;
