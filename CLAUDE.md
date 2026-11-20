@@ -66,6 +66,28 @@ Do not start these without asking.
   Planner, Aurora, Concrete & Wood, Night, plus an own `background_image`
   (`/local/…` or the media folder). Show screenshots before releasing.
   Also: the README still only names card-mod; mention UIX, its successor.
+- **Companion app – chosen by the maintainer (next candidates, ask before building):**
+  1. *Pin board* (`todo.*` list as sticky notes on the wall, anyone adds from
+     the phone/voice, tap = done) – card only, no push rights.
+  2. *Plan vs. reality* – from the `person.*` history: "Mia arrived at school
+     07:52", "Ben home since 17:10"; in the timeline next to the plan.
+  3. *ETA on the person header* – "Ben – home in 12 min" from a travel-time
+     or proximity entity.
+  4. *"When are you home?" with text reply* – the answer from the
+     notification ("18:30, traffic") shows as a chip on the wall tablet.
+  5. *Pick-up countdown* – Android chronometer notification "pick up Mia in
+     14:59", cleared when the driver leaves.
+  6. *Message to the wall from the phone* – shown big on the tablet, as a
+     toast or on the screensaver (the reverse of the ping button).
+  4–6 need the board to receive app events (see the open question below) or
+  a shipped automation blueprint.
+- **Companion app – backlog:** do-not-disturb (iOS focus / Android DND)
+  shown as 🔕 and respected by the ping button; QR code in the event dialog
+  (navigation / add to own calendar); phone layout and haptics inside the
+  app; kids' phone battery via `badges` as a README recipe; morning briefing
+  per person as a blueprint; SOS button only with a clear "no emergency-call
+  replacement" note; editor finds each person's `notify.mobile_app_*` from
+  the person's device trackers.
 - **Companion app.** Ideas: per person a `notify.mobile_app_*` service;
   a "ping" button on the wall tablet with topics (dinner's ready, call me,
   bring milk, when are you home?) and answer buttons sent back to the board;
