@@ -29,6 +29,18 @@
 <td valign="top"><b>Phone and wall tablet</b> – pin board, a message from the phone, and a 📣 button per person<br><img src="docs/preview-companion-en.png" alt="Family Board Card – Phone and wall tablet"></td>
 <td valign="top"><b>Where everyone really was</b> – today's real places under the plan in the timeline<br><img src="docs/preview-presence-en.png" alt="Family Board Card – Where everyone really was"></td>
 </tr>
+<tr>
+<td valign="top"><b>Planner</b> – a dotted notebook page, index cards<br><img src="docs/preview-style-planner-en.png" alt="Family Board Card – Planner"></td>
+<td valign="top"><b>Blueprint</b> – an architect's drawing<br><img src="docs/preview-style-blueprint-en.png" alt="Family Board Card – Blueprint"></td>
+</tr>
+<tr>
+<td valign="top"><b>Aurora</b> – colour clouds behind frosted glass<br><img src="docs/preview-style-aurora-en.png" alt="Family Board Card – Aurora"></td>
+<td valign="top"><b>Concrete & wood</b> – calm materials, a wooden header<br><img src="docs/preview-style-concrete-en.png" alt="Family Board Card – Concrete & wood"></td>
+</tr>
+<tr>
+<td valign="top"><b>Night sky</b> – stars and glowing edges<br><img src="docs/preview-style-night-en.png" alt="Family Board Card – Night sky"></td>
+<td valign="top"><b>High contrast</b> – outlines, colour-blind safe<br><img src="docs/preview-style-contrast-en.png" alt="Family Board Card – High contrast"></td>
+</tr>
 </table>
 
 A family calendar — a “who is where, when” board — for [Home Assistant](https://www.home-assistant.io/). People are columns across the top (with the avatar from their `person.*` entity), time runs down the left. The card shows at a glance which activities happen at the same time in different places — for up to 10 people.
@@ -60,6 +72,7 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Pick your views** – choose in the editor which switchers (now/day/timeline/week/month/agenda) appear.
 - **Week navigation** – page back and forth, a click on the date range jumps back to “today”. With `swipe: true`, a swipe on a touch screen pages too: a day in the day view and timeline, a week in the week view and agenda, a month in the month view. Where the board itself scrolls sideways (a wide timeline on a phone), scrolling wins.
 - **Theme-aware** – picks up the colors and fonts of the active dashboard theme (uses HA CSS variables throughout).
+- **Ready-made designs** – `style: planner | blueprint | aurora | concrete | night | contrast` turns the board into a complete design: a drawn scene behind it (a dotted notebook page, an architect's blueprint, colour clouds behind frosted glass, concrete with a wooden header, a starry sky), its own colours, type and event cards. No photos are loaded – everything is drawn in a few kilobytes. `palette` picks the person colours (`pastel`, `vivid`, `earth`, `colorblind`), and `accent_color`, `now_color` and `background_color` set single colours; text stays readable on any background. All of it is picked from tiles in the editor.
 - **Configurable** – 15/30/60 min grid, day window, weekend on/off, color by person or location, auto refresh.
 - **Drag & drop** – in the day view, drag events to move them (time) and drag the bottom edge to change the duration; snaps to the time grid and writes straight back to the calendar – **only** for writable calendars and single events (no series).
 - **Manage events** – create/edit/delete right in the card, **but only** for calendars that support it (Local Calendar, CalDAV …). Read-only calendars (e.g. ICS subscriptions) are detected automatically and shown read-only. New events can repeat (**every day, week, month or year**, optionally until a date) – "football every Tuesday" is one entry. Recurring events: choose **“this event only / this and following”** when editing.
@@ -170,6 +183,9 @@ persons:
 | `filter_duplicates` | boolean | `false` | Show identical events (title + time) only once per person and in the agenda |
 | `calendars` | map | – | Per calendar `color`, `label`, `icon` (mdi), `title_field` and `private: true` (every event shows only “Private”) – all editable in the editor |
 | `compact` | boolean | `false` | Compact layout: smaller fonts and tighter spacing |
+| `style` | string | `classic` | Ready-made design: `classic` (your HA theme), `planner`, `blueprint`, `aurora`, `concrete`, `night`, `contrast` |
+| `palette` | string | `default` | Person colours: `default`, `pastel`, `vivid`, `earth`, `colorblind` (the `contrast` style uses `colorblind` unless set) |
+| `accent_color` / `now_color` / `background_color` | colour | – | `#rrggbb` for the highlight, the now line and the card background; text switches to dark or light to stay readable |
 | `map_url` | string | Google | Template for the location link, `{location}` is substituted, e.g. `https://maps.apple.com/?q={location}` |
 | `event_size` | number | – | Font size of the event titles in px (editor slider, sets `--fb-event-size`) |
 | `radius` | number | – | Corner radius of the event blocks in px (sets `--fb-radius`) |
@@ -261,9 +277,9 @@ persons:
     driver: true
 ```
 
-## Styling (theme / card-mod)
+## Styling (theme / UIX / card-mod)
 
-The card picks up the theme's colors and fonts automatically. For fine-tuning there are additional CSS variables you can override in your **theme** or via **card-mod**:
+The card picks up the theme's colors and fonts automatically. For fine-tuning there are additional CSS variables you can override in your **theme** or via **UIX** (the successor of card-mod; card-mod works the same way where it still runs):
 
 | Token | Default | Effect |
 |-------|---------|--------|

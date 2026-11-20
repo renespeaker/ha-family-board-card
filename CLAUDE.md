@@ -59,18 +59,10 @@ be mentioned as a hint. `src/shared/person-palette.ts` is mirrored in both repos
 
 ## Backlog (on hold – the maintainer wants to think it through first)
 Do not start these without asking.
-- **Styles / themes.** The WIP was taken out of v0.35.0 by commit `1f13697`
-  ("Revert WIP: Stil-Vorlagen …"); bring it back with `git revert 1f13697`
-  (or cherry-pick `e688207`). It had: `style` (classic, paper, bold, pastel,
-  glass, contrast), `palette`, `accent_color`, `now_color`,
-  `background_color` (text colour follows the background), an editor section
-  "Look" with style tiles, palettes and colour swatches, tests and per-style
-  browser checks. The plumbing is done; the maintainer found the looks too
-  plain. Plan: richer, complete designs drawn as small SVG/CSS scenes – no
-  bundled or hot-linked photos (size, privacy, licences) – e.g. Blueprint,
-  Planner, Aurora, Concrete & Wood, Night, plus an own `background_image`
-  (`/local/…` or the media folder). Show screenshots before releasing.
-  Also: the README still only names card-mod; mention UIX, its successor.
+- **Styles / themes – done in v0.36.0:** `style` (classic, planner, blueprint,
+  aurora, concrete, night, contrast) as complete designs drawn in CSS/SVG,
+  `palette`, `accent_color`, `now_color`, `background_color`; editor tiles.
+  Possible next: an own `background_image` (`/local/…` or the media folder).
 - **Companion app – done in v0.35.0:** pin board (`pinboard`), presence
   (`show_presence`: "since", timeline strip), ETA (`eta`), pings with answers
   (`notify` per person, `ping_topics`), wall messages (`message_entity`,

@@ -44,7 +44,7 @@ const browser = await chromium.launch({
   env: { ...process.env, FONTCONFIG_FILE: FONTS },
 });
 
-// name, query, viewport width, viewport height, [time], [ms to wind on]
+// name, query, viewport width, viewport height, [time], [ms to wind on], [pixel ratio]
 const SHOTS = [
   ["day", "view=day&alerts=1&late=1&rides=1", 1400, 900],
   ["now", "view=now", 1100, 520],
@@ -58,15 +58,21 @@ const SHOTS = [
   ["rides", "view=day&alerts=1&rides=1", 1400, 900, "2026-10-07T14:20:00+02:00"],
   ["companion", "view=now&phone=1", 1100, 700],
   ["presence", "view=timeline&phone=1", 1400, 620],
+  ["style-planner", "view=day&alerts=1&style=planner", 1000, 560, NOW, 0, 1],
+  ["style-blueprint", "view=day&alerts=1&style=blueprint", 1000, 560, NOW, 0, 1],
+  ["style-aurora", "view=day&alerts=1&style=aurora", 1000, 560, NOW, 0, 1],
+  ["style-concrete", "view=day&alerts=1&style=concrete", 1000, 560, NOW, 0, 1],
+  ["style-night", "view=day&alerts=1&style=night", 1000, 560, NOW, 0, 1],
+  ["style-contrast", "view=day&alerts=1&style=contrast", 1000, 560, NOW, 0, 1],
   // the slideshow starts after a minute without touch: wind the clock on
   ["saver", "view=now&saver=1", 1100, 520, NOW, 65000],
 ];
 
 for (const lang of ["en", "de"]) {
-  for (const [name, query, width, height, time = NOW, wait = 0] of SHOTS) {
+  for (const [name, query, width, height, time = NOW, wait = 0, scale = 2] of SHOTS) {
     const page = await browser.newPage({
       viewport: { width, height },
-      deviceScaleFactor: 2,
+      deviceScaleFactor: scale,
       locale: lang === "de" ? "de-DE" : "en-US",
       timezoneId: "Europe/Berlin",
     });
