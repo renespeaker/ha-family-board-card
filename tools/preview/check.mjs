@@ -561,7 +561,7 @@ for (const extra of ["", "&phone=1"]) {
 }
 
 /* --- every ready-made style: clean structure, readable event text ------ */
-for (const style of ["paper", "bold", "pastel", "glass", "contrast"]) {
+for (const style of ["planner", "blueprint", "aurora", "concrete", "night", "contrast"]) {
   for (const dark of [false, true]) {
     for (const view of ["day", "week"]) {
       const { page, errors } = await open({ view, dark, extra: `&style=${style}` });

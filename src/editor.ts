@@ -919,7 +919,7 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     }
     .looks {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
       gap: 8px;
     }
     .look {
@@ -965,27 +965,63 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     .mini-ev.r {
       left: 54%;
     }
-    .mini-paper .mini-ev {
-      border-radius: 0;
-      background: color-mix(in srgb, var(--c) 16%, transparent);
+    .mini-planner {
+      background: #fbf8f1 radial-gradient(circle, #d6ccb6 1px, transparent 1.4px) 0 0 / 7px 7px;
     }
-    .mini-paper {
-      background: #f8f5ee;
+    .mini-planner .mini-ev {
+      background: #fff;
+      border-top: 2px solid var(--c);
+      box-shadow: 0 1px 2px rgba(70, 50, 20, 0.25);
     }
-    .mini-bold .mini-ev {
-      background: var(--c);
-      border-radius: 5px;
+    .mini-blueprint {
+      background: #123a63 linear-gradient(rgba(198, 222, 255, 0.2) 1px, transparent 1px) 0 0 / 8px
+        8px;
     }
-    .mini-pastel .mini-ev {
-      border-radius: 8px;
+    .mini-blueprint .mini-top {
+      background: rgba(198, 222, 255, 0.35);
+    }
+    .mini-blueprint .mini-ev {
+      background: transparent;
+      outline: 1.5px solid var(--c);
+      outline-offset: -1.5px;
       border-left: none;
-      background: color-mix(in srgb, var(--c) 40%, #fff);
     }
-    .mini-glass {
-      background: linear-gradient(135deg, #0ea5e9, #8b5cf6 55%, #f97316);
+    .mini-aurora {
+      background:
+        radial-gradient(at 15% 10%, #c4b5fd 0, transparent 55%),
+        radial-gradient(at 85% 90%, #fbcfe8 0, transparent 55%),
+        radial-gradient(at 90% 5%, #99f6e4 0, transparent 50%), #f3f1fb;
     }
-    .mini-glass .mini-ev {
-      background: rgba(255, 255, 255, 0.55);
+    .mini-aurora .mini-ev {
+      border-radius: 6px;
+      border-left: none;
+      background: rgba(255, 255, 255, 0.7);
+      box-shadow: inset 3px 0 0 var(--c);
+    }
+    .mini-concrete {
+      background: #d9d6d0;
+    }
+    .mini-concrete .mini-top {
+      height: 9px;
+      background: linear-gradient(180deg, #a06a42, #7e4f2e);
+    }
+    .mini-concrete .mini-ev {
+      border-radius: 0;
+      background: #fbfaf7;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+    }
+    .mini-night {
+      background:
+        radial-gradient(1px 1px at 10px 30px, #fff 50%, transparent 51%),
+        radial-gradient(1px 1px at 70% 12px, #fff 50%, transparent 51%),
+        linear-gradient(160deg, #0b1026, #1b1446);
+    }
+    .mini-night .mini-top {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .mini-night .mini-ev {
+      background: color-mix(in srgb, var(--c) 25%, #14183a);
+      box-shadow: 0 0 6px color-mix(in srgb, var(--c) 60%, transparent);
     }
     .mini-contrast .mini-ev {
       background: transparent;

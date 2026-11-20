@@ -114,7 +114,7 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   late_warning?: number; // warn N minutes before an event with a place when that person is still home
   drag_drop?: boolean; // drag to move / resize events in the day view. default true
   compact?: boolean; // denser spacing + smaller fonts in one switch
-  style?: StyleName; // ready-made look: classic (default), paper, bold, pastel, glass, contrast
+  style?: StyleName; // ready-made look: classic (default), planner, blueprint, aurora, concrete, night, contrast
   palette?: string; // person colours: default, pastel, vivid, earth, colorblind
   accent_color?: string; // highlight colour (selected tab, today); default: the theme's
   now_color?: string; // colour of the now line; default: the theme's error colour
@@ -198,7 +198,15 @@ interface DialogState {
 export const FALLBACK_COLORS = PERSON_PALETTE;
 
 /** Ready-made looks; each one only sets the card's style tokens, colours still follow the theme. */
-export const STYLES = ["classic", "paper", "bold", "pastel", "glass", "contrast"] as const;
+export const STYLES = [
+  "classic",
+  "planner",
+  "blueprint",
+  "aurora",
+  "concrete",
+  "night",
+  "contrast",
+] as const;
 export type StyleName = (typeof STYLES)[number];
 
 /** Person colour sets. "default" is the palette shared with the Family Task Card. */
@@ -4569,72 +4577,209 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       border-bottom: 1px solid var(--divider-color);
     }
     /* ---- ready-made looks (style:) ------------------------------
-       Each one only moves the tokens above and a few shapes; the
-       colours still come from the theme, light and dark. */
-    :host([fbstyle="paper"]) {
-      --fb-radius: 2px;
-      --fb-radius-sm: 2px;
-      --fb-fill: 16%;
-      --fb-fill-chip: 14%;
-      --fb-title-size: 18px;
-      --fb-event-size: 12px;
+       Complete designs: a drawn scene behind the board (CSS/SVG, a few
+       bytes, no photos), their own surface and text colours, type,
+       event cards and avatar rings. Classic keeps the HA theme. */
+    :host([fbstyle]) ha-card {
+      display: block; /* it is in Home Assistant; say so for any other host */
+      background-color: var(--fb-scene-base, var(--card-background-color));
+      background-image: var(--fb-scene, none);
+      background-size: var(--fb-scene-size, auto);
     }
-    :host([fbstyle="paper"]) ha-card {
+    :host([fbstyle]) .event,
+    :host([fbstyle]) .tlbar {
+      box-shadow: var(--fb-event-shadow, none);
+    }
+    :host([fbstyle]) .avatar {
+      box-shadow: var(--fb-avatar-ring, none);
+    }
+
+    /* Planner: a dotted notebook page, serif headings, index cards */
+    :host([fbstyle="planner"]) {
+      --fb-scene-base: #fbf8f1;
+      --fb-scene: radial-gradient(circle, #d6ccb6 1px, transparent 1.4px);
+      --fb-scene-size: 18px 18px;
+      --card-background-color: #fbf8f1;
+      --ha-card-background: #fbf8f1;
+      --primary-background-color: #f3eee2;
+      --secondary-background-color: #efe8d8;
+      --primary-text-color: #2b2620;
+      --secondary-text-color: #675d4e;
+      --divider-color: #e2d9c6;
+      --primary-color: #b4473a;
+      --text-primary-color: #fff;
+      --fb-accent: #b4473a;
+      --fb-now-color: #b4473a;
+      --fb-soft-text: #4a4237;
+      --fb-radius: 4px;
+      --fb-radius-sm: 3px;
+      --fb-fill: 0%;
+      --fb-fill-chip: 14%;
+      --fb-event-shadow: 0 1px 2px rgba(70, 50, 20, 0.12), 0 3px 8px rgba(70, 50, 20, 0.1);
+      --fb-avatar-ring: 0 0 0 2px #fff, 0 1px 4px rgba(70, 50, 20, 0.25);
+      --fb-title-size: 19px;
+    }
+    :host([fbstyle="planner"]) :is(.title, .nowclock, .pname, .nname, .dayhead, .weeknav) {
       font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
     }
-    :host([fbstyle="paper"]) .event,
-    :host([fbstyle="paper"]) .tlbar {
-      box-shadow: none;
+    :host([fbstyle="planner"]) .event {
+      border-top: 3px solid var(--pc);
     }
-    :host([fbstyle="bold"]) {
-      --fb-radius: 10px;
-      --fb-radius-sm: 8px;
-      --fb-fill: 100%;
-      --fb-fill-chip: 100%;
-      --fb-title-size: 18px;
-      --fb-name-size: 15px;
-      --fb-event-size: 13.5px;
-      --fb-time-size: 11px;
-      --fb-chip-size: 12px;
-      --fb-avatar-size: 40px;
+
+    /* Blueprint: an architect's drawing, major and minor grid, technical type */
+    :host([fbstyle="blueprint"]) {
+      --fb-scene-base: #123a63;
+      --fb-scene:
+        linear-gradient(rgba(198, 222, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(198, 222, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(rgba(198, 222, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(198, 222, 255, 0.06) 1px, transparent 1px);
+      --fb-scene-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+      --card-background-color: #123a63;
+      --ha-card-background: #123a63;
+      --primary-background-color: #0f3155;
+      --secondary-background-color: rgba(255, 255, 255, 0.08);
+      --primary-text-color: #eef5ff;
+      --secondary-text-color: #b3cbe6;
+      --divider-color: rgba(198, 222, 255, 0.28);
+      --primary-color: #f6c445;
+      --text-primary-color: #10233a;
+      --fb-accent: #f6c445;
+      --fb-now-color: #ff8a65;
+      --fb-soft-text: #d5e4f6;
+      --fb-hourline: rgba(198, 222, 255, 0.24);
+      --fb-halfhour: rgba(198, 222, 255, 0.1);
+      --fb-row-shade: rgba(255, 255, 255, 0.03);
+      --fb-radius: 2px;
+      --fb-radius-sm: 2px;
+      --fb-fill: 14%;
+      --fb-fill-chip: 18%;
+      --fb-avatar-ring: 0 0 0 1.5px #eef5ff;
     }
-    /* solid colour blocks: dark text reads on every palette colour */
-    :host([fbstyle="bold"]) .event,
-    :host([fbstyle="bold"]) .tlbar,
-    :host([fbstyle="bold"]) .wchip,
-    :host([fbstyle="bold"]) .mchip,
-    :host([fbstyle="bold"]) .adchip {
-      color: #111;
-      --fb-soft-text: #111; /* thinned-out black falls short on violet */
+    :host([fbstyle="blueprint"])
+      :is(.title, .nowclock, .etime, .hour, .tlhours, .nuntil, .weeknav) {
+      font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+      letter-spacing: 0.02em;
     }
-    :host([fbstyle="pastel"]) {
+    :host([fbstyle="blueprint"]) .title {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    :host([fbstyle="blueprint"]) :is(.event, .tlbar) {
+      outline: 1.5px solid var(--pc, currentColor);
+      outline-offset: -1.5px;
+    }
+
+    /* Aurora: soft colour clouds behind frosted surfaces */
+    :host([fbstyle="aurora"]) {
+      --fb-scene-base: #f3f1fb;
+      --fb-scene:
+        radial-gradient(at 12% 8%, #c4b5fd 0, transparent 46%),
+        radial-gradient(at 88% 4%, #99f6e4 0, transparent 42%),
+        radial-gradient(at 72% 92%, #fbcfe8 0, transparent 46%),
+        radial-gradient(at 8% 88%, #bfdbfe 0, transparent 42%);
+      --fb-scene-size: 100% 100%;
+      --card-background-color: rgba(255, 255, 255, 0.62);
+      --ha-card-background: rgba(255, 255, 255, 0.62);
+      --primary-background-color: #f3f1fb;
+      --secondary-background-color: rgba(255, 255, 255, 0.5);
+      --primary-text-color: #1d1b2f;
+      --secondary-text-color: #4a4566;
+      --divider-color: rgba(40, 30, 90, 0.12);
+      --primary-color: #6d28d9;
+      --text-primary-color: #fff;
+      --fb-accent: #6d28d9;
+      --fb-soft-text: #34304d;
       --fb-radius: 14px;
       --fb-radius-sm: 10px;
-      --fb-fill: 24%;
-      --fb-fill-chip: 18%;
-      --fb-avatar-size: 38px;
-    }
-    /* frosted: every surface of the card lets the wallpaper through,
-       derived from the theme's page colour so dark themes stay dark */
-    :host([fbstyle="glass"]) {
-      --fb-fill: 38%;
+      --fb-fill: 34%;
       --fb-fill-chip: 30%;
-      --fb-radius: 12px;
-      --card-background-color: color-mix(
-        in srgb,
-        var(--primary-background-color, #fafafa) 62%,
-        transparent
-      );
-      --ha-card-background: var(--card-background-color);
-      --secondary-background-color: color-mix(
-        in srgb,
-        var(--primary-background-color, #fafafa) 45%,
-        transparent
-      );
+      --fb-event-shadow: 0 4px 14px rgba(80, 60, 160, 0.14);
+      --fb-avatar-ring: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 4px 10px rgba(80, 60, 160, 0.25);
     }
-    /* headers that stay put while the board scrolls under them need more
-       body, or the events behind shine through */
-    :host([fbstyle="glass"])
+
+    /* Concrete & wood: calm materials, square edges, a wooden header */
+    :host([fbstyle="concrete"]) {
+      --fb-scene-base: #d9d6d0;
+      --fb-scene: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35 0 0 0 0 .34 0 0 0 0 .32 0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+      --fb-scene-size: 240px 240px;
+      --card-background-color: #efede9;
+      --ha-card-background: #efede9;
+      --primary-background-color: #e6e3de;
+      --secondary-background-color: #e3e0da;
+      --primary-text-color: #24221f;
+      --secondary-text-color: #5a554d;
+      --divider-color: rgba(0, 0, 0, 0.12);
+      --primary-color: #8a5230;
+      --text-primary-color: #fff;
+      --fb-accent: #8a5230;
+      --fb-now-color: #b5462e;
+      --fb-soft-text: #3d3934;
+      --fb-radius: 0px;
+      --fb-radius-sm: 0px;
+      --fb-fill: 0%;
+      --fb-fill-chip: 10%;
+      --fb-event-shadow: 0 1px 0 rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+      --fb-avatar-ring: 0 0 0 2px #efede9;
+    }
+    :host([fbstyle="concrete"]) ha-card {
+      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    :host([fbstyle="concrete"]) .top {
+      background-color: #8d5b37;
+      background-image:
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='120'><filter id='w'><feTurbulence type='fractalNoise' baseFrequency='.004 .18' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 .38 0 0 0 0 .22 0 0 0 0 .1 0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23w)'/></svg>"),
+        linear-gradient(180deg, #a06a42, #7e4f2e);
+      background-size:
+        600px 100%,
+        auto;
+      border-bottom: none;
+    }
+    :host([fbstyle="concrete"]) .top .title {
+      color: #fff7ec;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+    :host([fbstyle="concrete"]) .top .switch {
+      background: rgba(255, 247, 236, 0.92);
+    }
+
+    /* Night: a starry sky, glowing event edges */
+    :host([fbstyle="night"]) {
+      --fb-scene-base: #0d1230;
+      --fb-scene:
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><circle cx='231' cy='286' r='1' fill='%23fff' opacity='0.9'/><circle cx='260' cy='300' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='262' cy='243' r='1.5' fill='%23fff' opacity='0.5'/><circle cx='48' cy='228' r='0.8' fill='%23fff' opacity='0.5'/><circle cx='46' cy='275' r='1.5' fill='%23fff' opacity='0.35'/><circle cx='304' cy='202' r='1' fill='%23fff' opacity='0.5'/><circle cx='319' cy='7' r='1.2' fill='%23fff' opacity='0.35'/><circle cx='30' cy='18' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='307' cy='15' r='1' fill='%23fff' opacity='0.7'/><circle cx='225' cy='302' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='150' cy='255' r='0.6' fill='%23fff' opacity='0.35'/><circle cx='234' cy='142' r='1' fill='%23fff' opacity='0.35'/><circle cx='130' cy='161' r='0.7' fill='%23fff' opacity='0.7'/><circle cx='15' cy='35' r='1.2' fill='%23fff' opacity='0.35'/><circle cx='205' cy='55' r='0.8' fill='%23fff' opacity='0.9'/><circle cx='34' cy='8' r='1.5' fill='%23fff' opacity='0.35'/><circle cx='109' cy='107' r='0.6' fill='%23fff' opacity='0.9'/><circle cx='192' cy='203' r='1' fill='%23fff' opacity='0.35'/><circle cx='289' cy='101' r='1.5' fill='%23fff' opacity='0.7'/><circle cx='172' cy='44' r='0.8' fill='%23fff' opacity='0.7'/><circle cx='7' cy='209' r='0.6' fill='%23fff' opacity='0.5'/><circle cx='126' cy='51' r='0.6' fill='%23fff' opacity='0.35'/><circle cx='238' cy='249' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='229' cy='260' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='214' cy='196' r='0.6' fill='%23fff' opacity='0.9'/><circle cx='215' cy='108' r='0.6' fill='%23fff' opacity='0.7'/><circle cx='303' cy='155' r='0.6' fill='%23fff' opacity='0.5'/><circle cx='95' cy='201' r='1.2' fill='%23fff' opacity='0.35'/><circle cx='21' cy='74' r='0.7' fill='%23fff' opacity='0.9'/><circle cx='132' cy='4' r='1.2' fill='%23fff' opacity='0.7'/><circle cx='151' cy='197' r='0.6' fill='%23fff' opacity='0.35'/><circle cx='46' cy='106' r='1.2' fill='%23fff' opacity='0.5'/><circle cx='7' cy='307' r='0.8' fill='%23fff' opacity='0.7'/><circle cx='318' cy='232' r='0.7' fill='%23fff' opacity='0.9'/></svg>"),
+        radial-gradient(ellipse at 80% 0%, rgba(139, 156, 255, 0.25), transparent 55%),
+        linear-gradient(160deg, #0b1026 0%, #1b1446 100%);
+      --fb-scene-size: 320px 320px, 100% 100%, 100% 100%;
+      --card-background-color: rgba(20, 24, 58, 0.78);
+      --ha-card-background: rgba(20, 24, 58, 0.78);
+      --primary-background-color: #0d1230;
+      --secondary-background-color: rgba(255, 255, 255, 0.08);
+      --primary-text-color: #eceefa;
+      --secondary-text-color: #aeb4d6;
+      --divider-color: rgba(255, 255, 255, 0.12);
+      --primary-color: #8b9cff;
+      --text-primary-color: #0d1230;
+      --fb-accent: #8b9cff;
+      --fb-now-color: #ff8a8a;
+      --fb-soft-text: #d6daf2;
+      --fb-hourline: rgba(255, 255, 255, 0.1);
+      --fb-halfhour: rgba(255, 255, 255, 0.04);
+      --fb-fill: 24%;
+      --fb-fill-chip: 26%;
+      --fb-radius: 10px;
+      --fb-avatar-ring: 0 0 0 2px rgba(139, 156, 255, 0.6), 0 0 12px rgba(139, 156, 255, 0.45);
+    }
+    :host([fbstyle="night"]) :is(.event, .tlbar) {
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--pc, #8b9cff) 55%, transparent),
+        0 0 14px color-mix(in srgb, var(--pc, #8b9cff) 30%, transparent);
+    }
+
+    /* translucent surfaces: headers that stay put need body and blur */
+    :host(:is([fbstyle="aurora"], [fbstyle="night"]))
       :is(
         .header-row,
         .allday-row,
@@ -4649,15 +4794,12 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         .monthhead,
         .agenda-date
       ) {
-      background: color-mix(in srgb, var(--primary-background-color, #fafafa) 82%, transparent);
+      background: color-mix(in srgb, var(--primary-background-color) 88%, transparent);
       -webkit-backdrop-filter: blur(14px);
       backdrop-filter: blur(14px);
     }
-    :host([fbstyle="glass"]) ha-card {
-      background: var(--card-background-color);
-      -webkit-backdrop-filter: blur(18px) saturate(1.2);
-      backdrop-filter: blur(18px) saturate(1.2);
-    }
+
+    /* High contrast: no tint, a full outline in the person's colour */
     :host([fbstyle="contrast"]) {
       --fb-fill: 0%;
       --fb-fill-chip: 0%;
@@ -4669,7 +4811,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       --fb-hourline: var(--primary-text-color, #212121);
       --fb-soft-text: var(--primary-text-color, #212121);
     }
-    /* no tint: a full outline in the person's colour carries who it is */
     :host([fbstyle="contrast"]) .event,
     :host([fbstyle="contrast"]) .tlbar {
       outline: 2px solid var(--pc, currentColor);

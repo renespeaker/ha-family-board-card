@@ -254,31 +254,33 @@ describe("look: style, palette and colours", () => {
       (el.getAttribute("style") ?? "").replace("background:", "").trim(),
     );
 
-  it("offers six styles and writes the chosen one; Classic removes it again", async () => {
+  it("offers seven styles and writes the chosen one; Classic removes it again", async () => {
     const { el, root } = await mountEditor();
     const seen = changes(el);
     const tiles = [...root.querySelectorAll<HTMLButtonElement>(".look")];
     expect(tiles.map((t) => t.dataset.style)).toEqual([
       "classic",
-      "paper",
-      "bold",
-      "pastel",
-      "glass",
+      "planner",
+      "blueprint",
+      "aurora",
+      "concrete",
+      "night",
       "contrast",
     ]);
     expect(tiles.map((t) => t.textContent!.trim())).toEqual([
       "Klassisch",
-      "Papier",
-      "Kräftig",
-      "Pastell",
-      "Glas",
+      "Planer",
+      "Bauplan",
+      "Aurora",
+      "Beton & Holz",
+      "Nachthimmel",
       "Hoher Kontrast",
     ]);
     tiles[2].click();
-    expect(seen[seen.length - 1].style).toBe("bold");
+    expect(seen[seen.length - 1].style).toBe("blueprint");
     (el as Ed).setConfig(seen[seen.length - 1]);
     await (el as Ed).updateComplete;
-    expect(root.querySelector(".look.on")?.getAttribute("data-style")).toBe("bold");
+    expect(root.querySelector(".look.on")?.getAttribute("data-style")).toBe("blueprint");
     root.querySelector<HTMLButtonElement>('.look[data-style="classic"]')!.click();
     expect("style" in seen[seen.length - 1]).toBe(false);
   });

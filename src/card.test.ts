@@ -2051,8 +2051,8 @@ describe("look: style, palette and colours", () => {
     root.querySelector<HTMLElement>(`.event[aria-label*='${title}']`)!.style.borderLeft;
 
   it("puts the style on the card, and none for Classic or an unknown one", async () => {
-    const paper = await mount({ ...base, style: "paper" }, { calendars });
-    expect(paper.el.getAttribute("fbstyle")).toBe("paper");
+    const planner = await mount({ ...base, style: "planner" }, { calendars });
+    expect(planner.el.getAttribute("fbstyle")).toBe("planner");
     const classic = await mount({ ...base, style: "classic" }, { calendars });
     expect(classic.el.hasAttribute("fbstyle")).toBe(false);
     const odd = await mount({ ...base, style: "neon" as never }, { calendars });

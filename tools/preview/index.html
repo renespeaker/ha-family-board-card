@@ -50,9 +50,6 @@ customElements.define("ha-icon", class extends HTMLElement {
 });
 const Q = new URLSearchParams(location.search);
 if (Q.has("dark")) document.body.classList.add("dark");
-// a wallpaper behind the board, to see the glass style
-if (Q.get("style") === "glass") document.body.style.background =
-  "linear-gradient(135deg,#0ea5e9 0%,#8b5cf6 45%,#f97316 100%) fixed";
 const lang = Q.get("lang") || "de";
 const T = lang === "de"
   ? { home:"Homeoffice", office:"Büro", school:"Schule", breakt:"Pause", sport:"Sport",
