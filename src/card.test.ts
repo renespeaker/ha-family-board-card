@@ -2030,3 +2030,64 @@ describe("companion app: pin board, status, pings, wall messages, ride push", ()
     expect(serviceCalls.filter((c) => c.data.title === "🚗 Ben: Mia abholen")).toHaveLength(1);
   });
 });
+
+describe("look: style, palette and colours", () => {
+  const persons = [
+    { name: "Anna", calendar: "calendar.anna" },
+    { name: "Ben", calendar: "calendar.ben", color: "#123456" },
+  ];
+  const calendars = {
+    "calendar.anna": [ev("Zahnarzt", "10:30", "11:30")],
+    "calendar.ben": [ev("Büro", "12:00", "13:00")],
+  };
+  const base = {
+    persons,
+    view: "day" as const,
+    views: ["day" as const],
+    start_hour: 7,
+    end_hour: 20,
+  };
+  const borderOf = (root: ShadowRoot, title: string) =>
+    root.querySelector<HTMLElement>(`.event[aria-label*='${title}']`)!.style.borderLeft;
+
+  it("puts the style on the card, and none for Classic or an unknown one", async () => {
+    const paper = await mount({ ...base, style: "paper" }, { calendars });
+    expect(paper.el.getAttribute("fbstyle")).toBe("paper");
+    const classic = await mount({ ...base, style: "classic" }, { calendars });
+    expect(classic.el.hasAttribute("fbstyle")).toBe(false);
+    const odd = await mount({ ...base, style: "neon" as never }, { calendars });
+    expect(odd.el.hasAttribute("fbstyle")).toBe(false);
+  });
+
+  it("paints people from the chosen palette, but keeps a colour set by hand", async () => {
+    const { root } = await mount({ ...base, palette: "colorblind" }, { calendars });
+    expect(borderOf(root, "Zahnarzt")).toContain("#E69F00");
+    expect(borderOf(root, "Büro")).toContain("#123456");
+  });
+
+  it("the contrast style brings the colour-blind palette unless another is chosen", async () => {
+    const contrast = await mount({ ...base, style: "contrast" }, { calendars });
+    expect(borderOf(contrast.root, "Zahnarzt")).toContain("#E69F00");
+    const vivid = await mount({ ...base, style: "contrast", palette: "vivid" }, { calendars });
+    expect(borderOf(vivid.root, "Zahnarzt")).toContain("#7C3AED");
+  });
+
+  it("turns the chosen colours into theme variables, with readable text on dark backgrounds", async () => {
+    const { el } = await mount(
+      { ...base, accent_color: "#7c3aed", now_color: "#22c55e", background_color: "#0f172a" },
+      { calendars },
+    );
+    expect(el.style.getPropertyValue("--primary-color")).toBe("#7c3aed");
+    expect(el.style.getPropertyValue("--fb-now-color")).toBe("#22c55e");
+    expect(el.style.getPropertyValue("--card-background-color")).toBe("#0f172a");
+    expect(el.style.getPropertyValue("--primary-text-color")).toBe("#f1f1f1");
+    const light = await mount({ ...base, background_color: "#f8f5ee" }, { calendars });
+    expect(light.el.style.getPropertyValue("--primary-text-color")).toBe("#1f1f1f");
+  });
+
+  it("leaves the theme alone without colours, and ignores anything that is not a colour", async () => {
+    const { el } = await mount({ ...base, accent_color: "red; x: y" }, { calendars });
+    expect(el.style.getPropertyValue("--primary-color")).toBe("");
+    expect(el.style.getPropertyValue("--card-background-color")).toBe("");
+  });
+});

@@ -560,6 +560,38 @@ for (const extra of ["", "&phone=1"]) {
   await page.close();
 }
 
+/* --- every ready-made style: clean structure, readable event text ------ */
+for (const style of ["paper", "bold", "pastel", "glass", "contrast"]) {
+  for (const dark of [false, true]) {
+    for (const view of ["day", "week"]) {
+      const { page, errors } = await open({ view, dark, extra: `&style=${style}` });
+      const name = `${style}, ${view}${dark ? ", dunkel" : ""}`;
+      const found = await axe(page, null, { rules: { "color-contrast": { enabled: false } } });
+      check(
+        `axe: keine Barrierefreiheits-Fehler (Stil ${name})`,
+        found.length === 0,
+        found.join(", "),
+      );
+      const sel =
+        view === "day"
+          ? ".event:not(.past) .etitle, .event:not(.past) .etime"
+          : ".wchip:not(.past)";
+      const contrast = await axe(
+        page,
+        { include: [{ fromShadowDom: ["family-board-card", sel] }] },
+        { runOnly: ["color-contrast"] },
+      );
+      check(
+        `Kontrast ausreichend: Termine (Stil ${name})`,
+        contrast.length === 0,
+        contrast.join(", "),
+      );
+      check(`keine Konsolenfehler (Stil ${name})`, errors.length === 0, errors.join(" | "));
+      await page.close();
+    }
+  }
+}
+
 /* --- contrast of the card's own small texts on tinted event blocks --- */
 for (const dark of [false, true]) {
   for (const [view, sel] of [
