@@ -93,11 +93,6 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   late_warning?: number; // warn N minutes before an event with a place when that person is still home
   drag_drop?: boolean; // drag to move / resize events in the day view. default true
   compact?: boolean; // denser spacing + smaller fonts in one switch
-  style?: StyleName; // ready-made look: classic (default), paper, bold, pastel, glass, contrast
-  palette?: string; // person colours: default, pastel, vivid, earth, colorblind
-  accent_color?: string; // highlight colour (selected tab, today); default: the theme's
-  now_color?: string; // colour of the now line; default: the theme's error colour
-  background_color?: string; // card background; text switches to dark or light to stay readable
   map_url?: string; // location link template, {location} is replaced (URL-encoded)
   show_progress?: boolean; // progress bar on running events. default true
   family_calendars?: string | string[]; // calendar.* for everyone (holidays, bin collection …), shown above the people
@@ -175,78 +170,6 @@ interface DialogState {
  * from.
  */
 export const FALLBACK_COLORS = PERSON_PALETTE;
-
-/** Ready-made looks; each one only sets the card's style tokens, colours still follow the theme. */
-export const STYLES = ["classic", "paper", "bold", "pastel", "glass", "contrast"] as const;
-export type StyleName = (typeof STYLES)[number];
-
-/** Person colour sets. "default" is the palette shared with the Family Task Card. */
-export const PALETTES: Record<string, string[]> = {
-  default: PERSON_PALETTE,
-  pastel: [
-    "#B8A9FA",
-    "#8EE5C3",
-    "#FCD98A",
-    "#FDA4AF",
-    "#8FE3F0",
-    "#D8B4FE",
-    "#C7EE8C",
-    "#FDBA8C",
-    "#F9A8D4",
-    "#A5C8FB",
-  ],
-  vivid: [
-    "#7C3AED",
-    "#059669",
-    "#D97706",
-    "#E11D48",
-    "#0891B2",
-    "#9333EA",
-    "#65A30D",
-    "#EA580C",
-    "#DB2777",
-    "#2563EB",
-  ],
-  earth: [
-    "#8D6E63",
-    "#6B8E23",
-    "#C49A6C",
-    "#B5651D",
-    "#5F9EA0",
-    "#9C7A97",
-    "#A0A060",
-    "#CD853F",
-    "#B07A7A",
-    "#708090",
-  ],
-  // Okabe-Ito and Tol: told apart with every common kind of colour blindness
-  colorblind: [
-    "#E69F00",
-    "#56B4E9",
-    "#009E73",
-    "#F0E442",
-    "#0072B2",
-    "#D55E00",
-    "#CC79A7",
-    "#999999",
-    "#882255",
-    "#44AA99",
-  ],
-};
-
-/** Relative luminance (WCAG) of a #rrggbb colour, 0 = black, 1 = white. */
-export function luminance(hex: string): number {
-  const ch = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-  const lin = ch.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
-}
-
-/** The palette a config asks for; the contrast style brings the colour-blind one along. */
-export function paletteOf(cfg: { palette?: string; style?: string } | undefined): string[] {
-  const named = cfg?.palette && PALETTES[cfg.palette];
-  if (named) return named;
-  return cfg?.style === "contrast" ? PALETTES.colorblind : PERSON_PALETTE;
-}
 
 const DEFAULT_HOUR_HEIGHT = 64; // px per hour in the day view
 const HOUR_HEIGHT_MIN = 40;
@@ -351,8 +274,8 @@ const startOfDay = (d: Date) => {
   return x;
 };
 
-const personColor = (p: PersonConfig, idx: number, palette: string[] = FALLBACK_COLORS) =>
-  p.color || palette[idx % palette.length];
+const personColor = (p: PersonConfig, idx: number) =>
+  p.color || FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
 
 /** Deterministic palette color from a string (for location/calendar coloring). */
 const hashColor = (s: string): string => {
@@ -499,10 +422,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this.style.removeProperty("--fb-col-min");
     }
     this.toggleAttribute("compact", config.compact === true);
-    const look = STYLES.includes(config.style as StyleName) ? config.style : "classic";
-    if (look === "classic") this.removeAttribute("fbstyle");
-    else this.setAttribute("fbstyle", look as string);
-    this._applyColors(config);
     this.toggleAttribute("slim", config.slim_header === true);
     const evSize = Number(config.event_size);
     if (Number.isFinite(evSize) && evSize >= 8 && evSize <= 20) {
@@ -642,41 +561,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this._ro = undefined;
     window.removeEventListener("pointermove", this._onDragMove);
     window.removeEventListener("pointerup", this._onDragUp);
-  }
-
-  /** Colours chosen in the editor become the card's own theme variables. */
-  private _applyColors(config: FamilyBoardConfig): void {
-    const hex = (v: unknown) =>
-      typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v.trim()) ? v.trim() : undefined;
-    const set = (name: string, value?: string) =>
-      value ? this.style.setProperty(name, value) : this.style.removeProperty(name);
-    const accent = hex(config.accent_color);
-    set("--fb-accent", accent);
-    set("--primary-color", accent);
-    set("--fb-now-color", hex(config.now_color));
-    const bg = hex(config.background_color);
-    for (const name of [
-      "--card-background-color",
-      "--ha-card-background",
-      "--primary-background-color",
-    ])
-      set(name, bg);
-    // keep the text readable on whatever background was picked
-    const dark = bg ? luminance(bg) < 0.18 : undefined; // where black and white text read equally well
-    set("--primary-text-color", dark === undefined ? undefined : dark ? "#f1f1f1" : "#1f1f1f");
-    set("--secondary-text-color", dark === undefined ? undefined : dark ? "#b4b4b4" : "#5f5f5f");
-    set(
-      "--secondary-background-color",
-      bg ? `color-mix(in srgb, ${bg} 88%, ${dark ? "#ffffff" : "#000000"})` : undefined,
-    );
-    set(
-      "--divider-color",
-      bg ? (dark ? "rgba(255, 255, 255, 0.14)" : "rgba(0, 0, 0, 0.12)") : undefined,
-    );
-  }
-
-  private get _palette(): string[] {
-    return paletteOf(this._config);
   }
 
   private get _progressOn(): boolean {
@@ -1256,7 +1140,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         const when = n === 0 ? formatTime(this.hass, r.start) : rtf.format(n, "day");
         const color =
           r.personIdx >= 0
-            ? personColor(this._persons[r.personIdx], r.personIdx, this._palette)
+            ? personColor(this._persons[r.personIdx], r.personIdx)
             : this._calMeta(r.calendar).color || "var(--secondary-text-color)";
         const icon = this._calIcon(r.calendar);
         return html`<span class="cdchip" role="listitem" style="--fc:${color}">
@@ -1448,7 +1332,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _rebuild(): void {
     const raws: RawEvent[] = [];
     this._config.persons.forEach((p, idx) => {
-      const color = personColor(p, idx, this._palette);
+      const color = personColor(p, idx);
       for (const cal of this._calsOf(p)) {
         const tf = this._calMeta(cal).title_field;
         for (const ev of this._calData.get(cal) ?? []) {
@@ -1999,7 +1883,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     );
   }
   private _avatar(p: PersonConfig, idx: number) {
-    const color = personColor(p, idx, this._palette);
+    const color = personColor(p, idx);
     const st = p.person ? this.hass.states[p.person] : undefined;
     const pic = st?.attributes?.entity_picture as string | undefined;
     const name = this._personName(p, idx);
@@ -2547,7 +2431,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         ${this._persons.map((p, i) => {
           if (this._isOff(i)) return nothing;
           const { current, next } = this._focusFor(i);
-          const c = personColor(p, i, this._palette);
+          const c = personColor(p, i);
           const icon = (r: RawEvent) => (this._config.auto_icons ? this._autoIcon(r.summary) : "");
           return html`
             <div class="fchip" title=${this._personName(p, i)}>
@@ -2626,7 +2510,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           ${this._persons.map((p, i) => {
             if (this._isOff(i)) return nothing;
             const { current, next } = this._focusFor(i);
-            const c = personColor(p, i, this._palette);
+            const c = personColor(p, i);
             const name = this._personName(p, i);
             const st = p.person ? this.hass.states[p.person] : undefined;
             const allDay = this._allDayToday(i);
@@ -2847,7 +2731,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                               class="adchip ${tent ? "tentative" : ""}"
                               style="border-left:3px ${
                                 tent ? "dashed" : "solid"
-                              } ${c};background:${c}30;background:color-mix(in srgb, ${c} var(--fb-fill-chip, 22%), var(--card-background-color, #fff))"
+                              } ${c};background:${c}30;background:color-mix(in srgb, ${c} 22%, var(--card-background-color, #fff))"
                               title="${this._evTitle(e)}"
                               tabindex="0"
                               role="button"
@@ -2979,8 +2863,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           style="top:${top + 1.5}px;height:${h}px;
                                left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);
                                border-left:3px ${tent ? "dashed" : "solid"} ${c};
-                               --pc:${c};background:${c}40;
-                               background:color-mix(in srgb, ${c} var(--fb-fill, 32%), var(--card-background-color, #fff))"
+                               background:${c}40;
+                               background:color-mix(in srgb, ${c} 32%, var(--card-background-color, #fff))"
                           title="${this._evTitle(e)} · ${formatMinutes(
                             this.hass,
                             e.startMin,
@@ -3187,8 +3071,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           style="left:${(s - startMin) * px + 1.5}px;width:${w}px;
                                  top:${e.col * LANE + 4}px;height:${LANE - 6}px;
                                  border-left:3px ${tent ? "dashed" : "solid"} ${c};
-                                 --pc:${c};background:${c}40;
-                                 background:color-mix(in srgb, ${c} var(--fb-fill, 32%), var(--card-background-color, #fff))"
+                                 background:${c}40;
+                                 background:color-mix(in srgb, ${c} 32%, var(--card-background-color, #fff))"
                           title="${this._evTitle(e)}${
                             e.allDay
                               ? ` · ${this._t("all_day")}`
@@ -3336,7 +3220,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           class="wchip ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
                           style="border-left:2.5px ${
                             tent ? "dashed" : "solid"
-                          } ${c};background:${c}30;background:color-mix(in srgb, ${c} var(--fb-fill-chip, 22%), var(--card-background-color, #fff))"
+                          } ${c};background:${c}30;background:color-mix(in srgb, ${c} 22%, var(--card-background-color, #fff))"
                           title="${this._evTitle(e)}"
                           tabindex="0"
                           role="button"
@@ -3443,7 +3327,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   /** A due task in the agenda, in the same shape as an event row. */
   private _agendaTask(t: BoardTask) {
     const person = this._persons[t.personIdx];
-    const c = personColor(person, t.personIdx, this._palette);
+    const c = personColor(person, t.personIdx);
     return html`
       <div
         class="agenda-row task ${t.overdue ? "overdue" : ""}"
@@ -3585,7 +3469,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                     const tent = this._isTentative(e);
                     return html`<div
                       class="mchip ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
-                      style="background:${col}30;background:color-mix(in srgb, ${col} var(--fb-fill-chip, 22%), var(--card-background-color, #fff));border-left:2px ${
+                      style="background:${col}30;background:color-mix(in srgb, ${col} 22%, var(--card-background-color, #fff));border-left:2px ${
                         tent ? "dashed" : "solid"
                       } ${col}"
                       title="${this._evTitle(e)}"
@@ -4170,118 +4054,6 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       padding: 12px 16px;
       border-bottom: 1px solid var(--divider-color);
     }
-    /* ---- ready-made looks (style:) ------------------------------
-       Each one only moves the tokens above and a few shapes; the
-       colours still come from the theme, light and dark. */
-    :host([fbstyle="paper"]) {
-      --fb-radius: 2px;
-      --fb-radius-sm: 2px;
-      --fb-fill: 16%;
-      --fb-fill-chip: 14%;
-      --fb-title-size: 18px;
-      --fb-event-size: 12px;
-    }
-    :host([fbstyle="paper"]) ha-card {
-      font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
-    }
-    :host([fbstyle="paper"]) .event,
-    :host([fbstyle="paper"]) .tlbar {
-      box-shadow: none;
-    }
-    :host([fbstyle="bold"]) {
-      --fb-radius: 10px;
-      --fb-radius-sm: 8px;
-      --fb-fill: 100%;
-      --fb-fill-chip: 100%;
-      --fb-title-size: 18px;
-      --fb-name-size: 15px;
-      --fb-event-size: 13.5px;
-      --fb-time-size: 11px;
-      --fb-chip-size: 12px;
-      --fb-avatar-size: 40px;
-    }
-    /* solid colour blocks: dark text reads on every palette colour */
-    :host([fbstyle="bold"]) .event,
-    :host([fbstyle="bold"]) .tlbar,
-    :host([fbstyle="bold"]) .wchip,
-    :host([fbstyle="bold"]) .mchip,
-    :host([fbstyle="bold"]) .adchip {
-      color: #111;
-      --fb-soft-text: #111; /* thinned-out black falls short on violet */
-    }
-    :host([fbstyle="pastel"]) {
-      --fb-radius: 14px;
-      --fb-radius-sm: 10px;
-      --fb-fill: 24%;
-      --fb-fill-chip: 18%;
-      --fb-avatar-size: 38px;
-    }
-    /* frosted: every surface of the card lets the wallpaper through,
-       derived from the theme's page colour so dark themes stay dark */
-    :host([fbstyle="glass"]) {
-      --fb-fill: 38%;
-      --fb-fill-chip: 30%;
-      --fb-radius: 12px;
-      --card-background-color: color-mix(
-        in srgb,
-        var(--primary-background-color, #fafafa) 62%,
-        transparent
-      );
-      --ha-card-background: var(--card-background-color);
-      --secondary-background-color: color-mix(
-        in srgb,
-        var(--primary-background-color, #fafafa) 45%,
-        transparent
-      );
-    }
-    /* headers that stay put while the board scrolls under them need more
-       body, or the events behind shine through */
-    :host([fbstyle="glass"])
-      :is(
-        .header-row,
-        .allday-row,
-        .axis,
-        .axis-spacer,
-        .corner,
-        .tlhead,
-        .tlperson,
-        .tlcorner,
-        .wday,
-        .wphead,
-        .monthhead,
-        .agenda-date
-      ) {
-      background: color-mix(in srgb, var(--primary-background-color, #fafafa) 82%, transparent);
-      -webkit-backdrop-filter: blur(14px);
-      backdrop-filter: blur(14px);
-    }
-    :host([fbstyle="glass"]) ha-card {
-      background: var(--card-background-color);
-      -webkit-backdrop-filter: blur(18px) saturate(1.2);
-      backdrop-filter: blur(18px) saturate(1.2);
-    }
-    :host([fbstyle="contrast"]) {
-      --fb-fill: 0%;
-      --fb-fill-chip: 0%;
-      --fb-radius: 4px;
-      --fb-radius-sm: 4px;
-      --fb-event-size: 13px;
-      --fb-time-size: 11px;
-      --fb-past-opacity: 0.7;
-      --fb-hourline: var(--primary-text-color, #212121);
-      --fb-soft-text: var(--primary-text-color, #212121);
-    }
-    /* no tint: a full outline in the person's colour carries who it is */
-    :host([fbstyle="contrast"]) .event,
-    :host([fbstyle="contrast"]) .tlbar {
-      outline: 2px solid var(--pc, currentColor);
-      outline-offset: -2px;
-      font-weight: 600;
-    }
-    :host([fbstyle="contrast"]) .nowline {
-      border-top-width: 3px;
-    }
-
     /* one-switch compact density */
     :host([compact]) {
       --fb-title-size: 14px;

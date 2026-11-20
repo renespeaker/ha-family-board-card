@@ -5,7 +5,7 @@
 /*  functions as properties - which is exactly what we want to check.  */
 /* ------------------------------------------------------------------ */
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
-import { FALLBACK_COLORS, PALETTES } from "./ha-family-board-card";
+import { FALLBACK_COLORS } from "./ha-family-board-card";
 
 beforeAll(async () => {
   await import("./editor");
@@ -108,7 +108,7 @@ describe("editor colours", () => {
    */
   it("offers exactly the palette the card paints with", async () => {
     const { root } = await mountEditor();
-    const swatches = [...root.querySelectorAll(".person .swatch:not(.none)")].map((el) =>
+    const swatches = [...root.querySelectorAll(".swatch:not(.none)")].map((el) =>
       (el.getAttribute("style") ?? "").replace("background:", "").trim(),
     );
     expect(swatches).toEqual(FALLBACK_COLORS);
@@ -197,78 +197,5 @@ describe("private calendar switch", () => {
     again[1].checked = false;
     again[1].dispatchEvent(new Event("change"));
     expect(seen[seen.length - 1]?.calendars).toBeUndefined();
-  });
-});
-
-describe("look: style, palette and colours", () => {
-  type Ed = HTMLElement & { setConfig(c: unknown): void; updateComplete: Promise<unknown> };
-  const changes = (el: HTMLElement) => {
-    const seen: Array<Record<string, unknown>> = [];
-    el.addEventListener("config-changed", (e) =>
-      seen.push((e as CustomEvent).detail.config as Record<string, unknown>),
-    );
-    return seen;
-  };
-  const dotColors = (root: ShadowRoot, sel: string) =>
-    [...root.querySelectorAll(sel)].map((el) =>
-      (el.getAttribute("style") ?? "").replace("background:", "").trim(),
-    );
-
-  it("offers six styles and writes the chosen one; Classic removes it again", async () => {
-    const { el, root } = await mountEditor();
-    const seen = changes(el);
-    const tiles = [...root.querySelectorAll<HTMLButtonElement>(".look")];
-    expect(tiles.map((t) => t.dataset.style)).toEqual([
-      "classic",
-      "paper",
-      "bold",
-      "pastel",
-      "glass",
-      "contrast",
-    ]);
-    expect(tiles.map((t) => t.textContent!.trim())).toEqual([
-      "Klassisch",
-      "Papier",
-      "Kräftig",
-      "Pastell",
-      "Glas",
-      "Hoher Kontrast",
-    ]);
-    tiles[2].click();
-    expect(seen[seen.length - 1].style).toBe("bold");
-    (el as Ed).setConfig(seen[seen.length - 1]);
-    await (el as Ed).updateComplete;
-    expect(root.querySelector(".look.on")?.getAttribute("data-style")).toBe("bold");
-    root.querySelector<HTMLButtonElement>('.look[data-style="classic"]')!.click();
-    expect("style" in seen[seen.length - 1]).toBe(false);
-  });
-
-  it("a palette changes the person dots and the colours offered per person", async () => {
-    const { el, root } = await mountEditor({
-      persons: [{ name: "Anna" }, { name: "Ben" }],
-      palette: "colorblind",
-    });
-    expect(dotColors(root, ".person .pdot")).toEqual(PALETTES.colorblind.slice(0, 2));
-    expect(dotColors(root, ".person:first-child .swatch:not(.none)")).toEqual(PALETTES.colorblind);
-    const seen = changes(el);
-    root.querySelector<HTMLButtonElement>(".pal")!.click(); // Standard
-    expect("palette" in seen[seen.length - 1]).toBe(false);
-  });
-
-  it("sets and clears the theme colours", async () => {
-    const { el, root } = await mountEditor();
-    const seen = changes(el);
-    const row = (key: string) =>
-      [...root.querySelectorAll(".color-row")].find((r) =>
-        r.querySelector(".swatch")?.getAttribute("aria-label")?.startsWith(key),
-      )!;
-    row("Hintergrund").querySelector<HTMLButtonElement>(".swatch")!.click();
-    expect(seen[seen.length - 1].background_color).toBe("#ffffff");
-    row("Akzentfarbe").querySelectorAll<HTMLButtonElement>(".swatch")[2].click();
-    expect(seen[seen.length - 1].accent_color).toBe("#7c3aed");
-    (el as Ed).setConfig(seen[seen.length - 1]);
-    await (el as Ed).updateComplete;
-    row("Akzentfarbe").querySelector<HTMLButtonElement>(".swatch.none")!.click();
-    expect("accent_color" in seen[seen.length - 1]).toBe(false);
   });
 });

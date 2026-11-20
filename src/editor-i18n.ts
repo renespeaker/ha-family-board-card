@@ -184,23 +184,6 @@ const EN: Dict = {
     "Colors apply with “Color by: calendar”, labels in the event dialog. Icon = mdi icon in front of the title. “Title from field” uses e.g.",
   cal_hint_2: "instead of",
   cal_hint_3: "as the event title.",
-  s_look: "Look",
-  st_classic: "Classic",
-  st_paper: "Paper",
-  st_bold: "Bold",
-  st_pastel: "Pastel",
-  st_glass: "Glass",
-  st_contrast: "High contrast",
-  pal_default: "Standard",
-  pal_pastel: "Pastel",
-  pal_vivid: "Vivid",
-  pal_earth: "Earthy",
-  pal_colorblind: "Colour-blind safe",
-  l_accent_color: "Accent colour",
-  l_now_color: "Now line",
-  l_background_color: "Background",
-  look_hint:
-    "A = from your Home Assistant theme. Light and dark mode keep working; text stays readable on any background.",
 };
 
 const DE: Dict = {
@@ -376,23 +359,6 @@ const DE: Dict = {
     "Farben wirken bei „Einfärben nach: Kalender“, Labels im Termin-Dialog. Symbol = mdi-Icon vor dem Titel. „Titel aus Feld“ nutzt z. B.",
   cal_hint_2: "statt",
   cal_hint_3: "als Termin-Titel.",
-  s_look: "Aussehen",
-  st_classic: "Klassisch",
-  st_paper: "Papier",
-  st_bold: "Kräftig",
-  st_pastel: "Pastell",
-  st_glass: "Glas",
-  st_contrast: "Hoher Kontrast",
-  pal_default: "Standard",
-  pal_pastel: "Pastell",
-  pal_vivid: "Kräftig",
-  pal_earth: "Erdtöne",
-  pal_colorblind: "Farbenblind-sicher",
-  l_accent_color: "Akzentfarbe",
-  l_now_color: "Jetzt-Linie",
-  l_background_color: "Hintergrund",
-  look_hint:
-    "A = aus deinem Home-Assistant-Theme. Hell- und Dunkelmodus funktionieren weiter; Text bleibt auf jedem Hintergrund lesbar.",
 };
 
 const NL: Dict = {
@@ -578,23 +544,6 @@ const NL: Dict = {
     "Kleuren werken bij “Kleuren op basis van: agenda”, labels in het afspraakvenster. Icoon = mdi-icoon vóór de titel. “Titel uit veld” gebruikt bijv.",
   cal_hint_2: "in plaats van",
   cal_hint_3: "als afspraaktitel.",
-  s_look: "Uiterlijk",
-  st_classic: "Klassiek",
-  st_paper: "Papier",
-  st_bold: "Krachtig",
-  st_pastel: "Pastel",
-  st_glass: "Glas",
-  st_contrast: "Hoog contrast",
-  pal_default: "Standaard",
-  pal_pastel: "Pastel",
-  pal_vivid: "Fel",
-  pal_earth: "Aardetinten",
-  pal_colorblind: "Kleurenblind-veilig",
-  l_accent_color: "Accentkleur",
-  l_now_color: "Nu-lijn",
-  l_background_color: "Achtergrond",
-  look_hint:
-    "A = uit je Home Assistant-thema. Lichte en donkere modus blijven werken; tekst blijft op elke achtergrond leesbaar.",
 };
 
 const FR: Dict = {
@@ -783,23 +732,6 @@ const FR: Dict = {
     "Les couleurs s'appliquent avec « Colorer par : calendrier », les libellés dans la boîte de dialogue. Icône = icône mdi devant le titre. « Titre depuis le champ » utilise ex.",
   cal_hint_2: "au lieu de",
   cal_hint_3: "comme titre d'événement.",
-  s_look: "Apparence",
-  st_classic: "Classique",
-  st_paper: "Papier",
-  st_bold: "Intense",
-  st_pastel: "Pastel",
-  st_glass: "Verre",
-  st_contrast: "Contraste élevé",
-  pal_default: "Standard",
-  pal_pastel: "Pastel",
-  pal_vivid: "Vif",
-  pal_earth: "Tons terre",
-  pal_colorblind: "Adapté au daltonisme",
-  l_accent_color: "Couleur d'accent",
-  l_now_color: "Ligne de l'heure actuelle",
-  l_background_color: "Arrière-plan",
-  look_hint:
-    "A = selon votre thème Home Assistant. Les modes clair et sombre continuent de fonctionner ; le texte reste lisible sur tout fond.",
 };
 
 const ES: Dict = {
@@ -986,23 +918,6 @@ const ES: Dict = {
     "Los colores se aplican con «Colorear por: calendario», las etiquetas en el diálogo del evento. Icono = icono mdi delante del título. «Título desde campo» usa p. ej.",
   cal_hint_2: "en lugar de",
   cal_hint_3: "como título del evento.",
-  s_look: "Apariencia",
-  st_classic: "Clásico",
-  st_paper: "Papel",
-  st_bold: "Intenso",
-  st_pastel: "Pastel",
-  st_glass: "Cristal",
-  st_contrast: "Alto contraste",
-  pal_default: "Estándar",
-  pal_pastel: "Pastel",
-  pal_vivid: "Vivo",
-  pal_earth: "Tonos tierra",
-  pal_colorblind: "Apto para daltonismo",
-  l_accent_color: "Color de acento",
-  l_now_color: "Línea de hora actual",
-  l_background_color: "Fondo",
-  look_hint:
-    "A = según tu tema de Home Assistant. Los modos claro y oscuro siguen funcionando; el texto sigue legible sobre cualquier fondo.",
 };
 
 const TABLE: Record<string, Dict> = { en: EN, de: DE, nl: NL, fr: FR, es: ES };
