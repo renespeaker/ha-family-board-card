@@ -15,6 +15,8 @@ interface PersonConfig {
   badges?: string[];
   hidden?: boolean;
   driver?: boolean;
+  notify?: string;
+  eta?: string;
 }
 
 const VIEW_VALUES = ["now", "day", "timeline", "week", "month", "agenda"];
@@ -87,7 +89,28 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
    */
   private _personSchema(): unknown[] {
     const hasTodo = Object.keys(this.hass?.states ?? {}).some((e) => e.startsWith("todo."));
-    return hasTodo ? [...PERSON_SCHEMA, TASKS_FIELD] : PERSON_SCHEMA;
+    const base = hasTodo ? [...PERSON_SCHEMA, TASKS_FIELD] : [...PERSON_SCHEMA];
+    // phones of the companion app, as Home Assistant knows them
+    const phones = Object.keys((this.hass?.services as any)?.notify ?? {})
+      .filter((s) => s.startsWith("mobile_app_"))
+      .sort();
+    return [
+      ...base,
+      {
+        name: "notify",
+        selector: {
+          select: {
+            mode: "dropdown",
+            custom_value: true,
+            options: [
+              { value: "auto", label: this._t("o_auto_phone") },
+              ...phones.map((s) => ({ value: s, label: s.replace(/^mobile_app_/, "") })),
+            ],
+          },
+        },
+      },
+      { name: "eta", selector: { entity: { filter: { domain: "sensor" } } } },
+    ];
   }
 
   /** Localized view options for the dropdown / multi-select. */
@@ -342,6 +365,28 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
         },
       ]),
       group(this._t("g_kiosk"), "mdi:tablet-dashboard", extras),
+      group(this._t("g_phone"), "mdi:cellphone-message", [
+        { name: "pinboard", selector: { entity: { filter: { domain: "todo" } } } },
+        { name: "message_entity", selector: { entity: { filter: { domain: "input_text" } } } },
+        ...(cfg.message_entity
+          ? [
+              {
+                name: "message_hours",
+                selector: {
+                  number: { min: 1, max: 24, step: 1, mode: "slider", unit_of_measurement: "h" },
+                },
+              },
+            ]
+          : []),
+        { name: "show_presence", selector: { boolean: {} } },
+        { name: "ping_topics", selector: { text: { multiple: true } } },
+        {
+          name: "ride_push",
+          selector: {
+            number: { min: 0, max: 60, step: 5, mode: "slider", unit_of_measurement: "min" },
+          },
+        },
+      ]),
     ];
   }
 
@@ -409,6 +454,8 @@ export class FamilyBoardCardEditor extends LitElement implements LovelaceCardEdi
     if (Array.isArray(value.badges) && value.badges.length === 0) delete value.badges;
     if (!value.hidden) delete value.hidden;
     if (!value.driver) delete value.driver;
+    if (!value.notify) delete value.notify;
+    if (!value.eta) delete value.eta;
     // collapse a single-calendar array back to a string for tidy YAML
     if (Array.isArray(value.calendar)) {
       if (value.calendar.length === 0) delete value.calendar;

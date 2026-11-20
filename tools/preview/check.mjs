@@ -498,6 +498,68 @@ for (const [view, dark] of [["day"], ["day", true], ["now"], ["agenda"]]) {
   await page.close();
 }
 
+/* --- companion app: pin board, wall message, presence, message menu ---- */
+for (const [view, dark] of [["now"], ["now", true], ["timeline"], ["day"]]) {
+  const { page, errors } = await open({ view, dark, extra: "&phone=1" });
+  const name = `${view}${dark ? " dunkel" : ""} + Handy`;
+  const found = await axe(page, null, { rules: { "color-contrast": { enabled: false } } });
+  check(`axe: keine Barrierefreiheits-Fehler (${name})`, found.length === 0, found.join(", "));
+  const sel = ".pin, .wallmsg";
+  const contrast = await axe(
+    page,
+    { include: [{ fromShadowDom: ["family-board-card", sel] }] },
+    { runOnly: ["color-contrast"] },
+  );
+  check(
+    `Kontrast ausreichend: Pinnwand und Nachricht (${name})`,
+    contrast.length === 0,
+    contrast.join(", "),
+  );
+  check(`keine Konsolenfehler (${name})`, errors.length === 0, errors.join(" | "));
+  await page.close();
+}
+// the day header must line up with the columns below, with or without the message button
+for (const extra of ["", "&phone=1"]) {
+  const { page } = await open({ view: "day", extra });
+  const off = await page.evaluate(() => {
+    const r = document.querySelector("family-board-card").renderRoot;
+    const heads = [...r.querySelectorAll(".header-row .phead")].map((e) =>
+      e.getBoundingClientRect(),
+    );
+    const cols = [...r.querySelectorAll(".col")].map((e) => e.getBoundingClientRect());
+    return heads.map((h, i) =>
+      Math.round(Math.abs(h.left - cols[i].left) + Math.abs(h.width - cols[i].width)),
+    );
+  });
+  check(
+    `Tageskopf und Spalten bündig${extra ? " (mit Nachrichten-Knopf)" : ""}`,
+    off.length > 0 && off.every((d) => d <= 1),
+    off.join(", "),
+  );
+  await page.close();
+}
+{
+  const { page, errors } = await open({ view: "now", extra: "&phone=1" });
+  await page.evaluate(() =>
+    document.querySelector("family-board-card").renderRoot.querySelector(".pingbtn").click(),
+  );
+  await page.waitForTimeout(300);
+  const found = await axe(page, null, { rules: { "color-contrast": { enabled: false } } });
+  check(
+    "axe: keine Barrierefreiheits-Fehler (Nachrichten-Menü)",
+    found.length === 0,
+    found.join(", "),
+  );
+  const fits = await page.evaluate(() => {
+    const m = document.querySelector("family-board-card").renderRoot.querySelector(".pingmenu");
+    const b = m.getBoundingClientRect();
+    return b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight;
+  });
+  check("Nachrichten-Menü passt auf den Schirm", fits);
+  check("keine Konsolenfehler (Nachrichten-Menü)", errors.length === 0, errors.join(" | "));
+  await page.close();
+}
+
 /* --- contrast of the card's own small texts on tinted event blocks --- */
 for (const dark of [false, true]) {
   for (const [view, sel] of [

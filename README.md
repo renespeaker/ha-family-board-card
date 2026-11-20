@@ -25,6 +25,10 @@
 <td valign="top"><b>Rides</b> – who drives whom: “🚗 Ben” on the pick-up, and a warning when the driver is busy<br><img src="docs/preview-rides-en.png" alt="Family Board Card – Rides"></td>
 <td valign="top"><b>Photo screensaver</b> – family photos from a Media folder with a large clock; a tap brings the board back<br><img src="docs/preview-saver-en.png" alt="Family Board Card – Photo screensaver"></td>
 </tr>
+<tr>
+<td valign="top"><b>Phone and wall tablet</b> – pin board, a message from the phone, and a 📣 button per person<br><img src="docs/preview-companion-en.png" alt="Family Board Card – Phone and wall tablet"></td>
+<td valign="top"><b>Where everyone really was</b> – today's real places under the plan in the timeline<br><img src="docs/preview-presence-en.png" alt="Family Board Card – Where everyone really was"></td>
+</tr>
 </table>
 
 A family calendar — a “who is where, when” board — for [Home Assistant](https://www.home-assistant.io/). People are columns across the top (with the avatar from their `person.*` entity), time runs down the left. The card shows at a glance which activities happen at the same time in different places — for up to 10 people.
@@ -37,6 +41,13 @@ A family calendar — a “who is where, when” board — for [Home Assistant](
 - **Slim header** – `slim_header` moves the weekday buttons onto the navigation line and puts the avatar next to the name: about 40 px less header, more room for the day.
 - **Can start on another day** – `day_offset` shifts the day and timeline views by N days (`1` = tomorrow). Meant for displays that should show the day ahead – an e-paper panel in the hallway, say.
 - **Day check** – optional warning chips above the day and timeline views: one person booked twice, an unsupervised gap between two events (the pick-up!), or everyone out at the same time (“nobody home”). Windows that are already over disappear on their own.
+- **Phone and wall tablet** – the board works together with the Home Assistant companion app:
+  - **Pin board** – `pinboard: todo.pinboard` shows a to-do list as sticky notes on the wall. Anyone adds a note from the phone, by voice or from the wall itself; a tap on ✓ ticks it off.
+  - **Messages to a phone** – give a person their phone (`notify`, or `auto` to find it through the person) and a 📣 button appears: “🍽️ Dinner's ready”, “📞 Please call” or your own `ping_topics`. “When are you home?” comes with answer buttons and a text field.
+  - **Wall messages** – `message_entity: input_text.…` shows “Ben: home at 6:30, traffic” big on the wall, also on the screensaver. Answers from the phone land there through the included automation template; anyone can also write into the helper from the app.
+  - **Where everyone really was** – `show_presence: true` adds “since 17:10” to the status, and the timeline draws today's real places under the plan: home, away, school, office.
+  - **Arrival time** – `eta` per person (a travel-time sensor) shows “home in 12 min” while they are away.
+  - **Ride reminders** – `ride_push: 15` sends the driver a push 15 minutes before a pick-up, with a running countdown on Android; it disappears when the driver leaves home.
 - **Birthdays with age** – with `birthday_age: true`, a birthday with the year of birth in its title – “Grandma’s birthday (1946)”, “Max *2019” – shows as “Grandma’s birthday (turns 80)”, in every view and in the countdown chips. Only the display changes; the calendar keeps its title.
 - **Private events** – events whose title or description contains a `private_patterns` entry (e.g. `#private`), or every event of a calendar marked `private: true`, show only “🔒 Private” and the time. Place and notes stay hidden, the event cannot be opened or dragged, and the browser cache keeps no details. The time still counts for the day check.
 - **Rides** – mark the people who drive with `driver: true`. Events such as “Pick up Mia” or “Ben: drop off Leon” become rides: the driver named in the event takes it, otherwise the owner if they drive. The event shows “🚗 Ben”, and the day check warns when nobody drives (“🚗 ?”) or the driver has something else at that time. `ride_patterns` sets your own words.
@@ -125,11 +136,17 @@ persons:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `persons` | list | – | 1–10 people with `name`, `person`, `calendar` (string **or list**), optionally `color`, `badges` (entities as chips), `hidden` (starts collapsed), `driver` (drives: rides get assigned to them) and `title_prefix` (only events whose title starts with it – for one shared calendar, see below) |
+| `persons` | list | – | 1–10 people with `name`, `person`, `calendar` (string **or list**), optionally `color`, `badges` (entities as chips), `hidden` (starts collapsed), `driver` (drives: rides get assigned to them) `title_prefix` (only events whose title starts with it – for one shared calendar, see below), `notify` (the phone: `mobile_app_…` or `auto`) and `eta` (travel-time sensor) |
 | `persons[].tasks` | string/list | – | `todo.*` list(s) of this person; tasks due today and overdue ones appear as chips (day view + agenda). Without it the card queries no list at all |
 | `hide_empty_persons` | boolean | `false` | Week view: hide people without events in that week |
 | `show_alerts` | boolean | `false` | Day check above the day/timeline views: double bookings, care gaps and “nobody home” as chips |
 | `late_warning` | number | `0` | “Still at home” warning: minutes before an event with a place, while the person’s `person.*` is still `home` (0 = off) |
+| `pinboard` | entity | – | `todo.*` list shown as sticky notes (open items); add and tick off on the wall |
+| `message_entity` | entity | – | `input_text.*` whose text (“Name: text”) shows big on the wall; see “Phone and wall tablet” below |
+| `message_hours` | number | `3` | How long a wall message stays visible |
+| `show_presence` | boolean | `false` | “since 17:10” in the status, and today's real places as a strip in the timeline |
+| `ping_topics` | list | dinner, call, groceries, when home? | Topics of the 📣 button; a leading `?` asks for an answer |
+| `ride_push` | number | `0` | Minutes before a ride to send the driver a push (needs `driver` and `notify`) |
 | `gap_min` | number | `60` | How many minutes a gap between two of a person's events must reach to be flagged (0 = off) |
 | `show_focus` | boolean | `false` | “Now / next” bar per person above the views |
 | `drag_drop` | boolean | `true` | Move / resize events in the day view by dragging (writable single events only) |
@@ -214,6 +231,35 @@ Filtering applies before display-title replacements and to every view, including
 live updates. It does not modify source events. Leave the prefix unset to show
 all events as before. New events must include the prefix to appear in that
 person's column. Family calendars remain unaffected.
+
+## Phone and wall tablet
+
+The board talks to the Home Assistant companion app only through Home Assistant – notify services and helpers – so nothing extra needs installing on the phones.
+
+1. **Per person:** set `notify` to the phone's service (`mobile_app_…`, picked from a list in the editor) or to `auto`, which finds it through the person's device trackers. Optionally `eta`: a travel-time sensor in minutes (Waze, Google, …).
+2. **Pin board:** create a to-do list (Settings → Devices & services → Helpers → *To-do list*) and set it as `pinboard`.
+3. **Wall messages and answers:** create a text helper (*Text*, max. length 255) and set it as `message_entity`. To bring answers from the phone onto the wall, import the automation template and pick that helper:
+
+   [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Frenespeaker%2Fha-family-board-card%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamily_board_messages.yaml)
+
+   Home Assistant lets only administrators listen to notification answers directly; the automation runs on the server and writes them into the helper, so the wall tablet can stay a normal user.
+
+```yaml
+pinboard: todo.pinboard
+message_entity: input_text.family_board
+show_presence: true
+ride_push: 15
+ping_topics:
+  - "🍽️ Dinner's ready"
+  - "? 🕐 When are you home?"
+persons:
+  - name: Ben
+    person: person.ben
+    calendar: calendar.ben
+    notify: auto
+    eta: sensor.ben_travel_time
+    driver: true
+```
 
 ## Styling (theme / card-mod)
 

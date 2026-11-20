@@ -38,6 +38,19 @@ import {
   weekdayNames,
   formatWeekRange,
 } from "./localize";
+import {
+  clearCall,
+  etaMinutes,
+  guessNotify,
+  notifyService,
+  parseMessage,
+  parseTopic,
+  pingCall,
+  presenceSpans,
+  rideCall,
+  type PingTopic,
+  type PresenceSpan,
+} from "./companion";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -58,6 +71,8 @@ interface PersonConfig {
   badges?: string[]; // extra entities shown as chips under the person header
   hidden?: boolean; // start collapsed (person toggle can bring them back)
   driver?: boolean; // can drive: rides (pick-up, drop-off) get assigned to them
+  notify?: string; // notify.mobile_app_* of this person's phone: pings and ride pushes
+  eta?: string; // travel-time sensor (minutes to home): "home in 12 min" while away
 }
 
 export interface FamilyBoardConfig extends LovelaceCardConfig {
@@ -90,6 +105,12 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   show_alerts?: boolean; // warn about double bookings, care gaps and "nobody home"
   gap_min?: number; // minutes a care gap must reach to be flagged. default 60, 0 = off
   ride_patterns?: string[]; // words that mark a ride; default RIDE_WORDS
+  pinboard?: string; // todo.* list shown as sticky notes on the wall
+  message_entity?: string; // input_text.*: "Name: text" from the phone, shown big on the wall
+  message_hours?: number; // how long a wall message stays. default 3
+  show_presence?: boolean; // "since 17:10" in the status, and where everyone really was in the timeline
+  ping_topics?: string[]; // "🍽️ Dinner's ready", "? 🕐 When are you home?" (? = asks for an answer)
+  ride_push?: number; // minutes before a ride: push to the driver's phone (countdown on Android). 0 = off
   late_warning?: number; // warn N minutes before an event with a place when that person is still home
   drag_drop?: boolean; // drag to move / resize events in the day view. default true
   compact?: boolean; // denser spacing + smaller fonts in one switch
@@ -512,6 +533,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const wait = 60000 - (Date.now() % 60000) + 50;
     this._tick = window.setTimeout(() => {
       this._kioskReturn();
+      this._ridePush();
       this.requestUpdate();
       this._scheduleTick();
     }, wait);
@@ -722,6 +744,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this._maybeFetchWeather();
       this._maybeFetchCountdowns();
       this._maybeFetchTasks();
+      this._maybeFetchPresence();
+      this._ridePush();
       this._maybeLoadSaver();
     } else if (
       (changed.has("_view") || changed.has("_weekOffset") || changed.has("_monthOffset")) &&
@@ -977,6 +1001,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   /** Every `todo.*` list assigned to a person, deduplicated. */
   private _taskEntities(): string[] {
     const out: string[] = [];
+    const pin = this._config?.pinboard;
+    if (typeof pin === "string" && pin.startsWith("todo.")) out.push(pin);
     for (const p of this._persons) {
       const lists = Array.isArray(p.tasks) ? p.tasks : p.tasks ? [p.tasks] : [];
       for (const e of lists) if (e && !out.includes(e)) out.push(e);
@@ -1387,6 +1413,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     const { monday } = this._weekBounds();
     this._events =
       this._view === "month" ? [] : cleaned.flatMap((r) => splitIntoSegments(r, monday));
+    this._ridePush(); // a ride may have just arrived within its push window
   }
 
   /*
@@ -2128,6 +2155,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
               <img class="saverimg" src=${url} alt="" />`
           : nothing
       }
+      ${this._messageBanner(true)}
       <div class="saverclock">
         <span class="savertime">${formatTime(this.hass, now)}</span>
         <span class="saverdate">${date}</span>
@@ -2221,6 +2249,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           }
         </div>
         ${this._config.show_focus && this._view !== "now" ? this._renderFocus() : nothing}
+        ${this._view !== "now" ? this._messageBanner() : nothing}
+        ${this._view === "day" || this._view === "timeline" ? this._pinboard() : nothing}
         ${
           (this._config.show_alerts || this._lateOn || this._ridesOn) &&
           (this._view === "day" || this._view === "timeline")
@@ -2242,6 +2272,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         }
       </ha-card>
       ${this._dialog ? this._renderDialog() : nothing}
+      ${this._pingFor !== undefined ? this._renderPing() : nothing}
+      ${this._toast ? html`<div class="toast" role="status">${this._toast}</div>` : nothing}
     `;
   }
 
@@ -2505,7 +2537,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           ${this._weatherChip(now)}
           ${this._loading && this._raw.length === 0 ? html`<span class="spinner"></span>` : nothing}
         </div>
-        ${this._familyBand(now)} ${this._countdownBand()}
+        ${this._messageBanner()} ${this._familyBand(now)} ${this._countdownBand()}
+        ${this._pinboard()}
         <ul class="nowlist">
           ${this._persons.map((p, i) => {
             if (this._isOff(i)) return nothing;
@@ -2530,7 +2563,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                 ${this._avatar(p, i)}
                 <div class="nbody">
                   <div class="nname">
-                    ${name}${st ? html`<span class="nstat">${this._statusLabel(st.state)}</span>` : nothing}
+                    ${name}${st ? html`<span class="nstat">${this._statusText(p)}</span>` : nothing}
+                    ${this._pingBtn(i)}
                   </div>
                   ${allDay.map((r) => html`<span class="nallday">${icon(r)} ${this._shown(r.summary, r.start)}</span>`)}
                   ${
@@ -2684,32 +2718,33 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
             const stateObj = p.person ? this.hass.states[p.person] : undefined;
             const off = this._isOff(i);
             return html`
-              <div
-                class="phead ${off ? "off" : ""}"
-                role="button"
-                tabindex="0"
-                title=${this._personName(p, i)}
-                aria-pressed=${this._isOff(i) ? "false" : "true"}
-                @click=${() => this._togglePerson(i)}
-                @keydown=${(k: KeyboardEvent) => {
-                  if (k.key === "Enter" || k.key === " ") {
-                    k.preventDefault();
-                    this._togglePerson(i);
+              <div class="pcell">
+                <div
+                  class="phead ${off ? "off" : ""}"
+                  role="button"
+                  tabindex="0"
+                  title=${this._personName(p, i)}
+                  aria-pressed=${this._isOff(i) ? "false" : "true"}
+                  @click=${() => this._togglePerson(i)}
+                  @keydown=${(k: KeyboardEvent) => {
+                    if (k.key === "Enter" || k.key === " ") {
+                      k.preventDefault();
+                      this._togglePerson(i);
+                    }
+                  }}
+                >
+                  ${this._avatar(p, i)}
+                  ${
+                    off
+                      ? nothing
+                      : html`<div class="pmeta">
+                          <div class="pname">${this._personName(p, i)}</div>
+                          <div class="pstatus">${stateObj ? this._statusText(p) : ""}</div>
+                          ${this._badges(p)}
+                        </div>`
                   }
-                }}
-              >
-                ${this._avatar(p, i)}
-                ${
-                  off
-                    ? nothing
-                    : html`<div class="pmeta">
-                        <div class="pname">${this._personName(p, i)}</div>
-                        <div class="pstatus">
-                          ${stateObj ? this._statusLabel(stateObj.state) : ""}
-                        </div>
-                        ${this._badges(p)}
-                      </div>`
-                }
+                </div>
+                ${off ? nothing : this._pingBtn(i)}
               </div>
             `;
           })}
@@ -3037,6 +3072,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                   }px)"
                   @click=${(ev: MouseEvent) => this._onTimelineClick(ev, i, day, px, startMin)}
                 >
+                  ${this._presenceStrip(p, i, day, startMin, px)}
                   ${laid
                     .filter((e) => e.endMin > startMin && e.startMin < endMin)
                     .map((e) => {
@@ -3499,6 +3535,368 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         </div>
       </div>
     `;
+  }
+
+  /* ---- companion app: status, pings, wall messages, pin board ---- */
+  @state() private _pingFor?: number;
+  @state() private _toast = "";
+  private _toastTimer?: number;
+  @state() private _presence: Record<string, PresenceSpan[]> = {};
+  private _presenceKey = "";
+  @state() private _pinDraft?: string;
+  private _hiddenMsg = "";
+
+  /** "home · since 17:10 · home in 12 min" – the parts that are switched on. */
+  private _statusText(p: PersonConfig): string {
+    const st = p.person ? this.hass.states[p.person] : undefined;
+    if (!st) return "";
+    const parts = [this._statusLabel(st.state)];
+    if (this._config.show_presence && st.last_changed) {
+      const since = new Date(st.last_changed);
+      if (!isNaN(since.getTime()) && since >= startOfDay(new Date()))
+        parts.push(`${this._t("since")} ${formatTime(this.hass, since)}`);
+    }
+    if (p.eta && st.state !== "home") {
+      const e = this.hass.states[p.eta];
+      const min = e ? etaMinutes(e.state, e.attributes?.unit_of_measurement) : undefined;
+      if (min !== undefined) parts.push(this._t("eta_home").replace("{n}", String(min)));
+    }
+    return parts.join(" · ");
+  }
+
+  /** The phone of a person: configured, or found through the person's device trackers. */
+  private _notifyOf(p: PersonConfig): string | undefined {
+    if (p.notify !== "auto") return notifyService(p.notify);
+    if (!p.person) return undefined;
+    const trackers = this.hass.states[p.person]?.attributes?.device_trackers;
+    return guessNotify(trackers, (this.hass.services as any)?.notify ?? {});
+  }
+
+  private _pingBtn(i: number) {
+    const p = this._persons[i];
+    if (!this._notifyOf(p)) return nothing;
+    const name = this._personName(p, i);
+    return html`<button
+      class="pingbtn"
+      aria-label=${this._t("ping_to").replace("{name}", name)}
+      title=${this._t("ping_to").replace("{name}", name)}
+      @click=${(e: Event) => {
+        e.stopPropagation();
+        this._pingFor = i;
+      }}
+      @keydown=${(e: KeyboardEvent) => e.stopPropagation()}
+    >
+      📣
+    </button>`;
+  }
+
+  private get _pingTopics(): PingTopic[] {
+    const own = this._config.ping_topics;
+    const raw =
+      Array.isArray(own) && own.length
+        ? own.map(String)
+        : ["ping_t1", "ping_t2", "ping_t3", "ping_t4"].map((k) => this._t(k));
+    return raw.map(parseTopic).filter((t): t is PingTopic => !!t);
+  }
+
+  private async _sendPing(i: number, topic: PingTopic): Promise<void> {
+    const p = this._persons[i];
+    const service = this._notifyOf(p);
+    this._pingFor = undefined;
+    if (!service) return;
+    const name = this._personName(p, i);
+    const call = pingCall(topic, name, this._config.title ?? this._t("board_title"), {
+      custom: this._t("ping_answer"),
+      quick: [this._t("ping_q1"), this._t("ping_q2")],
+    });
+    try {
+      await this.hass.callService("notify", service, call);
+      this._showToast(this._t("ping_sent").replace("{name}", name));
+    } catch (e) {
+      this._showToast(this._t("ping_failed"));
+    }
+  }
+
+  private _showToast(text: string): void {
+    this._toast = text;
+    if (this._toastTimer) clearTimeout(this._toastTimer);
+    this._toastTimer = window.setTimeout(() => (this._toast = ""), 3500);
+  }
+
+  private _renderPing() {
+    const i = this._pingFor!;
+    const p = this._persons[i];
+    const name = this._personName(p, i);
+    const heading = this._t("ping_to").replace("{name}", name);
+    return html`<div class="backdrop" @click=${() => (this._pingFor = undefined)}></div>
+      <div
+        class="pingmenu"
+        role="dialog"
+        aria-modal="true"
+        aria-label=${heading}
+        @keydown=${(k: KeyboardEvent) => {
+          if (k.key === "Escape") this._pingFor = undefined;
+        }}
+      >
+        <div class="pinghead">${this._avatar(p, i)} ${heading}</div>
+        ${this._pingTopics.map(
+          (t) =>
+            html`<button class="pingtopic" @click=${() => this._sendPing(i, t)}>
+              <span aria-hidden="true">${t.icon}</span> ${t.text}${
+                t.ask ? html` <small>${this._t("ping_asks")}</small>` : nothing
+              }
+            </button>`,
+        )}
+        <button class="pingcancel" @click=${() => (this._pingFor = undefined)}>
+          ${this._t("cancel")}
+        </button>
+      </div>`;
+  }
+
+  /** The latest wall message, while it is fresh and not dismissed. */
+  private _wallMessage() {
+    const ent = this._config.message_entity;
+    const st = ent ? this.hass.states[ent] : undefined;
+    if (!st) return undefined;
+    const names = this._persons.map((p, i) => this._personName(p, i));
+    const msg = parseMessage(st.state, names);
+    if (!msg) return undefined;
+    const at = new Date(st.last_changed);
+    const hours = Number(this._config.message_hours ?? 3) || 3;
+    if (isNaN(at.getTime()) || Date.now() - at.getTime() > hours * 3600000) return undefined;
+    if (this._hiddenMsg === `${st.state}|${st.last_changed}`) return undefined;
+    return { ...msg, at, key: `${st.state}|${st.last_changed}` };
+  }
+
+  private _messageBanner(onSaver = false) {
+    const m = this._wallMessage();
+    if (!m) return nothing;
+    const p = m.personIdx !== undefined ? this._persons[m.personIdx] : undefined;
+    return html`<div class="wallmsg ${onSaver ? "onsaver" : ""}" role="status">
+      ${p ? this._avatar(p, m.personIdx!) : html`<span class="wallicon" aria-hidden="true">💬</span>`}
+      <span class="walltext">
+        ${m.name ? html`<b>${m.name}</b> ` : nothing}${m.text}
+        <small>${formatTime(this.hass, m.at)}</small>
+      </span>
+      ${
+        onSaver
+          ? nothing
+          : html`<button
+              class="wallclose"
+              aria-label=${this._t("message_hide")}
+              title=${this._t("message_hide")}
+              @click=${() => this._dismissMessage(m.key)}
+            >
+              ✕
+            </button>`
+      }
+    </div>`;
+  }
+
+  /** Clear the message for everyone; if that is not allowed, at least on this screen. */
+  private async _dismissMessage(key: string): Promise<void> {
+    this._hiddenMsg = key;
+    this.requestUpdate();
+    try {
+      await this.hass.callService("input_text", "set_value", {
+        entity_id: this._config.message_entity,
+        value: "",
+      });
+    } catch (e) {
+      // not allowed: stays hidden here
+    }
+  }
+
+  /** Notes of the pin board list, newest first. */
+  private _pinboard() {
+    const ent = this._config.pinboard;
+    if (!ent || !this.hass.states[ent]) return nothing;
+    const notes = (this._tasks[ent] ?? []).filter((t) => t.status === "needs_action");
+    const colors = ["#FEF08A", "#BBF7D0", "#BFDBFE", "#FBCFE8", "#FED7AA"];
+    return html`<div class="pinboard">
+      <div class="pinlist" role="list" aria-label=${this._t("pinboard")}>
+        ${notes.map(
+          (n, k) =>
+            html`<div
+              class="pin"
+              role="listitem"
+              style="--pin:${colors[k % colors.length]};--tilt:${((k % 3) - 1) * 1.2}deg"
+            >
+              <span class="pintext">${n.summary}</span>
+              <button
+                class="pindone"
+                aria-label=${`${this._t("pin_done")}: ${n.summary}`}
+                title=${this._t("pin_done")}
+                @click=${() => this._pinDone(ent, n.uid)}
+              >
+                ✓
+              </button>
+            </div>`,
+        )}
+      </div>
+      ${
+        this._pinDraft === undefined
+          ? html`<button class="pinadd" @click=${() => (this._pinDraft = "")}>
+              ＋ ${this._t("pin_add")}
+            </button>`
+          : html`<form class="pinform" @submit=${(e: Event) => this._pinSave(e, ent)}>
+              <input
+                class="pininput"
+                aria-label=${this._t("pin_add")}
+                .value=${this._pinDraft}
+                @input=${(e: Event) => (this._pinDraft = (e.target as HTMLInputElement).value)}
+                @keydown=${(k: KeyboardEvent) => {
+                  if (k.key === "Escape") this._pinDraft = undefined;
+                }}
+              />
+              <button type="submit" class="pinsave">${this._t("save")}</button>
+            </form>`
+      }
+    </div>`;
+  }
+
+  private async _pinDone(entity: string, uid: string): Promise<void> {
+    try {
+      await this.hass.callService("todo", "update_item", {
+        entity_id: entity,
+        item: uid,
+        status: "completed",
+      });
+      this._taskSig[entity] = ""; // read the list again
+      this._maybeFetchTasks();
+    } catch (e) {
+      this._showToast(this._t("save_failed"));
+    }
+  }
+
+  private async _pinSave(e: Event, entity: string): Promise<void> {
+    e.preventDefault();
+    const text = (this._pinDraft ?? "").trim();
+    this._pinDraft = undefined;
+    if (!text) return;
+    try {
+      await this.hass.callService("todo", "add_item", { entity_id: entity, item: text });
+      this._taskSig[entity] = "";
+      this._maybeFetchTasks();
+    } catch (err) {
+      this._showToast(this._t("save_failed"));
+    }
+  }
+
+  /** Where everyone really was today, from the history of their person entities (timeline only). */
+  private async _maybeFetchPresence(): Promise<void> {
+    if (!this._config.show_presence || this._view !== "timeline") return;
+    const ids = this._persons.map((p) => p.person).filter((e): e is string => !!e);
+    if (!ids.length) return;
+    const now = new Date();
+    const sig = ids.map((e) => this.hass.states[e]?.last_changed ?? "").join("|");
+    const key = `${toLocalDate(now)}|${sig}|${Math.floor(now.getTime() / 300000)}`;
+    if (key === this._presenceKey) return;
+    this._presenceKey = key;
+    const from = startOfDay(now);
+    try {
+      const res: any = await this.hass.callWS({
+        type: "history/history_during_period",
+        start_time: from.toISOString(),
+        end_time: now.toISOString(),
+        entity_ids: ids,
+        minimal_response: true,
+        no_attributes: true,
+        significant_changes_only: false,
+      });
+      const out: Record<string, PresenceSpan[]> = {};
+      for (const id of ids) out[id] = presenceSpans(res?.[id] ?? [], from, now);
+      this._presence = out;
+    } catch (e) {
+      this._presence = {};
+    }
+  }
+
+  /** A thin strip under a person's timeline row: home, away and named places, today. */
+  private _presenceStrip(p: PersonConfig, _i: number, day: number, startMin: number, px: number) {
+    if (!this._config.show_presence || !p.person || !this._isRealToday(day)) return nothing;
+    const spans = this._presence[p.person] ?? [];
+    if (!spans.length) return nothing;
+    return html`<div class="tlpresence" aria-hidden="true">
+      ${spans.map((s) => {
+        const a = s.from.getHours() * 60 + s.from.getMinutes();
+        const b = s.to.getHours() * 60 + s.to.getMinutes() || 1440;
+        const left = Math.max(0, (a - startMin) * px);
+        const width = Math.max(0, (b - startMin) * px - left);
+        if (width <= 0) return nothing;
+        const bg =
+          s.state === "home"
+            ? "var(--success-color, #22c55e)"
+            : s.state === "not_home"
+              ? "var(--secondary-text-color, #888)"
+              : "var(--info-color, #3b82f6)"; // a named place – never mistaken for home
+        return html`<span
+          style="left:${left}px;width:${width}px;background:${bg}"
+          title="${this._statusLabel(s.state)} ${formatTime(this.hass, s.from)}–${formatTime(
+            this.hass,
+            s.to,
+          )}"
+        ></span>`;
+      })}
+    </div>`;
+  }
+
+  /** Push upcoming rides to the driver's phone, and take them away again. */
+  private _ridePush(): void {
+    const lead = Number(this._config?.ride_push) || 0;
+    if (lead <= 0 || !this._ridesOn || !this.hass) return;
+    const now = Date.now();
+    let sent: Record<string, { home: boolean; until: number; service: string }> = {};
+    try {
+      sent = JSON.parse(localStorage.getItem("fb-ride-push") ?? "{}") || {};
+    } catch (e) {
+      sent = {};
+    }
+    let changed = false;
+    for (const r of this._raw) {
+      if (r.allDay || this._rideDriver(r) == null) continue;
+      const d = findDriver(r, this._drivers);
+      const driver = d === undefined ? undefined : this._persons[d];
+      const service = driver ? this._notifyOf(driver) : undefined;
+      if (!driver || !service) continue;
+      const key = `${r.uid ?? r.summary}-${r.start.getTime()}`.replace(/[^\w-]/g, "");
+      const start = r.start.getTime();
+      if (!sent[key] && start - lead * 60000 <= now && now < start) {
+        const home = driver.person ? this.hass.states[driver.person]?.state === "home" : false;
+        const call = rideCall(
+          key,
+          `🚗 ${r.summary}`,
+          `${formatTime(this.hass, r.start)}${r.location ? ` · ${r.location}` : ""}`,
+          r.start,
+        );
+        this.hass.callService("notify", service, call).catch(() => undefined);
+        sent[key] = { home, until: start + 10 * 60000, service };
+        changed = true;
+      }
+    }
+    // gone: the driver left home, or the ride has started a while ago
+    for (const [key, s] of Object.entries(sent)) {
+      const driverLeft = s.home && this._leftHome(s.service);
+      if (now > s.until || driverLeft) {
+        this.hass.callService("notify", s.service, clearCall(key)).catch(() => undefined);
+        delete sent[key];
+        changed = true;
+      }
+    }
+    if (changed) {
+      try {
+        localStorage.setItem("fb-ride-push", JSON.stringify(sent));
+      } catch (e) {
+        // no storage: a reload may push once more, the tag keeps it a single notification
+      }
+    }
+  }
+
+  /** The person whose phone this is has left home. */
+  private _leftHome(service: string): boolean {
+    const p = this._persons.find((x) => this._notifyOf(x) === service);
+    const st = p?.person ? this.hass.states[p.person]?.state : undefined;
+    return st !== undefined && st !== "home";
   }
 
   private _statusLabel(state: string): string {
@@ -4119,6 +4517,235 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     }
     .eride.none {
       color: var(--error-color, #db4437);
+    }
+    /* ---- companion app ---- */
+    /* the day header cell takes the column width; the head inside fills it */
+    .pcell {
+      position: relative;
+      display: flex;
+      flex: 1 1 0;
+      min-width: var(--fb-col-min, 120px);
+    }
+    .pcell:has(> .phead.off) {
+      flex: 0 0 48px;
+      min-width: 48px;
+    }
+    .pcell > .phead {
+      flex: 1;
+      min-width: 0;
+    }
+    .pcell > .pingbtn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+    }
+    .pingbtn {
+      border: none;
+      background: color-mix(in srgb, var(--fb-accent, #03a9f4) 14%, transparent);
+      border-radius: 999px;
+      padding: 2px 7px;
+      margin-left: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      line-height: 1.4;
+    }
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      z-index: 20;
+    }
+    .pingmenu {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 21;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 260px;
+      max-width: calc(100vw - 32px);
+      padding: 16px;
+      border-radius: 16px;
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+    .pinghead {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .pingtopic,
+    .pingcancel {
+      text-align: left;
+      border: 1px solid var(--divider-color);
+      background: var(--secondary-background-color);
+      color: var(--primary-text-color);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font: inherit;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .pingtopic small {
+      color: var(--secondary-text-color);
+    }
+    .pingcancel {
+      text-align: center;
+      background: transparent;
+    }
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      z-index: 22;
+      background: #222;
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-size: 14px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+    .wallmsg {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 8px 16px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: color-mix(
+        in srgb,
+        var(--fb-accent, #03a9f4) 14%,
+        var(--card-background-color, #fff)
+      );
+      border: 1px solid color-mix(in srgb, var(--fb-accent, #03a9f4) 40%, transparent);
+      font-size: 16px;
+    }
+    .wallmsg .walltext {
+      flex: 1;
+      min-width: 0;
+    }
+    .wallmsg small {
+      color: var(--fb-soft-text); /* the theme grey falls short on the tint */
+      margin-left: 6px;
+      font-size: 12px;
+    }
+    .wallicon {
+      font-size: 22px;
+    }
+    .wallclose {
+      border: none;
+      background: transparent;
+      color: var(--secondary-text-color);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+    .wallmsg.onsaver {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      top: 20px;
+      margin: 0;
+      font-size: 22px;
+      background: rgba(0, 0, 0, 0.55);
+      border-color: rgba(255, 255, 255, 0.25);
+      color: #fff;
+      z-index: 1;
+    }
+    .wallmsg.onsaver small {
+      color: #ddd;
+    }
+    .pinboard {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 8px 16px 4px;
+      align-items: flex-start;
+    }
+    .pinlist {
+      display: contents;
+    }
+    .pin {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      max-width: 220px;
+      padding: 10px 10px 10px 12px;
+      background: var(--pin);
+      color: #1f2937;
+      border-radius: 4px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+      transform: rotate(var(--tilt));
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .pintext {
+      flex: 1;
+      overflow-wrap: anywhere;
+    }
+    .pindone {
+      border: none;
+      background: rgba(0, 0, 0, 0.08);
+      color: #1f2937;
+      border-radius: 999px;
+      width: 24px;
+      height: 24px;
+      flex: none;
+      cursor: pointer;
+    }
+    .pinadd {
+      border: 1.5px dashed var(--divider-color);
+      background: transparent;
+      color: var(--secondary-text-color);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .pinform {
+      display: flex;
+      gap: 6px;
+    }
+    .pininput {
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--divider-color);
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color);
+      min-width: 180px;
+    }
+    .pinsave {
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      background: var(--primary-color);
+      color: var(--text-primary-color, #fff);
+      font: inherit;
+      cursor: pointer;
+    }
+    .tlpresence {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 1px;
+      height: 5px;
+      pointer-events: none;
+    }
+    .tlpresence span {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-radius: 2px;
+      opacity: 0.85;
     }
     .nlate {
       font-size: 14px;
@@ -5967,7 +6594,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.34.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.35.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

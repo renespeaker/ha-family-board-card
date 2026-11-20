@@ -87,12 +87,20 @@ const A = (i,j,s) => ({uid:"a"+(n++),summary:s,start:{date:D(i)},end:{date:D(j)}
 cal["calendar.muell"] = [A(t,t+1,T.bin), A(t+7,t+8,T.bin)];
 cal["calendar.ferien"] = [A(t+1,t+6,T.hol)];
 cal["calendar.familie"] = [E(t,T.parents,19,0,20,30), A(t+9,t+10,T.bday)];
-const person = (n,s)=>({state:s,attributes:{friendly_name:n}});
+const person = (n,s,since)=>({state:s,attributes:{friendly_name:n},
+  last_changed: new Date(base.getFullYear(),base.getMonth(),base.getDate(),...(since||[0,0])).toISOString()});
+// the companion-app extras (phone=1): pin board, wall message, presence, a phone for Ben
+const PHONE = lang === "de"
+  ? { pins: ["Oma ruft heute Abend an", "Schlüssel liegt beim Nachbarn", "Turnbeutel für Mia!"], msg: "Ben: Bin um 18:30 da, Stau auf der A3" }
+  : { pins: ["Grandma calls tonight", "Key is with the neighbours", "Gym bag for Mia!"], msg: "Ben: Home at 6:30, traffic on the highway" };
 const hass = {
   locale:{language:lang,time_format:lang==="de"?"24":"12"},
   states:{
-    "person.anna":person("Anna","home"), "person.ben":person("Ben","not_home"),
-    "person.mia":person("Mia","home"),   "person.leon":person("Leon","home"),
+    "person.anna":person("Anna","home",[-14,0]), "person.ben":person("Ben","not_home",[8,25]),
+    "person.mia":person("Mia","home",[9,40]),   "person.leon":Q.has("phone")?person("Leon","Kita",[7,30]):person("Leon","home",[-14,0]),
+    "todo.pinnwand":{state:"3",attributes:{friendly_name:"Pinnwand"},last_changed:base.toISOString()},
+    "input_text.wand":{state:PHONE.msg,attributes:{},last_changed:new Date(Date.now()-8*60000).toISOString()},
+    "sensor.ben_home":{state:"24",attributes:{unit_of_measurement:"min"}},
     "calendar.anna":{state:"on",attributes:{friendly_name:"Anna",supported_features:Q.has("writable")?7:0}},
     "calendar.ben":{state:"on",attributes:{friendly_name:"Ben",supported_features:0}},
     "calendar.mia":{state:"on",attributes:{friendly_name:"Mia",supported_features:0}},
@@ -103,7 +111,20 @@ const hass = {
     "calendar.familie":{state:"off",attributes:{friendly_name:"Familie",supported_features:0}},
   },
   callApi: async(_m,path)=>cal[path.split("?")[0].replace("calendars/","")]||[],
+  services: { notify: { mobile_app_bens_phone: {} } },
+  callService: async(domain, service, data) => { console.log("service", domain, service, JSON.stringify(data)); },
   callWS: async(msg)=>{
+    if (msg.type === "todo/item/list")
+      return { items: PHONE.pins.map((summary, i) => ({ uid: "pin" + i, summary, status: "needs_action" })) };
+    if (msg.type === "history/history_during_period") {
+      const lu = (h, m) => new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m).getTime() / 1000;
+      return {
+        "person.mia": [{ s: "home", lu: lu(0, 0) }, { s: T.school, lu: lu(7, 48) }, { s: "home", lu: lu(9, 40) }],
+        "person.ben": [{ s: "home", lu: lu(0, 0) }, { s: "not_home", lu: lu(8, 25) }, { s: T.office, lu: lu(8, 52) }],
+        "person.anna": [{ s: "home", lu: lu(0, 0) }],
+        "person.leon": [{ s: "home", lu: lu(0, 0) }, { s: "Kita", lu: lu(7, 30) }],
+      };
+    }
     if (msg.type === "media_source/browse_media")
       return { children: ["sea","hills","dusk"].map(n=>({media_class:"image",media_content_id:`${msg.media_content_id}/${n}.jpg`})) };
     if (msg.type === "media_source/resolve_media") return { url: PHOTO(msg.media_content_id) };
@@ -133,6 +154,10 @@ el.setConfig({
   calendars: { "calendar.muell": { icon: "mdi:trash-can", color: "#EAB308" },
                "calendar.ferien": { icon: "mdi:beach", color: "#22C55E" } },
   swipe: Q.has("swipe"),
+  pinboard: Q.has("phone") ? "todo.pinnwand" : undefined,
+  message_entity: Q.has("phone") ? "input_text.wand" : undefined,
+  show_presence: Q.has("phone"),
+  ride_push: Q.has("phone") ? 15 : undefined,
   birthday_age: true,
   screensaver_media: Q.has("saver") ? "media-source://media_source/local/fotos" : undefined,
   screensaver_after: 1,
@@ -144,7 +169,8 @@ el.setConfig({
   hour_height: 64, hour_width: 110, time_grid:15,
   persons:[
     {name:"Anna",person:"person.anna",calendar:"calendar.anna",driver:Q.has("rides")},
-    {name:"Ben",person:"person.ben",calendar:"calendar.ben",driver:Q.has("rides")},
+    {name:"Ben",person:"person.ben",calendar:"calendar.ben",driver:Q.has("rides"),
+     notify:Q.has("phone")?"mobile_app_bens_phone":undefined, eta:Q.has("phone")?"sensor.ben_home":undefined},
     {name:"Mia",person:"person.mia",calendar:"calendar.mia"},
     {name:"Leon",person:"person.leon",calendar:"calendar.leon"},
   ],

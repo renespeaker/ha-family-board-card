@@ -184,6 +184,23 @@ const EN: Dict = {
     "Colors apply with “Color by: calendar”, labels in the event dialog. Icon = mdi icon in front of the title. “Title from field” uses e.g.",
   cal_hint_2: "instead of",
   cal_hint_3: "as the event title.",
+  g_phone: "📱 Phone & pin board",
+  o_auto_phone: "Find automatically (from the person)",
+  l_notify: "Phone (companion app)",
+  h_notify: "Pings from the wall tablet and ride reminders go here",
+  l_eta: "Travel time home (sensor, minutes)",
+  h_eta: "e.g. a Waze or Google travel-time sensor: “home in 12 min” while away",
+  l_pinboard: "Pin board (to-do list)",
+  h_pinboard: "Its open items show as sticky notes; anyone adds from the phone or by voice",
+  l_message_entity: "Wall messages (input_text)",
+  h_message_entity:
+    "“Name: text” in this helper shows big on the wall; the automation template writes phone replies here",
+  l_message_hours: "Show a message for (hours)",
+  l_show_presence: "Show where everyone really was",
+  h_show_presence: "“since 17:10” in the status, and today's places as a strip in the timeline",
+  l_ping_topics: "Message topics",
+  h_ping_topics: "e.g. “🍽️ Dinner's ready”; a leading “?” asks for an answer",
+  l_ride_push: "Ride reminder to the driver (min before, 0 = off)",
 };
 
 const DE: Dict = {
@@ -359,6 +376,23 @@ const DE: Dict = {
     "Farben wirken bei „Einfärben nach: Kalender“, Labels im Termin-Dialog. Symbol = mdi-Icon vor dem Titel. „Titel aus Feld“ nutzt z. B.",
   cal_hint_2: "statt",
   cal_hint_3: "als Termin-Titel.",
+  g_phone: "📱 Handy & Pinnwand",
+  o_auto_phone: "Automatisch finden (über die Person)",
+  l_notify: "Handy (Companion-App)",
+  h_notify: "Hierhin gehen Nachrichten vom Wandtablet und Fahrt-Erinnerungen",
+  l_eta: "Fahrzeit nach Hause (Sensor, Minuten)",
+  h_eta: "z. B. ein Waze- oder Google-Fahrzeit-Sensor: „in 12 Min. zuhause“, solange unterwegs",
+  l_pinboard: "Pinnwand (Todo-Liste)",
+  h_pinboard: "Offene Einträge erscheinen als Notizzettel; jeder ergänzt per Handy oder Sprache",
+  l_message_entity: "Wand-Nachrichten (input_text)",
+  h_message_entity:
+    "„Name: Text“ in diesem Helfer erscheint groß an der Wand; die Automations-Vorlage schreibt Antworten vom Handy hierher",
+  l_message_hours: "Nachricht anzeigen für (Stunden)",
+  l_show_presence: "Zeigen, wo alle wirklich waren",
+  h_show_presence: "„seit 17:10“ im Status und die Orte von heute als Streifen im Zeitstrahl",
+  l_ping_topics: "Nachrichten-Themen",
+  h_ping_topics: "z. B. „🍽️ Essen ist fertig“; ein „?“ vorne bittet um Antwort",
+  l_ride_push: "Fahrt-Erinnerung an den Fahrer (Min. vorher, 0 = aus)",
 };
 
 const NL: Dict = {
@@ -544,6 +578,24 @@ const NL: Dict = {
     "Kleuren werken bij “Kleuren op basis van: agenda”, labels in het afspraakvenster. Icoon = mdi-icoon vóór de titel. “Titel uit veld” gebruikt bijv.",
   cal_hint_2: "in plaats van",
   cal_hint_3: "als afspraaktitel.",
+  g_phone: "📱 Telefoon & prikbord",
+  o_auto_phone: "Automatisch vinden (via de persoon)",
+  l_notify: "Telefoon (companion-app)",
+  h_notify: "Berichten van de wandtablet en ritherinneringen komen hier",
+  l_eta: "Reistijd naar huis (sensor, minuten)",
+  h_eta: "bijv. een Waze- of Google-reistijdsensor: “over 12 min thuis” zolang onderweg",
+  l_pinboard: "Prikbord (takenlijst)",
+  h_pinboard: "Open punten verschijnen als briefjes; iedereen voegt toe via telefoon of spraak",
+  l_message_entity: "Wandberichten (input_text)",
+  h_message_entity:
+    "“Naam: tekst” in deze helper verschijnt groot op de wand; de automatiseringssjabloon schrijft antwoorden van de telefoon hierheen",
+  l_message_hours: "Bericht tonen gedurende (uur)",
+  l_show_presence: "Tonen waar iedereen echt was",
+  h_show_presence:
+    "“sinds 17:10” in de status en de plaatsen van vandaag als strook in de tijdlijn",
+  l_ping_topics: "Berichtonderwerpen",
+  h_ping_topics: "bijv. “🍽️ Het eten is klaar”; een “?” vooraan vraagt om antwoord",
+  l_ride_push: "Ritherinnering aan de bestuurder (min vooraf, 0 = uit)",
 };
 
 const FR: Dict = {
@@ -732,6 +784,26 @@ const FR: Dict = {
     "Les couleurs s'appliquent avec « Colorer par : calendrier », les libellés dans la boîte de dialogue. Icône = icône mdi devant le titre. « Titre depuis le champ » utilise ex.",
   cal_hint_2: "au lieu de",
   cal_hint_3: "comme titre d'événement.",
+  g_phone: "📱 Téléphone et tableau d'affichage",
+  o_auto_phone: "Trouver automatiquement (via la personne)",
+  l_notify: "Téléphone (application compagnon)",
+  h_notify: "Les messages de la tablette murale et les rappels de trajet arrivent ici",
+  l_eta: "Temps de trajet jusqu'à la maison (capteur, minutes)",
+  h_eta:
+    "ex. un capteur de temps de trajet Waze ou Google : « à la maison dans 12 min » en déplacement",
+  l_pinboard: "Tableau d'affichage (liste de tâches)",
+  h_pinboard:
+    "Les éléments ouverts apparaissent en notes ; chacun ajoute depuis le téléphone ou à la voix",
+  l_message_entity: "Messages muraux (input_text)",
+  h_message_entity:
+    "« Nom : texte » dans cet assistant s'affiche en grand au mur ; le modèle d'automatisation y écrit les réponses du téléphone",
+  l_message_hours: "Afficher un message pendant (heures)",
+  l_show_presence: "Montrer où chacun était vraiment",
+  h_show_presence:
+    "« depuis 17:10 » dans le statut, et les lieux du jour en bande dans la chronologie",
+  l_ping_topics: "Sujets de message",
+  h_ping_topics: "ex. « 🍽️ À table ! » ; un « ? » au début demande une réponse",
+  l_ride_push: "Rappel de trajet au conducteur (min avant, 0 = désactivé)",
 };
 
 const ES: Dict = {
@@ -918,6 +990,26 @@ const ES: Dict = {
     "Los colores se aplican con «Colorear por: calendario», las etiquetas en el diálogo del evento. Icono = icono mdi delante del título. «Título desde campo» usa p. ej.",
   cal_hint_2: "en lugar de",
   cal_hint_3: "como título del evento.",
+  g_phone: "📱 Teléfono y tablón",
+  o_auto_phone: "Encontrar automáticamente (a través de la persona)",
+  l_notify: "Teléfono (app companion)",
+  h_notify: "Aquí llegan los mensajes de la tablet de pared y los recordatorios de trayectos",
+  l_eta: "Tiempo de viaje a casa (sensor, minutos)",
+  h_eta:
+    "p. ej., un sensor de tiempo de viaje de Waze o Google: «en casa en 12 min» mientras está fuera",
+  l_pinboard: "Tablón (lista de tareas)",
+  h_pinboard:
+    "Los elementos abiertos aparecen como notas; cualquiera añade desde el teléfono o por voz",
+  l_message_entity: "Mensajes de pared (input_text)",
+  h_message_entity:
+    "«Nombre: texto» en este ayudante se muestra en grande en la pared; la plantilla de automatización escribe aquí las respuestas del teléfono",
+  l_message_hours: "Mostrar un mensaje durante (horas)",
+  l_show_presence: "Mostrar dónde estuvo realmente cada uno",
+  h_show_presence:
+    "«desde 17:10» en el estado, y los lugares de hoy como franja en la línea de tiempo",
+  l_ping_topics: "Temas de mensaje",
+  h_ping_topics: "p. ej., «🍽️ La comida está lista»; un «?» delante pide respuesta",
+  l_ride_push: "Recordatorio de trayecto al conductor (min antes, 0 = desactivado)",
 };
 
 const TABLE: Record<string, Dict> = { en: EN, de: DE, nl: NL, fr: FR, es: ES };

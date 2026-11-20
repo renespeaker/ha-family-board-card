@@ -25,6 +25,10 @@
 <td valign="top"><b>Fahrdienst</b> – wer fährt wen: „🚗 Ben“ an der Abholung und eine Warnung, wenn der Fahrer belegt ist<br><img src="docs/preview-rides.png" alt="Family Board Card – Fahrdienst"></td>
 <td valign="top"><b>Foto-Bildschirmschoner</b> – Familienfotos aus einem Medienordner mit großer Uhr; Antippen holt das Board zurück<br><img src="docs/preview-saver.png" alt="Family Board Card – Foto-Bildschirmschoner"></td>
 </tr>
+<tr>
+<td valign="top"><b>Handy und Wandtablet</b> – Pinnwand, eine Nachricht vom Handy und ein 📣-Knopf pro Person<br><img src="docs/preview-companion.png" alt="Family Board Card – Handy und Wandtablet"></td>
+<td valign="top"><b>Wo alle wirklich waren</b> – die echten Orte von heute unter dem Plan im Zeitstrahl<br><img src="docs/preview-presence.png" alt="Family Board Card – Wo alle wirklich waren"></td>
+</tr>
 </table>
 
 Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https://www.home-assistant.io/). Personen stehen als Spalten oben (mit Avatar aus der `person.*`-Entität), links läuft die Zeitleiste. Die Karte zeigt auf einen Blick, welche Aktivitäten gleichzeitig an unterschiedlichen Orten stattfinden — für bis zu 10 Personen.
@@ -37,6 +41,13 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Schlanker Kopfbereich** – `slim_header` schiebt die Wochentage auf die Navigationszeile und stellt den Avatar neben den Namen: rund 40 px weniger Kopf, mehr Platz für den Tag.
 - **Startet auch an einem anderen Tag** – `day_offset` verschiebt Tages- und Zeitstrahl-Ansicht um N Tage (`1` = morgen). Gedacht für Anzeigen, die den kommenden Tag zeigen sollen – etwa ein E-Paper-Display im Flur.
 - **Tages-Check** – optionale Warn-Chips über Tages- und Zeitstrahl-Ansicht: eine Person doppelt verplant, eine unbetreute Lücke zwischen zwei Terminen (Abholung!) oder alle gleichzeitig unterwegs („niemand zuhause"). Bereits vergangene Fenster verschwinden von selbst.
+- **Handy und Wandtablet** – das Board arbeitet mit der Home-Assistant-App zusammen:
+  - **Pinnwand** – `pinboard: todo.pinnwand` zeigt eine Todo-Liste als Notizzettel an der Wand. Jeder ergänzt vom Handy, per Sprache oder direkt an der Wand; ein Tipp auf ✓ hakt ab.
+  - **Nachrichten ans Handy** – bekommt eine Person ihr Handy (`notify`, oder `auto`, dann über die Person gefunden), erscheint ein 📣-Knopf: „🍽️ Essen ist fertig“, „📞 Ruf bitte an“ oder eigene `ping_topics`. „Wann kommst du?“ kommt mit Antwort-Knöpfen und Textfeld.
+  - **Wand-Nachrichten** – `message_entity: input_text.…` zeigt „Ben: Bin um 18:30 da, Stau“ groß an der Wand, auch auf dem Bildschirmschoner. Antworten vom Handy landen dort über die mitgelieferte Automations-Vorlage; jeder kann auch direkt aus der App in den Helfer schreiben.
+  - **Wo alle wirklich waren** – `show_presence: true` ergänzt „seit 17:10“ im Status, und der Zeitstrahl zeigt unter dem Plan, wo jemand heute wirklich war: zuhause, unterwegs, Schule, Büro.
+  - **Ankunftszeit** – `eta` pro Person (ein Fahrzeit-Sensor) zeigt „in 12 Min. zuhause“, solange jemand unterwegs ist.
+  - **Fahrt-Erinnerungen** – `ride_push: 15` schickt dem Fahrer 15 Minuten vor einer Abholung eine Nachricht, auf Android mit mitlaufendem Countdown; sie verschwindet, wenn der Fahrer losfährt.
 - **Geburtstage mit Alter** – mit `birthday_age: true` wird ein Geburtstag mit Geburtsjahr im Titel – „Geburtstag Oma (1946)“, „Max *2019“ – zu „Geburtstag Oma (wird 80)“, in allen Ansichten und in den Countdown-Chips. Nur die Anzeige ändert sich; der Kalender behält seinen Titel.
 - **Private Termine** – Termine, deren Titel oder Beschreibung einen Eintrag aus `private_patterns` enthält (z. B. `#privat`), oder alle Termine eines Kalenders mit `private: true` zeigen nur „🔒 Privat“ und die Uhrzeit. Ort und Notizen bleiben verborgen, der Termin lässt sich weder öffnen noch verschieben, und der Browser-Cache speichert keine Details. Für den Tages-Check zählt die Zeit trotzdem.
 - **Fahrdienst** – wer fährt, bekommt `driver: true`. Termine wie „Mia abholen“ oder „Ben: Leon bringen“ werden zu Fahrten: Fahrer ist, wer im Termin genannt wird, sonst der Besitzer, wenn er fährt. Am Termin steht „🚗 Ben“, und der Tages-Check warnt, wenn niemand fährt („🚗 ?“) oder der Fahrer zur selben Zeit schon etwas vorhat. Eigene Wörter mit `ride_patterns`.
@@ -125,11 +136,17 @@ persons:
 
 | Option          | Typ     | Default | Beschreibung |
 |-----------------|---------|---------|--------------|
-| `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color`, `badges` (Entitäten als Chips), `hidden` (startet eingeklappt), `driver` (fährt: Fahrten werden ihr zugeordnet) und `title_prefix` (nur Termine, deren Titel damit beginnt – für einen gemeinsamen Kalender, siehe unten) |
+| `persons`       | Liste   | –       | 1–10 Personen mit `name`, `person`, `calendar` (String **oder Liste**), optional `color`, `badges` (Entitäten als Chips), `hidden` (startet eingeklappt), `driver` (fährt: Fahrten werden ihr zugeordnet) `title_prefix` (nur Termine, deren Titel damit beginnt – für einen gemeinsamen Kalender, siehe unten), `notify` (das Handy: `mobile_app_…` oder `auto`) und `eta` (Fahrzeit-Sensor) |
 | `persons[].tasks` | String/Liste | – | `todo.*`-Liste(n) dieser Person; heute fällige und überfällige Aufgaben erscheinen als Chips (Tagesansicht + Agenda). Ohne Angabe fragt die Karte keine Liste ab |
 | `hide_empty_persons` | boolean | `false` | Wochenansicht: Personen ohne Termine in der Woche ausblenden |
 | `show_alerts`   | boolean | `false` | Tages-Check über Tag/Zeitstrahl: Doppelbuchungen, Betreuungslücken und „niemand zuhause" als Chips |
 | `late_warning`  | number  | `0`     | „Noch zuhause"-Warnung: Minuten vor einem Termin mit Ort, solange `person.*` noch `home` ist (0 = aus) |
+| `pinboard` | Entität | – | `todo.*`-Liste als Notizzettel (offene Einträge); an der Wand ergänzen und abhaken |
+| `message_entity` | Entität | – | `input_text.*`, dessen Text („Name: Text“) groß an der Wand erscheint; siehe „Handy und Wandtablet“ unten |
+| `message_hours` | Zahl | `3` | Wie lange eine Wand-Nachricht sichtbar bleibt |
+| `show_presence` | boolean | `false` | „seit 17:10“ im Status und die Orte von heute als Streifen im Zeitstrahl |
+| `ping_topics` | Liste | Essen, Anrufen, Einkaufen, Wann kommst du? | Themen des 📣-Knopfs; ein `?` vorne bittet um Antwort |
+| `ride_push` | Zahl | `0` | Minuten vor einer Fahrt, in denen der Fahrer eine Nachricht bekommt (braucht `driver` und `notify`) |
 | `gap_min`       | number  | `60`    | Ab wie vielen Minuten eine Lücke zwischen zwei Terminen einer Person gemeldet wird (0 = aus) |
 | `show_focus`    | boolean | `false` | „Jetzt / als Nächstes"-Leiste pro Person über den Ansichten |
 | `drag_drop`     | boolean | `true`  | Termine in der Tagesansicht per Ziehen verschieben / in der Dauer ändern (nur schreibbare Einzeltermine) |
@@ -216,6 +233,35 @@ Der Filter greift vor den Titel-Ersetzungen und in jeder Ansicht, auch bei
 Live-Updates. Die Termine im Kalender bleiben unverändert. Ohne Präfix zeigt
 die Spalte wie bisher alle Termine. Neue Termine brauchen das Präfix, um in der
 Spalte der Person zu erscheinen. Familien-Kalender sind nicht betroffen.
+
+## Handy und Wandtablet
+
+Das Board spricht mit der Home-Assistant-App nur über Home Assistant – Benachrichtigungsdienste und Helfer –, auf den Handys muss nichts zusätzlich installiert werden.
+
+1. **Pro Person:** `notify` auf den Dienst des Handys setzen (`mobile_app_…`, im Editor aus einer Liste wählbar) oder auf `auto`, dann wird er über die Geräte der Person gefunden. Optional `eta`: ein Fahrzeit-Sensor in Minuten (Waze, Google, …).
+2. **Pinnwand:** eine Todo-Liste anlegen (Einstellungen → Geräte & Dienste → Helfer → *To-do-Liste*) und als `pinboard` eintragen.
+3. **Wand-Nachrichten und Antworten:** einen Text-Helfer anlegen (*Text*, max. Länge 255) und als `message_entity` eintragen. Damit Antworten vom Handy an der Wand ankommen, die Automations-Vorlage importieren und diesen Helfer wählen:
+
+   [![Vorlage importieren](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Frenespeaker%2Fha-family-board-card%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Ffamily_board_messages.yaml)
+
+   Home Assistant lässt nur Administratoren direkt auf Antworten aus Benachrichtigungen hören; die Automation läuft auf dem Server und schreibt sie in den Helfer – das Wandtablet kann ein normaler Benutzer bleiben.
+
+```yaml
+pinboard: todo.pinnwand
+message_entity: input_text.familienboard
+show_presence: true
+ride_push: 15
+ping_topics:
+  - "🍽️ Essen ist fertig"
+  - "? 🕐 Wann kommst du?"
+persons:
+  - name: Ben
+    person: person.ben
+    calendar: calendar.ben
+    notify: auto
+    eta: sensor.ben_fahrzeit
+    driver: true
+```
 
 ## Aussehen anpassen (Theme / card-mod)
 
