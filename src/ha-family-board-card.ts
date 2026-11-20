@@ -114,6 +114,11 @@ export interface FamilyBoardConfig extends LovelaceCardConfig {
   late_warning?: number; // warn N minutes before an event with a place when that person is still home
   drag_drop?: boolean; // drag to move / resize events in the day view. default true
   compact?: boolean; // denser spacing + smaller fonts in one switch
+  style?: StyleName; // ready-made look: classic (default), planner, blueprint, aurora, concrete, night, contrast
+  palette?: string; // person colours: default, pastel, vivid, earth, colorblind
+  accent_color?: string; // highlight colour (selected tab, today); default: the theme's
+  now_color?: string; // colour of the now line; default: the theme's error colour
+  background_color?: string; // card background; text switches to dark or light to stay readable
   map_url?: string; // location link template, {location} is replaced (URL-encoded)
   show_progress?: boolean; // progress bar on running events. default true
   family_calendars?: string | string[]; // calendar.* for everyone (holidays, bin collection …), shown above the people
@@ -191,6 +196,86 @@ interface DialogState {
  * from.
  */
 export const FALLBACK_COLORS = PERSON_PALETTE;
+
+/** Ready-made looks; each one only sets the card's style tokens, colours still follow the theme. */
+export const STYLES = [
+  "classic",
+  "planner",
+  "blueprint",
+  "aurora",
+  "concrete",
+  "night",
+  "contrast",
+] as const;
+export type StyleName = (typeof STYLES)[number];
+
+/** Person colour sets. "default" is the palette shared with the Family Task Card. */
+export const PALETTES: Record<string, string[]> = {
+  default: PERSON_PALETTE,
+  pastel: [
+    "#B8A9FA",
+    "#8EE5C3",
+    "#FCD98A",
+    "#FDA4AF",
+    "#8FE3F0",
+    "#D8B4FE",
+    "#C7EE8C",
+    "#FDBA8C",
+    "#F9A8D4",
+    "#A5C8FB",
+  ],
+  vivid: [
+    "#7C3AED",
+    "#059669",
+    "#D97706",
+    "#E11D48",
+    "#0891B2",
+    "#9333EA",
+    "#65A30D",
+    "#EA580C",
+    "#DB2777",
+    "#2563EB",
+  ],
+  earth: [
+    "#8D6E63",
+    "#6B8E23",
+    "#C49A6C",
+    "#B5651D",
+    "#5F9EA0",
+    "#9C7A97",
+    "#A0A060",
+    "#CD853F",
+    "#B07A7A",
+    "#708090",
+  ],
+  // Okabe-Ito and Tol: told apart with every common kind of colour blindness
+  colorblind: [
+    "#E69F00",
+    "#56B4E9",
+    "#009E73",
+    "#F0E442",
+    "#0072B2",
+    "#D55E00",
+    "#CC79A7",
+    "#999999",
+    "#882255",
+    "#44AA99",
+  ],
+};
+
+/** Relative luminance (WCAG) of a #rrggbb colour, 0 = black, 1 = white. */
+export function luminance(hex: string): number {
+  const ch = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lin = ch.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+}
+
+/** The palette a config asks for; the contrast style brings the colour-blind one along. */
+export function paletteOf(cfg: { palette?: string; style?: string } | undefined): string[] {
+  const named = cfg?.palette && PALETTES[cfg.palette];
+  if (named) return named;
+  return cfg?.style === "contrast" ? PALETTES.colorblind : PERSON_PALETTE;
+}
 
 const DEFAULT_HOUR_HEIGHT = 64; // px per hour in the day view
 const HOUR_HEIGHT_MIN = 40;
@@ -295,8 +380,8 @@ const startOfDay = (d: Date) => {
   return x;
 };
 
-const personColor = (p: PersonConfig, idx: number) =>
-  p.color || FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+const personColor = (p: PersonConfig, idx: number, palette: string[] = FALLBACK_COLORS) =>
+  p.color || palette[idx % palette.length];
 
 /** Deterministic palette color from a string (for location/calendar coloring). */
 const hashColor = (s: string): string => {
@@ -443,6 +528,10 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       this.style.removeProperty("--fb-col-min");
     }
     this.toggleAttribute("compact", config.compact === true);
+    const look = STYLES.includes(config.style as StyleName) ? config.style : "classic";
+    if (look === "classic") this.removeAttribute("fbstyle");
+    else this.setAttribute("fbstyle", look as string);
+    this._applyColors(config);
     this.toggleAttribute("slim", config.slim_header === true);
     const evSize = Number(config.event_size);
     if (Number.isFinite(evSize) && evSize >= 8 && evSize <= 20) {
@@ -583,6 +672,41 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     this._ro = undefined;
     window.removeEventListener("pointermove", this._onDragMove);
     window.removeEventListener("pointerup", this._onDragUp);
+  }
+
+  /** Colours chosen in the editor become the card's own theme variables. */
+  private _applyColors(config: FamilyBoardConfig): void {
+    const hex = (v: unknown) =>
+      typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v.trim()) ? v.trim() : undefined;
+    const set = (name: string, value?: string) =>
+      value ? this.style.setProperty(name, value) : this.style.removeProperty(name);
+    const accent = hex(config.accent_color);
+    set("--fb-accent", accent);
+    set("--primary-color", accent);
+    set("--fb-now-color", hex(config.now_color));
+    const bg = hex(config.background_color);
+    for (const name of [
+      "--card-background-color",
+      "--ha-card-background",
+      "--primary-background-color",
+    ])
+      set(name, bg);
+    // keep the text readable on whatever background was picked
+    const dark = bg ? luminance(bg) < 0.18 : undefined; // where black and white text read equally well
+    set("--primary-text-color", dark === undefined ? undefined : dark ? "#f1f1f1" : "#1f1f1f");
+    set("--secondary-text-color", dark === undefined ? undefined : dark ? "#b4b4b4" : "#5f5f5f");
+    set(
+      "--secondary-background-color",
+      bg ? `color-mix(in srgb, ${bg} 88%, ${dark ? "#ffffff" : "#000000"})` : undefined,
+    );
+    set(
+      "--divider-color",
+      bg ? (dark ? "rgba(255, 255, 255, 0.14)" : "rgba(0, 0, 0, 0.12)") : undefined,
+    );
+  }
+
+  private get _palette(): string[] {
+    return paletteOf(this._config);
   }
 
   private get _progressOn(): boolean {
@@ -1166,7 +1290,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         const when = n === 0 ? formatTime(this.hass, r.start) : rtf.format(n, "day");
         const color =
           r.personIdx >= 0
-            ? personColor(this._persons[r.personIdx], r.personIdx)
+            ? personColor(this._persons[r.personIdx], r.personIdx, this._palette)
             : this._calMeta(r.calendar).color || "var(--secondary-text-color)";
         const icon = this._calIcon(r.calendar);
         return html`<span class="cdchip" role="listitem" style="--fc:${color}">
@@ -1358,7 +1482,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   private _rebuild(): void {
     const raws: RawEvent[] = [];
     this._config.persons.forEach((p, idx) => {
-      const color = personColor(p, idx);
+      const color = personColor(p, idx, this._palette);
       for (const cal of this._calsOf(p)) {
         const tf = this._calMeta(cal).title_field;
         for (const ev of this._calData.get(cal) ?? []) {
@@ -1910,7 +2034,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
     );
   }
   private _avatar(p: PersonConfig, idx: number) {
-    const color = personColor(p, idx);
+    const color = personColor(p, idx, this._palette);
     const st = p.person ? this.hass.states[p.person] : undefined;
     const pic = st?.attributes?.entity_picture as string | undefined;
     const name = this._personName(p, idx);
@@ -2463,7 +2587,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
         ${this._persons.map((p, i) => {
           if (this._isOff(i)) return nothing;
           const { current, next } = this._focusFor(i);
-          const c = personColor(p, i);
+          const c = personColor(p, i, this._palette);
           const icon = (r: RawEvent) => (this._config.auto_icons ? this._autoIcon(r.summary) : "");
           return html`
             <div class="fchip" title=${this._personName(p, i)}>
@@ -2543,7 +2667,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
           ${this._persons.map((p, i) => {
             if (this._isOff(i)) return nothing;
             const { current, next } = this._focusFor(i);
-            const c = personColor(p, i);
+            const c = personColor(p, i, this._palette);
             const name = this._personName(p, i);
             const st = p.person ? this.hass.states[p.person] : undefined;
             const allDay = this._allDayToday(i);
@@ -2766,7 +2890,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                               class="adchip ${tent ? "tentative" : ""}"
                               style="border-left:3px ${
                                 tent ? "dashed" : "solid"
-                              } ${c};background:${c}30;background:color-mix(in srgb, ${c} 22%, var(--card-background-color, #fff))"
+                              } ${c};background:${c}30;background:color-mix(in srgb, ${c} var(--fb-fill-chip, 22%), var(--card-background-color, #fff))"
                               title="${this._evTitle(e)}"
                               tabindex="0"
                               role="button"
@@ -2898,8 +3022,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           style="top:${top + 1.5}px;height:${h}px;
                                left:calc(${leftPct}% + 2px);width:calc(${widthPct}% - 4px);
                                border-left:3px ${tent ? "dashed" : "solid"} ${c};
-                               background:${c}40;
-                               background:color-mix(in srgb, ${c} 32%, var(--card-background-color, #fff))"
+                               --pc:${c};background:${c}40;
+                               background:color-mix(in srgb, ${c} var(--fb-fill, 32%), var(--card-background-color, #fff))"
                           title="${this._evTitle(e)} · ${formatMinutes(
                             this.hass,
                             e.startMin,
@@ -3107,8 +3231,8 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           style="left:${(s - startMin) * px + 1.5}px;width:${w}px;
                                  top:${e.col * LANE + 4}px;height:${LANE - 6}px;
                                  border-left:3px ${tent ? "dashed" : "solid"} ${c};
-                                 background:${c}40;
-                                 background:color-mix(in srgb, ${c} 32%, var(--card-background-color, #fff))"
+                                 --pc:${c};background:${c}40;
+                                 background:color-mix(in srgb, ${c} var(--fb-fill, 32%), var(--card-background-color, #fff))"
                           title="${this._evTitle(e)}${
                             e.allDay
                               ? ` · ${this._t("all_day")}`
@@ -3256,7 +3380,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                           class="wchip ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
                           style="border-left:2.5px ${
                             tent ? "dashed" : "solid"
-                          } ${c};background:${c}30;background:color-mix(in srgb, ${c} 22%, var(--card-background-color, #fff))"
+                          } ${c};background:${c}30;background:color-mix(in srgb, ${c} var(--fb-fill-chip, 22%), var(--card-background-color, #fff))"
                           title="${this._evTitle(e)}"
                           tabindex="0"
                           role="button"
@@ -3363,7 +3487,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
   /** A due task in the agenda, in the same shape as an event row. */
   private _agendaTask(t: BoardTask) {
     const person = this._persons[t.personIdx];
-    const c = personColor(person, t.personIdx);
+    const c = personColor(person, t.personIdx, this._palette);
     return html`
       <div
         class="agenda-row task ${t.overdue ? "overdue" : ""}"
@@ -3505,7 +3629,7 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
                     const tent = this._isTentative(e);
                     return html`<div
                       class="mchip ${this._isPast(e) ? "past" : ""} ${tent ? "tentative" : ""}"
-                      style="background:${col}30;background:color-mix(in srgb, ${col} 22%, var(--card-background-color, #fff));border-left:2px ${
+                      style="background:${col}30;background:color-mix(in srgb, ${col} var(--fb-fill-chip, 22%), var(--card-background-color, #fff));border-left:2px ${
                         tent ? "dashed" : "solid"
                       } ${col}"
                       title="${this._evTitle(e)}"
@@ -4452,6 +4576,251 @@ export class FamilyBoardCard extends LitElement implements LovelaceCard {
       padding: 12px 16px;
       border-bottom: 1px solid var(--divider-color);
     }
+    /* ---- ready-made looks (style:) ------------------------------
+       Complete designs: a drawn scene behind the board (CSS/SVG, a few
+       bytes, no photos), their own surface and text colours, type,
+       event cards and avatar rings. Classic keeps the HA theme. */
+    :host([fbstyle]) ha-card {
+      display: block; /* it is in Home Assistant; say so for any other host */
+      background-color: var(--fb-scene-base, var(--card-background-color));
+      background-image: var(--fb-scene, none);
+      background-size: var(--fb-scene-size, auto);
+    }
+    :host([fbstyle]) .event,
+    :host([fbstyle]) .tlbar {
+      box-shadow: var(--fb-event-shadow, none);
+    }
+    :host([fbstyle]) .avatar {
+      box-shadow: var(--fb-avatar-ring, none);
+    }
+
+    /* Planner: a dotted notebook page, serif headings, index cards */
+    :host([fbstyle="planner"]) {
+      --fb-scene-base: #fbf8f1;
+      --fb-scene: radial-gradient(circle, #d6ccb6 1px, transparent 1.4px);
+      --fb-scene-size: 18px 18px;
+      --card-background-color: #fbf8f1;
+      --ha-card-background: #fbf8f1;
+      --primary-background-color: #f3eee2;
+      --secondary-background-color: #efe8d8;
+      --primary-text-color: #2b2620;
+      --secondary-text-color: #675d4e;
+      --divider-color: #e2d9c6;
+      --primary-color: #b4473a;
+      --text-primary-color: #fff;
+      --fb-accent: #b4473a;
+      --fb-now-color: #b4473a;
+      --fb-soft-text: #4a4237;
+      --fb-radius: 4px;
+      --fb-radius-sm: 3px;
+      --fb-fill: 0%;
+      --fb-fill-chip: 14%;
+      --fb-event-shadow: 0 1px 2px rgba(70, 50, 20, 0.12), 0 3px 8px rgba(70, 50, 20, 0.1);
+      --fb-avatar-ring: 0 0 0 2px #fff, 0 1px 4px rgba(70, 50, 20, 0.25);
+      --fb-title-size: 19px;
+    }
+    :host([fbstyle="planner"]) :is(.title, .nowclock, .pname, .nname, .dayhead, .weeknav) {
+      font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+    }
+    :host([fbstyle="planner"]) .event {
+      border-top: 3px solid var(--pc);
+    }
+
+    /* Blueprint: an architect's drawing, major and minor grid, technical type */
+    :host([fbstyle="blueprint"]) {
+      --fb-scene-base: #123a63;
+      --fb-scene:
+        linear-gradient(rgba(198, 222, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(198, 222, 255, 0.16) 1px, transparent 1px),
+        linear-gradient(rgba(198, 222, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(198, 222, 255, 0.06) 1px, transparent 1px);
+      --fb-scene-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+      --card-background-color: #123a63;
+      --ha-card-background: #123a63;
+      --primary-background-color: #0f3155;
+      --secondary-background-color: rgba(255, 255, 255, 0.08);
+      --primary-text-color: #eef5ff;
+      --secondary-text-color: #b3cbe6;
+      --divider-color: rgba(198, 222, 255, 0.28);
+      --primary-color: #f6c445;
+      --text-primary-color: #10233a;
+      --fb-accent: #f6c445;
+      --fb-now-color: #ff8a65;
+      --fb-soft-text: #d5e4f6;
+      --fb-hourline: rgba(198, 222, 255, 0.24);
+      --fb-halfhour: rgba(198, 222, 255, 0.1);
+      --fb-row-shade: rgba(255, 255, 255, 0.03);
+      --fb-radius: 2px;
+      --fb-radius-sm: 2px;
+      --fb-fill: 14%;
+      --fb-fill-chip: 18%;
+      --fb-avatar-ring: 0 0 0 1.5px #eef5ff;
+    }
+    :host([fbstyle="blueprint"])
+      :is(.title, .nowclock, .etime, .hour, .tlhours, .nuntil, .weeknav) {
+      font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+      letter-spacing: 0.02em;
+    }
+    :host([fbstyle="blueprint"]) .title {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    :host([fbstyle="blueprint"]) :is(.event, .tlbar) {
+      outline: 1.5px solid var(--pc, currentColor);
+      outline-offset: -1.5px;
+    }
+
+    /* Aurora: soft colour clouds behind frosted surfaces */
+    :host([fbstyle="aurora"]) {
+      --fb-scene-base: #f3f1fb;
+      --fb-scene:
+        radial-gradient(at 12% 8%, #c4b5fd 0, transparent 46%),
+        radial-gradient(at 88% 4%, #99f6e4 0, transparent 42%),
+        radial-gradient(at 72% 92%, #fbcfe8 0, transparent 46%),
+        radial-gradient(at 8% 88%, #bfdbfe 0, transparent 42%);
+      --fb-scene-size: 100% 100%;
+      --card-background-color: rgba(255, 255, 255, 0.62);
+      --ha-card-background: rgba(255, 255, 255, 0.62);
+      --primary-background-color: #f3f1fb;
+      --secondary-background-color: rgba(255, 255, 255, 0.5);
+      --primary-text-color: #1d1b2f;
+      --secondary-text-color: #4a4566;
+      --divider-color: rgba(40, 30, 90, 0.12);
+      --primary-color: #6d28d9;
+      --text-primary-color: #fff;
+      --fb-accent: #6d28d9;
+      --fb-soft-text: #34304d;
+      --fb-radius: 14px;
+      --fb-radius-sm: 10px;
+      --fb-fill: 34%;
+      --fb-fill-chip: 30%;
+      --fb-event-shadow: 0 4px 14px rgba(80, 60, 160, 0.14);
+      --fb-avatar-ring: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 4px 10px rgba(80, 60, 160, 0.25);
+    }
+
+    /* Concrete & wood: calm materials, square edges, a wooden header */
+    :host([fbstyle="concrete"]) {
+      --fb-scene-base: #d9d6d0;
+      --fb-scene: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35 0 0 0 0 .34 0 0 0 0 .32 0 0 0 .5 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+      --fb-scene-size: 240px 240px;
+      --card-background-color: #efede9;
+      --ha-card-background: #efede9;
+      --primary-background-color: #e6e3de;
+      --secondary-background-color: #e3e0da;
+      --primary-text-color: #24221f;
+      --secondary-text-color: #5a554d;
+      --divider-color: rgba(0, 0, 0, 0.12);
+      --primary-color: #8a5230;
+      --text-primary-color: #fff;
+      --fb-accent: #8a5230;
+      --fb-now-color: #b5462e;
+      --fb-soft-text: #3d3934;
+      --fb-radius: 0px;
+      --fb-radius-sm: 0px;
+      --fb-fill: 0%;
+      --fb-fill-chip: 10%;
+      --fb-event-shadow: 0 1px 0 rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+      --fb-avatar-ring: 0 0 0 2px #efede9;
+    }
+    :host([fbstyle="concrete"]) ha-card {
+      font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    :host([fbstyle="concrete"]) .top {
+      background-color: #8d5b37;
+      background-image:
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='120'><filter id='w'><feTurbulence type='fractalNoise' baseFrequency='.004 .18' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 .38 0 0 0 0 .22 0 0 0 0 .1 0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23w)'/></svg>"),
+        linear-gradient(180deg, #a06a42, #7e4f2e);
+      background-size:
+        600px 100%,
+        auto;
+      border-bottom: none;
+    }
+    :host([fbstyle="concrete"]) .top .title {
+      color: #fff7ec;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+    :host([fbstyle="concrete"]) .top .switch {
+      background: rgba(255, 247, 236, 0.92);
+    }
+
+    /* Night: a starry sky, glowing event edges */
+    :host([fbstyle="night"]) {
+      --fb-scene-base: #0d1230;
+      --fb-scene:
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><circle cx='231' cy='286' r='1' fill='%23fff' opacity='0.9'/><circle cx='260' cy='300' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='262' cy='243' r='1.5' fill='%23fff' opacity='0.5'/><circle cx='48' cy='228' r='0.8' fill='%23fff' opacity='0.5'/><circle cx='46' cy='275' r='1.5' fill='%23fff' opacity='0.35'/><circle cx='304' cy='202' r='1' fill='%23fff' opacity='0.5'/><circle cx='319' cy='7' r='1.2' fill='%23fff' opacity='0.35'/><circle cx='30' cy='18' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='307' cy='15' r='1' fill='%23fff' opacity='0.7'/><circle cx='225' cy='302' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='150' cy='255' r='0.6' fill='%23fff' opacity='0.35'/><circle cx='234' cy='142' r='1' fill='%23fff' opacity='0.35'/><circle cx='130' cy='161' r='0.7' fill='%23fff' opacity='0.7'/><circle cx='15' cy='35' r='1.2' fill='%23fff' opacity='0.35'/><circle cx='205' cy='55' r='0.8' fill='%23fff' opacity='0.9'/><circle cx='34' cy='8' r='1.5' fill='%23fff' opacity='0.35'/><circle cx='109' cy='107' r='0.6' fill='%23fff' opacity='0.9'/><circle cx='192' cy='203' r='1' fill='%23fff' opacity='0.35'/><circle cx='289' cy='101' r='1.5' fill='%23fff' opacity='0.7'/><circle cx='172' cy='44' r='0.8' fill='%23fff' opacity='0.7'/><circle cx='7' cy='209' r='0.6' fill='%23fff' opacity='0.5'/><circle cx='126' cy='51' r='0.6' fill='%23fff' opacity='0.35'/><circle cx='238' cy='249' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='229' cy='260' r='0.7' fill='%23fff' opacity='0.5'/><circle cx='214' cy='196' r='0.6' fill='%23fff' opacity='0.9'/><circle cx='215' cy='108' r='0.6' fill='%23fff' opacity='0.7'/><circle cx='303' cy='155' r='0.6' fill='%23fff' opacity='0.5'/><circle cx='95' cy='201' r='1.2' fill='%23fff' opacity='0.35'/><circle cx='21' cy='74' r='0.7' fill='%23fff' opacity='0.9'/><circle cx='132' cy='4' r='1.2' fill='%23fff' opacity='0.7'/><circle cx='151' cy='197' r='0.6' fill='%23fff' opacity='0.35'/><circle cx='46' cy='106' r='1.2' fill='%23fff' opacity='0.5'/><circle cx='7' cy='307' r='0.8' fill='%23fff' opacity='0.7'/><circle cx='318' cy='232' r='0.7' fill='%23fff' opacity='0.9'/></svg>"),
+        radial-gradient(ellipse at 80% 0%, rgba(139, 156, 255, 0.25), transparent 55%),
+        linear-gradient(160deg, #0b1026 0%, #1b1446 100%);
+      --fb-scene-size: 320px 320px, 100% 100%, 100% 100%;
+      --card-background-color: rgba(20, 24, 58, 0.78);
+      --ha-card-background: rgba(20, 24, 58, 0.78);
+      --primary-background-color: #0d1230;
+      --secondary-background-color: rgba(255, 255, 255, 0.08);
+      --primary-text-color: #eceefa;
+      --secondary-text-color: #aeb4d6;
+      --divider-color: rgba(255, 255, 255, 0.12);
+      --primary-color: #8b9cff;
+      --text-primary-color: #0d1230;
+      --fb-accent: #8b9cff;
+      --fb-now-color: #ff8a8a;
+      --fb-soft-text: #d6daf2;
+      --fb-hourline: rgba(255, 255, 255, 0.1);
+      --fb-halfhour: rgba(255, 255, 255, 0.04);
+      --fb-fill: 24%;
+      --fb-fill-chip: 26%;
+      --fb-radius: 10px;
+      --fb-avatar-ring: 0 0 0 2px rgba(139, 156, 255, 0.6), 0 0 12px rgba(139, 156, 255, 0.45);
+    }
+    :host([fbstyle="night"]) :is(.event, .tlbar) {
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--pc, #8b9cff) 55%, transparent),
+        0 0 14px color-mix(in srgb, var(--pc, #8b9cff) 30%, transparent);
+    }
+
+    /* translucent surfaces: headers that stay put need body and blur */
+    :host(:is([fbstyle="aurora"], [fbstyle="night"]))
+      :is(
+        .header-row,
+        .allday-row,
+        .axis,
+        .axis-spacer,
+        .corner,
+        .tlhead,
+        .tlperson,
+        .tlcorner,
+        .wday,
+        .wphead,
+        .monthhead,
+        .agenda-date
+      ) {
+      background: color-mix(in srgb, var(--primary-background-color) 88%, transparent);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+    }
+
+    /* High contrast: no tint, a full outline in the person's colour */
+    :host([fbstyle="contrast"]) {
+      --fb-fill: 0%;
+      --fb-fill-chip: 0%;
+      --fb-radius: 4px;
+      --fb-radius-sm: 4px;
+      --fb-event-size: 13px;
+      --fb-time-size: 11px;
+      --fb-past-opacity: 0.7;
+      --fb-hourline: var(--primary-text-color, #212121);
+      --fb-soft-text: var(--primary-text-color, #212121);
+    }
+    :host([fbstyle="contrast"]) .event,
+    :host([fbstyle="contrast"]) .tlbar {
+      outline: 2px solid var(--pc, currentColor);
+      outline-offset: -2px;
+      font-weight: 600;
+    }
+    :host([fbstyle="contrast"]) .nowline {
+      border-top-width: 3px;
+    }
+
     /* one-switch compact density */
     :host([compact]) {
       --fb-title-size: 14px;
@@ -6594,7 +6963,7 @@ if (!customElements.get("family-board-card")) {
 });
 
 console.info(
-  "%c FAMILY-BOARD-CARD %c v0.35.0 ",
+  "%c FAMILY-BOARD-CARD %c v0.36.0 ",
   "background:#5B8CFF;color:#fff;border-radius:3px 0 0 3px",
   "background:#222;color:#fff;border-radius:0 3px 3px 0",
 );

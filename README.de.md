@@ -29,6 +29,18 @@
 <td valign="top"><b>Handy und Wandtablet</b> – Pinnwand, eine Nachricht vom Handy und ein 📣-Knopf pro Person<br><img src="docs/preview-companion.png" alt="Family Board Card – Handy und Wandtablet"></td>
 <td valign="top"><b>Wo alle wirklich waren</b> – die echten Orte von heute unter dem Plan im Zeitstrahl<br><img src="docs/preview-presence.png" alt="Family Board Card – Wo alle wirklich waren"></td>
 </tr>
+<tr>
+<td valign="top"><b>Planer</b> – Notizbuch mit Punktraster, Karteikarten<br><img src="docs/preview-style-planner.png" alt="Family Board Card – Planer"></td>
+<td valign="top"><b>Bauplan</b> – wie eine Architekten-Zeichnung<br><img src="docs/preview-style-blueprint.png" alt="Family Board Card – Bauplan"></td>
+</tr>
+<tr>
+<td valign="top"><b>Aurora</b> – Farbwolken hinter Milchglas<br><img src="docs/preview-style-aurora.png" alt="Family Board Card – Aurora"></td>
+<td valign="top"><b>Beton & Holz</b> – ruhige Materialien, Holz-Kopfzeile<br><img src="docs/preview-style-concrete.png" alt="Family Board Card – Beton & Holz"></td>
+</tr>
+<tr>
+<td valign="top"><b>Nachthimmel</b> – Sterne und leuchtende Ränder<br><img src="docs/preview-style-night.png" alt="Family Board Card – Nachthimmel"></td>
+<td valign="top"><b>Hoher Kontrast</b> – Konturen, farbenblind-sicher<br><img src="docs/preview-style-contrast.png" alt="Family Board Card – Hoher Kontrast"></td>
+</tr>
 </table>
 
 Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https://www.home-assistant.io/). Personen stehen als Spalten oben (mit Avatar aus der `person.*`-Entität), links läuft die Zeitleiste. Die Karte zeigt auf einen Blick, welche Aktivitäten gleichzeitig an unterschiedlichen Orten stattfinden — für bis zu 10 Personen.
@@ -60,6 +72,7 @@ Ein Familienkalender bzw. „Wer ist wann wo"-Board für [Home Assistant](https:
 - **Ansichten wählbar** – im Editor festlegen, welche Umschalter (Jetzt/Tag/Zeitstrahl/Woche/Monat/Agenda) erscheinen.
 - **Wochen-Navigation** – vor/zurück blättern, ein Klick auf den Datumsbereich springt zurück zu „heute". Mit `swipe: true` blättert auf Touchscreens auch Wischen: einen Tag in Tagesansicht und Zeitstrahl, eine Woche in Woche und Agenda, einen Monat in der Monatsansicht. Wo das Board selbst seitlich scrollt (ein breiter Zeitstrahl auf dem Handy), gewinnt das Scrollen.
 - **Theme-aware** – übernimmt Farben und Schrift des aktiven Dashboard-Themes (nutzt durchgehend HA-CSS-Variablen).
+- **Fertige Designs** – `style: planner | blueprint | aurora | concrete | night | contrast` macht aus dem Board ein komplettes Design: eine gezeichnete Szene dahinter (Notizbuchseite mit Punktraster, Architekten-Bauplan, Farbwolken hinter Milchglas, Beton mit Holz-Kopfzeile, Sternenhimmel), eigene Farben, Schrift und Termin-Karten. Es werden keine Fotos geladen – alles ist in wenigen Kilobyte gezeichnet. `palette` wählt die Personenfarben (`pastel`, `vivid`, `earth`, `colorblind`), `accent_color`, `now_color` und `background_color` setzen einzelne Farben; Text bleibt auf jedem Hintergrund lesbar. Alles lässt sich im Editor über Kacheln auswählen.
 - **Konfigurierbar** – Zeitraster 15/30/60 min, Tagesfenster, Wochenende ein/aus, Einfärben nach Person oder Ort, Auto-Aktualisierung.
 - **Drag & Drop** – in der Tagesansicht Termine per Ziehen verschieben (Uhrzeit) und am unteren Rand die Dauer ändern; rastet aufs Zeitraster und schreibt direkt in den Kalender zurück – **nur** bei schreibbaren Kalendern, Einzeltermine (keine Serien).
 - **Termine verwalten** – anlegen/bearbeiten/löschen direkt in der Karte, **aber nur** bei Kalendern, die das unterstützen (Local Calendar, CalDAV …). Schreibgeschützte Kalender (z. B. ICS-Abos) werden automatisch erkannt und nur angezeigt. Neue Termine lassen sich wiederholen (**jeden Tag, jede Woche, jeden Monat oder jedes Jahr**, optional bis zu einem Datum) – „jeden Dienstag Fußball" ist ein einziger Eintrag. Wiederkehrende Termine: beim Bearbeiten Wahl **„nur dieser / dieser und folgende"**.
@@ -170,6 +183,9 @@ persons:
 | `filter_duplicates` | boolean | `false` | Identische Termine (Titel+Zeit) pro Person und in der Agenda nur einmal zeigen |
 | `calendars`     | Map     | –       | Pro Kalender `color`, `label`, `icon` (mdi), `title_field` und `private: true` (alle Termine nur als „Privat“) – alles im Editor pflegbar |
 | `compact`       | boolean | `false` | Kompakte Darstellung: kleinere Schriften und engere Abstände |
+| `style` | Text | `classic` | Fertiges Design: `classic` (dein HA-Theme), `planner`, `blueprint`, `aurora`, `concrete`, `night`, `contrast` |
+| `palette` | Text | `default` | Personenfarben: `default`, `pastel`, `vivid`, `earth`, `colorblind` (der Stil `contrast` nimmt `colorblind`, wenn nichts gesetzt ist) |
+| `accent_color` / `now_color` / `background_color` | Farbe | – | `#rrggbb` für Akzent, Jetzt-Linie und Kartenhintergrund; die Schrift wechselt zu hell oder dunkel, damit sie lesbar bleibt |
 | `map_url`       | string  | Google  | Vorlage für den Orts-Link, `{location}` wird eingesetzt, z. B. `https://maps.apple.com/?q={location}` |
 | `event_size`    | number  | –       | Schriftgröße der Termin-Titel in px (Editor-Slider, setzt `--fb-event-size`) |
 | `radius`        | number  | –       | Ecken-Radius der Termin-Blöcke in px (setzt `--fb-radius`) |
@@ -263,9 +279,9 @@ persons:
     driver: true
 ```
 
-## Aussehen anpassen (Theme / card-mod)
+## Aussehen anpassen (Theme / UIX / card-mod)
 
-Die Karte übernimmt automatisch Farben & Schrift des Themes. Für Feintuning gibt es zusätzlich eigene CSS-Variablen, die du im **Theme** oder per **card-mod** überschreiben kannst:
+Die Karte übernimmt automatisch Farben & Schrift des Themes. Für Feintuning gibt es zusätzlich eigene CSS-Variablen, die du im **Theme** oder per **UIX** überschreiben kannst (dem Nachfolger von card-mod; card-mod funktioniert gleich, wo es noch läuft):
 
 | Token | Default | Wirkung |
 |-------|---------|---------|
