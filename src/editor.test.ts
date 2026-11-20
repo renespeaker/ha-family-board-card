@@ -20,7 +20,11 @@ type Form = HTMLElement & {
 
 const mounted: HTMLElement[] = [];
 
-async function mountEditor(config: Record<string, unknown> = {}, lang = "de") {
+async function mountEditor(
+  config: Record<string, unknown> = {},
+  lang = "de",
+  services: Record<string, Record<string, unknown>> = {},
+) {
   const el = document.createElement("ha-family-board-card-editor") as HTMLElement & {
     setConfig(c: unknown): void;
     hass: unknown;
@@ -31,7 +35,7 @@ async function mountEditor(config: Record<string, unknown> = {}, lang = "de") {
     persons: [{ name: "Anna", calendar: "calendar.anna" }],
     ...config,
   });
-  el.hass = { locale: { language: lang }, states: {} };
+  el.hass = { locale: { language: lang }, states: {}, services };
   document.body.appendChild(el);
   mounted.push(el);
   await el.updateComplete;
@@ -197,5 +201,41 @@ describe("private calendar switch", () => {
     again[1].checked = false;
     again[1].dispatchEvent(new Event("change"));
     expect(seen[seen.length - 1]?.calendars).toBeUndefined();
+  });
+});
+
+describe("phone and pin board settings", () => {
+  it("offers the companion-app phones Home Assistant knows, plus finding them automatically", async () => {
+    const { root } = await mountEditor({}, "de", {
+      notify: {
+        mobile_app_bens_pixel: {},
+        mobile_app_annas_iphone: {},
+        persistent_notification: {},
+      },
+    });
+    const form = root.querySelector(".person ha-form") as HTMLElement & {
+      schema: Array<{ name: string; selector: any }>;
+    };
+    const notify = form.schema.find((f) => f.name === "notify")!;
+    expect(notify.selector.select.options).toEqual([
+      { value: "auto", label: "Automatisch finden (über die Person)" },
+      { value: "mobile_app_annas_iphone", label: "annas_iphone" },
+      { value: "mobile_app_bens_pixel", label: "bens_pixel" },
+    ]);
+    expect(form.schema.some((f) => f.name === "eta")).toBe(true);
+  });
+
+  it("groups pin board, wall messages, presence, topics and ride reminders", async () => {
+    const { fields, groupTitles } = await mountEditor({ message_entity: "input_text.wand" });
+    expect(groupTitles()).toContain("📱 Handy & Pinnwand");
+    for (const f of [
+      "pinboard",
+      "message_entity",
+      "message_hours",
+      "show_presence",
+      "ping_topics",
+      "ride_push",
+    ])
+      expect(fields()).toContain(f);
   });
 });

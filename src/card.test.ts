@@ -47,6 +47,12 @@ interface MountOpts {
   slowApi?: boolean;
   /** Media folder for the screensaver: what media_source/browse_media lists. */
   media?: Array<{ media_content_id: string; media_class: string }>;
+  /** Services HA offers (hass.services), e.g. { notify: { mobile_app_ben: {} } }. */
+  services?: Record<string, Record<string, unknown>>;
+  /** Full state objects, for attributes or last_changed. */
+  stateObjs?: Record<string, Record<string, unknown>>;
+  /** Answer of history/history_during_period. */
+  history?: Record<string, unknown[]>;
   /** Local wall-clock time the test pretends it is. */
   now?: string;
 }
@@ -80,7 +86,10 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
   for (const [entity, state] of Object.entries(opts.states ?? {})) {
     states[entity] = { state, attributes: { friendly_name: entity.split(".")[1] } };
   }
+  Object.assign(states, opts.stateObjs ?? {});
   const wsCalls: Array<Record<string, unknown>> = [];
+  const serviceCalls: Array<{ domain: string; service: string; data: Record<string, unknown> }> =
+    [];
   const apiPaths: string[] = [];
   const subs: Array<{
     msg: Record<string, unknown>;
@@ -120,8 +129,13 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
       if (opts.slowApi) return new Promise(() => undefined);
       return calendars[path.split("?")[0].replace("calendars/", "")] ?? [];
     },
+    services: opts.services ?? {},
+    callService: async (domain: string, service: string, data: Record<string, unknown>) => {
+      serviceCalls.push({ domain, service, data });
+    },
     callWS: async (msg: Record<string, unknown>) => {
       wsCalls.push(msg);
+      if (msg.type === "history/history_during_period") return opts.history ?? {};
       if (msg.type === "media_source/browse_media") return { children: opts.media ?? [] };
       if (msg.type === "media_source/resolve_media") {
         const id = String(msg.media_content_id);
@@ -148,6 +162,7 @@ async function mount(config: Partial<FamilyBoardConfig>, opts: MountOpts = {}) {
     el,
     root,
     wsCalls,
+    serviceCalls,
     apiPaths,
     subs,
     text: () => (root.textContent ?? "").replace(/\s+/g, " ").trim(),
@@ -1787,5 +1802,231 @@ describe("birthdays with age", () => {
   it("changes nothing while the option is off", async () => {
     const { texts } = await mount({ ...base, view: "agenda", views: ["agenda"] }, { calendars });
     expect(texts(".agenda-title")[0]).toBe("Geburtstag Oma (1946)");
+  });
+});
+
+describe("companion app: pin board, status, pings, wall messages, ride push", () => {
+  type Card = HTMLElement & {
+    hass: { states: Record<string, unknown> };
+    updateComplete: Promise<unknown>;
+  };
+  const settle = async (el: HTMLElement) => {
+    for (let i = 0; i < 6; i++) {
+      await vi.advanceTimersByTimeAsync(0);
+      await (el as Card).updateComplete;
+    }
+  };
+  const now = {
+    view: "now" as const,
+    views: ["now" as const, "day" as const, "timeline" as const],
+  };
+
+  it("shows the pin board as notes, ticks one off and adds a new one", async () => {
+    const { el, root, texts, serviceCalls } = await mount(
+      { persons: [{ name: "Anna", calendar: "calendar.anna" }], pinboard: "todo.pinnwand", ...now },
+      {
+        calendars: { "calendar.anna": [] },
+        todos: {
+          "todo.pinnwand": [
+            { uid: "p1", summary: "Oma ruft heute Abend an", status: "needs_action" },
+            { uid: "p2", summary: "Alt", status: "completed" },
+          ],
+        },
+      },
+    );
+    expect(texts(".pin .pintext")).toEqual(["Oma ruft heute Abend an"]);
+    root.querySelector<HTMLButtonElement>(".pindone")!.click();
+    await settle(el);
+    expect(serviceCalls[0]).toEqual({
+      domain: "todo",
+      service: "update_item",
+      data: { entity_id: "todo.pinnwand", item: "p1", status: "completed" },
+    });
+    root.querySelector<HTMLButtonElement>(".pinadd")!.click();
+    await settle(el);
+    const input = root.querySelector<HTMLInputElement>(".pininput")!;
+    input.value = "Schlüssel beim Nachbarn";
+    input.dispatchEvent(new Event("input"));
+    root.querySelector<HTMLFormElement>(".pinform")!.dispatchEvent(new Event("submit"));
+    await settle(el);
+    expect(serviceCalls[serviceCalls.length - 1]).toEqual({
+      domain: "todo",
+      service: "add_item",
+      data: { entity_id: "todo.pinnwand", item: "Schlüssel beim Nachbarn" },
+    });
+  });
+
+  it("says since when someone is where, and when they will be home", async () => {
+    const { texts } = await mount(
+      {
+        persons: [
+          { name: "Mia", person: "person.mia", calendar: "calendar.mia" },
+          { name: "Ben", person: "person.ben", calendar: "calendar.ben", eta: "sensor.ben_home" },
+        ],
+        show_presence: true,
+        ...now,
+      },
+      {
+        calendars: { "calendar.mia": [], "calendar.ben": [] },
+        stateObjs: {
+          "person.mia": { state: "Schule", attributes: {}, last_changed: "2026-09-11T07:52:00" },
+          "person.ben": { state: "not_home", attributes: {}, last_changed: "2026-09-10T20:00:00" },
+          "sensor.ben_home": { state: "12", attributes: { unit_of_measurement: "min" } },
+        },
+      },
+    );
+    // yesterday's change says nothing about today
+    expect(texts(".nstat")).toEqual(["Schule · seit 07:52", "unterwegs · in 12 Min. zuhause"]);
+  });
+
+  it("draws today's places as a strip in the timeline", async () => {
+    const at = (h: number, m = 0) => new Date(2026, 8, 11, h, m).getTime() / 1000;
+    const { root, wsCalls } = await mount(
+      {
+        persons: [{ name: "Mia", person: "person.mia", calendar: "calendar.mia" }],
+        show_presence: true,
+        view: "timeline",
+        views: ["timeline"],
+        start_hour: 7,
+        end_hour: 20,
+      },
+      {
+        calendars: { "calendar.mia": [] },
+        stateObjs: {
+          "person.mia": { state: "Schule", attributes: {}, last_changed: "2026-09-11T07:52:00" },
+        },
+        history: {
+          "person.mia": [
+            { s: "home", lu: at(0) },
+            { s: "Schule", lu: at(7, 52) },
+          ],
+        },
+      },
+    );
+    expect(wsCalls.find((m) => m.type === "history/history_during_period")).toMatchObject({
+      entity_ids: ["person.mia"],
+      no_attributes: true,
+    });
+    const spans = [...root.querySelectorAll<HTMLElement>(".tlpresence span")];
+    expect(spans.map((s) => s.title)).toEqual(["zuhause 00:00–07:52", "Schule 07:52–10:20"]);
+  });
+
+  it("sends a ping to the phone found through the person, with answers when it asks", async () => {
+    const { el, root, texts, serviceCalls } = await mount(
+      {
+        persons: [{ name: "Ben", person: "person.ben", calendar: "calendar.ben", notify: "auto" }],
+        ...now,
+      },
+      {
+        calendars: { "calendar.ben": [] },
+        services: { notify: { mobile_app_bens_pixel: {} } },
+        stateObjs: {
+          "person.ben": {
+            state: "not_home",
+            attributes: { device_trackers: ["device_tracker.bens_pixel"] },
+            last_changed: "2026-09-11T08:00:00",
+          },
+        },
+      },
+    );
+    root.querySelector<HTMLButtonElement>(".pingbtn")!.click();
+    await settle(el);
+    expect(texts(".pingtopic")).toEqual([
+      "🍽️ Essen ist fertig",
+      "📞 Ruf bitte an",
+      "🛒 Bitte einkaufen",
+      "🕐 Wann kommst du? (bittet um Antwort)",
+    ]);
+    root.querySelectorAll<HTMLButtonElement>(".pingtopic")[3].click();
+    await settle(el);
+    const call = serviceCalls[0];
+    expect(call.domain).toBe("notify");
+    expect(call.service).toBe("mobile_app_bens_pixel");
+    expect(call.data.message).toBe("🕐 Wann kommst du?");
+    expect((call.data.data as { actions: unknown[] }).actions).toHaveLength(3);
+    expect(root.querySelector(".pingmenu")).toBeNull();
+    expect(root.querySelector(".toast")?.textContent).toBe("Gesendet an Ben");
+  });
+
+  it("has no ping button without a phone", async () => {
+    const { root } = await mount(
+      { persons: [{ name: "Ben", calendar: "calendar.ben", notify: "auto" }], ...now },
+      { calendars: { "calendar.ben": [] }, services: { notify: { mobile_app_x: {} } } },
+    );
+    expect(root.querySelector(".pingbtn")).toBeNull();
+  });
+
+  it("shows a fresh wall message big, with who wrote it, and hides it on request", async () => {
+    const msg = (state: string, changed: string) => ({
+      "input_text.wand": { state, attributes: {}, last_changed: changed },
+    });
+    const persons = [{ name: "Ben", calendar: "calendar.ben" }];
+    const fresh = await mount(
+      { persons, message_entity: "input_text.wand", ...now },
+      {
+        calendars: { "calendar.ben": [] },
+        stateObjs: msg("Ben: 18:30, Stau", "2026-09-11T10:05:00"),
+      },
+    );
+    expect(fresh.texts(".wallmsg .walltext")).toEqual(["Ben 18:30, Stau 10:05"]);
+    fresh.root.querySelector<HTMLButtonElement>(".wallclose")!.click();
+    await settle(fresh.el);
+    expect(fresh.serviceCalls[0]).toEqual({
+      domain: "input_text",
+      service: "set_value",
+      data: { entity_id: "input_text.wand", value: "" },
+    });
+    expect(fresh.root.querySelector(".wallmsg")).toBeNull();
+    const old = await mount(
+      { persons, message_entity: "input_text.wand", ...now },
+      { calendars: { "calendar.ben": [] }, stateObjs: msg("Ben: alt", "2026-09-11T06:00:00") },
+    );
+    expect(old.root.querySelector(".wallmsg")).toBeNull();
+  });
+
+  it("reminds the driver before a ride and takes it back when they leave", async () => {
+    const persons = [
+      {
+        name: "Ben",
+        person: "person.ben",
+        calendar: "calendar.ben",
+        driver: true,
+        notify: "mobile_app_ben",
+      },
+      { name: "Mia", calendar: "calendar.mia" },
+    ];
+    const { el, serviceCalls } = await mount(
+      { persons, ride_push: 15, ...now },
+      {
+        calendars: {
+          "calendar.ben": [],
+          "calendar.mia": [ev("Ben: Mia abholen", "10:30", "11:00", { location: "Sporthalle" })],
+        },
+        services: { notify: { mobile_app_ben: {} } },
+        stateObjs: {
+          "person.ben": { state: "home", attributes: {}, last_changed: "2026-09-11T08:00:00" },
+        },
+      },
+    );
+    const push = serviceCalls.find((c) => c.domain === "notify");
+    expect(push?.service).toBe("mobile_app_ben");
+    expect(push?.data).toMatchObject({
+      title: "🚗 Ben: Mia abholen",
+      message: "10:30 · Sporthalle",
+    });
+    expect(push?.data.data).toMatchObject({ chronometer: true });
+    const card = el as Card;
+    card.hass = {
+      ...card.hass,
+      states: {
+        ...card.hass.states,
+        "person.ben": { state: "not_home", attributes: {}, last_changed: "2026-09-11T10:22:00" },
+      },
+    };
+    await settle(el);
+    const clear = serviceCalls.find((c) => c.data.message === "clear_notification");
+    expect(clear?.service).toBe("mobile_app_ben");
+    // once only, even when the board updates again
+    expect(serviceCalls.filter((c) => c.data.title === "🚗 Ben: Mia abholen")).toHaveLength(1);
   });
 });

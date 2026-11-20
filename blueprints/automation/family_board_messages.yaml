@@ -1,0 +1,42 @@
+blueprint:
+  name: Family Board – answers from the phone
+  description: >-
+    Writes answers to messages sent from the Family Board Card (for example
+    "When are you home?") into an input_text helper, as "Name: answer".
+    The board shows the helper big on the wall tablet. The card cannot
+    receive these answers by itself, because Home Assistant only lets
+    administrators listen to notification events – this automation runs on
+    the Home Assistant server and passes them on.
+  domain: automation
+  source_url: https://github.com/renespeaker/ha-family-board-card/blob/main/blueprints/automation/family_board_messages.yaml
+  input:
+    message_entity:
+      name: Wall message helper
+      description: The input_text set as message_entity in the card.
+      selector:
+        entity:
+          domain: input_text
+
+mode: queued
+
+trigger:
+  - platform: event
+    event_type: mobile_app_notification_action
+
+condition:
+  - condition: template
+    value_template: "{{ trigger.event.data.action is string and trigger.event.data.action.startswith('FAMILY_BOARD|') }}"
+
+action:
+  - variables:
+      parts: "{{ trigger.event.data.action.split('|') }}"
+      who: "{{ parts[1] if parts | count > 1 else '' }}"
+      answer: >-
+        {{ (parts[2] if parts | count > 2 and parts[2] else trigger.event.data.reply_text | default('')) | trim }}
+  - condition: template
+    value_template: "{{ answer != '' }}"
+  - service: input_text.set_value
+    target:
+      entity_id: !input message_entity
+    data:
+      value: "{{ ((who ~ ': ') if who else '') ~ answer | truncate(250, true, '…') }}"

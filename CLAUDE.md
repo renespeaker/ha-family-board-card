@@ -31,6 +31,10 @@ be mentioned as a hint. `src/shared/person-palette.ts` is mirrored in both repos
 ## Code map
 - `src/ha-family-board-card.ts` – the card (views: now, day, timeline, week,
   month, agenda; dialog; drag & drop; styles).
+- `src/companion.ts` – pure helpers for the companion app (notify calls,
+  wall messages, presence spans, ETA). `blueprints/automation/` – the
+  automation template that writes phone answers into `message_entity`
+  (non-admin users may not subscribe to `mobile_app_notification_action`).
 - `src/events.ts` – pure date/event logic. Do date math with `addDays` /
   `daysBetween` (calendar days), never `+ 24h`: DST bugs (#62) came from that.
 - `src/editor.ts`, `src/editor-i18n.ts` – visual editor, fully EN/DE.
@@ -55,8 +59,9 @@ be mentioned as a hint. `src/shared/person-palette.ts` is mirrored in both repos
 
 ## Backlog (on hold – the maintainer wants to think it through first)
 Do not start these without asking.
-- **Styles / themes.** Work in progress on branch `claude/clever-brown-nhu10w`
-  (commit "WIP: Stil-Vorlagen …"): `style` (classic, paper, bold, pastel,
+- **Styles / themes.** The WIP was taken out of v0.35.0 by commit `1f13697`
+  ("Revert WIP: Stil-Vorlagen …"); bring it back with `git revert 1f13697`
+  (or cherry-pick `e688207`). It had: `style` (classic, paper, bold, pastel,
   glass, contrast), `palette`, `accent_color`, `now_color`,
   `background_color` (text colour follows the background), an editor section
   "Look" with style tiles, palettes and colour swatches, tests and per-style
@@ -66,33 +71,13 @@ Do not start these without asking.
   Planner, Aurora, Concrete & Wood, Night, plus an own `background_image`
   (`/local/…` or the media folder). Show screenshots before releasing.
   Also: the README still only names card-mod; mention UIX, its successor.
-- **Companion app – chosen by the maintainer (next candidates, ask before building):**
-  1. *Pin board* (`todo.*` list as sticky notes on the wall, anyone adds from
-     the phone/voice, tap = done) – card only, no push rights.
-  2. *Plan vs. reality* – from the `person.*` history: "Mia arrived at school
-     07:52", "Ben home since 17:10"; in the timeline next to the plan.
-  3. *ETA on the person header* – "Ben – home in 12 min" from a travel-time
-     or proximity entity.
-  4. *"When are you home?" with text reply* – the answer from the
-     notification ("18:30, traffic") shows as a chip on the wall tablet.
-  5. *Pick-up countdown* – Android chronometer notification "pick up Mia in
-     14:59", cleared when the driver leaves.
-  6. *Message to the wall from the phone* – shown big on the tablet, as a
-     toast or on the screensaver (the reverse of the ping button).
-  4–6 need the board to receive app events (see the open question below) or
-  a shipped automation blueprint.
+- **Companion app – done in v0.35.0:** pin board (`pinboard`), presence
+  (`show_presence`: "since", timeline strip), ETA (`eta`), pings with answers
+  (`notify` per person, `ping_topics`), wall messages (`message_entity`,
+  `message_hours`, blueprint for answers), ride push (`ride_push`).
 - **Companion app – backlog:** do-not-disturb (iOS focus / Android DND)
   shown as 🔕 and respected by the ping button; QR code in the event dialog
   (navigation / add to own calendar); phone layout and haptics inside the
   app; kids' phone battery via `badges` as a README recipe; morning briefing
   per person as a blueprint; SOS button only with a clear "no emergency-call
-  replacement" note; editor finds each person's `notify.mobile_app_*` from
-  the person's device trackers.
-- **Companion app.** Ideas: per person a `notify.mobile_app_*` service;
-  a "ping" button on the wall tablet with topics (dinner's ready, call me,
-  bring milk, when are you home?) and answer buttons sent back to the board;
-  rides as push with "I'll do it / can't" (can't → "no driver" alert);
-  the still-at-home warning as push; "send event to phone"; next alarm on the
-  night screen; phone layout inside the app. Open question: may a non-admin
-  user subscribe to `mobile_app_notification_action`? Else ship an
-  automation blueprint.
+  replacement" note.

@@ -56,6 +56,8 @@ const SHOTS = [
   ["dark", "view=now&dark=1", 1100, 520],
   ["night", "view=day&night=1", 1100, 520, "2026-10-07T23:10:00+02:00"],
   ["rides", "view=day&alerts=1&rides=1", 1400, 900, "2026-10-07T14:20:00+02:00"],
+  ["companion", "view=now&phone=1", 1100, 700],
+  ["presence", "view=timeline&phone=1", 1400, 620],
   // the slideshow starts after a minute without touch: wind the clock on
   ["saver", "view=now&saver=1", 1100, 520, NOW, 65000],
 ];
