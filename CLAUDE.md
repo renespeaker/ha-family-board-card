@@ -52,3 +52,25 @@ be mentioned as a hint. `src/shared/person-palette.ts` is mirrored in both repos
 ## Open items
 - PR #57 (TypeScript 7): on hold until `@rollup/plugin-typescript` supports TS 7
   (12.3.0 does not). Check `npm view @rollup/plugin-typescript version`.
+
+## Backlog (on hold – the maintainer wants to think it through first)
+Do not start these without asking.
+- **Styles / themes.** Work in progress on branch `claude/clever-brown-nhu10w`
+  (commit "WIP: Stil-Vorlagen …"): `style` (classic, paper, bold, pastel,
+  glass, contrast), `palette`, `accent_color`, `now_color`,
+  `background_color` (text colour follows the background), an editor section
+  "Look" with style tiles, palettes and colour swatches, tests and per-style
+  browser checks. The plumbing is done; the maintainer found the looks too
+  plain. Plan: richer, complete designs drawn as small SVG/CSS scenes – no
+  bundled or hot-linked photos (size, privacy, licences) – e.g. Blueprint,
+  Planner, Aurora, Concrete & Wood, Night, plus an own `background_image`
+  (`/local/…` or the media folder). Show screenshots before releasing.
+  Also: the README still only names card-mod; mention UIX, its successor.
+- **Companion app.** Ideas: per person a `notify.mobile_app_*` service;
+  a "ping" button on the wall tablet with topics (dinner's ready, call me,
+  bring milk, when are you home?) and answer buttons sent back to the board;
+  rides as push with "I'll do it / can't" (can't → "no driver" alert);
+  the still-at-home warning as push; "send event to phone"; next alarm on the
+  night screen; phone layout inside the app. Open question: may a non-admin
+  user subscribe to `mobile_app_notification_action`? Else ship an
+  automation blueprint.
